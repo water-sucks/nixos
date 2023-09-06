@@ -1,9 +1,15 @@
 const std = @import("std");
-const mem = @import("mem");
+const mem = std.mem;
+
+const build = @import("build.zig");
+const enter = @import("enter.zig");
+
+const log = @import("log.zig");
 
 const argparse = @import("argparse.zig");
-const build = @import("build.zig");
-const log = @import("log.zig");
+const App = argparse.App;
+const ArgParseError = argparse.ArgParseError;
+const Command = argparse.Command;
 
 const usage =
     \\Usage:
@@ -11,6 +17,7 @@ const usage =
     \\
     \\Commands:
     \\    build    Build a NixOS configuration
+    \\    enter    Chroot into a NixOS installation
     \\
     \\Options:
     \\    -h, --help    Show this help menu
@@ -19,7 +26,7 @@ const usage =
     \\
 ;
 
-pub fn main() !void {
+pub fn main() !u8 {
     var arena_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena_allocator.deinit();
     const allocator = arena_allocator.allocator();
@@ -47,6 +54,8 @@ pub fn main() !void {
 
     if (mem.eql(u8, arg, "build")) {
         return build.buildMain(allocator, &args);
+    } else if (mem.eql(u8, arg, "enter")) {
+        return enter.enterMain(allocator, &args);
     } else {
         log.print("{s}\n", .{usage});
         if (argparse.isFlag(arg)) {
