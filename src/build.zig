@@ -54,8 +54,10 @@ pub const BuildArgs = struct {
     // Same as --vm, but with a bootloader instead of booting into the kernel directly
     vm_with_bootloader: bool = false,
 
-    /// All arguments passed through to `nix` invocations.
-    build_args: ArrayList([]const u8),
+    /// All options passed through to `nix` invocations
+    build_options: ArrayList([]const u8),
+    /// All options passed through to `nix` invocations that involve flakes
+    flake_options: ArrayList([]const u8),
 
     const Self = @This();
 
@@ -107,7 +109,8 @@ pub const BuildArgs = struct {
 
     fn init(allocator: Allocator) Self {
         return BuildArgs{
-            .build_args = ArrayList([]const u8).init(allocator),
+            .build_options = ArrayList([]const u8).init(allocator),
+            .flake_options = ArrayList([]const u8).init(allocator),
         };
     }
 
@@ -154,23 +157,29 @@ pub const BuildArgs = struct {
                 result.upgrade_all_channels = true;
             } else if (argIn(arg, &.{ "--verbose", "-v", "-vv", "-vvv", "-vvvv", "-vvvvv" })) {
                 verbose = true;
-                try result.build_args.append(arg);
+                try result.build_options.append(arg);
             } else if (argIs(arg, "--vm", null)) {
                 result.vm = true;
             } else if (argIs(arg, "--vm-with-bootloader", null)) {
                 result.vm_with_bootloader = true;
             } else if (argIn(arg, &.{ "--quiet", "--print-build-logs", "-L", "--no-build-output", "-Q", "--show-trace", "--keep-going", "-k", "--keep-failed", "-K", "--fallback", "--refresh", "--repair", "--impure", "--offline", "--no-net" })) {
-                // Passthrough arguments to Nix with no additional arguments
-                try result.build_args.append(arg);
+                try result.build_options.append(arg);
             } else if (argIn(arg, &.{ "-I", "--max-jobs", "-j", "--cores", "--builders", "--log-format" })) {
-                // Passthrough arguments to Nix with one additional argument
                 const next = (try getNextArgs(args, arg, 1))[0];
-                try result.build_args.append(arg);
-                try result.build_args.append(next);
+                try result.build_options.append(arg);
+                try result.build_options.append(next);
             } else if (argIs(arg, "--option", null)) {
-                // --option takes two arguments, rather than 1
                 const next_args = try getNextArgs(args, arg, 2);
-                try result.build_args.appendSlice(&.{ arg, next_args[0], next_args[1] });
+                try result.build_options.appendSlice(&.{ arg, next_args[0], next_args[1] });
+            } else if (argIn(arg, &.{ "--recreate-lock-file", "--no-update-lock-file", "--no-write-lock-file", "--no-registries", "--commit-lock-file" })) {
+                try result.flake_options.append(arg);
+            } else if (argIs(arg, "--update-input", null)) {
+                const next = (try getNextArgs(args, arg, 1))[0];
+                try result.flake_options.append(arg);
+                try result.flake_options.append(next);
+            } else if (argIs(arg, "--override-input", null)) {
+                const next_args = try getNextArgs(args, arg, 2);
+                try result.build_options.appendSlice(&.{ arg, next_args[0], next_args[1] });
             } else {
                 log.print(usage, .{});
                 if (argparse.isFlag(arg)) {
@@ -191,7 +200,8 @@ pub const BuildArgs = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        self.build_args.deinit();
+        self.build_options.deinit();
+        self.flake_options.deinit();
     }
 };
 
@@ -319,7 +329,7 @@ fn nixBuild(
     allocator: Allocator,
     build_type: BuildType,
     options: struct {
-        build_args: []const []const u8,
+        build_options: []const []const u8,
         result_dir: ?[]const u8 = null,
         dry: bool = false,
     },
@@ -333,7 +343,7 @@ fn nixBuild(
     var argv = ArrayList([]const u8).init(allocator);
     defer argv.deinit();
 
-    // nix-build -A ${attribute} [-k] [--out-link <dir>] [${build_args}]
+    // nix-build -A ${attribute} [-k] [--out-link <dir>] [${build_options}]
     try argv.appendSlice(&.{ "nix-build", "<nixpkgs/nixos>", "-A", attribute });
 
     // Mimic `nixos-rebuild` behavior of using -k option
@@ -347,7 +357,7 @@ fn nixBuild(
         try argv.append(dir);
     }
 
-    try argv.appendSlice(options.build_args);
+    try argv.appendSlice(options.build_options);
 
     if (verbose) log.cmd(argv.items);
 
@@ -365,7 +375,7 @@ fn nixBuild(
     return result.stdout.?;
 }
 
-const flake_flags = &.{ "--extra-experimental-features", "nix-command flakes" };
+const enable_flake_flags = &.{ "--extra-experimental-features", "nix-command flakes" };
 
 /// Build a NixOS configuration located in a flake
 fn nixBuildFlake(
@@ -373,7 +383,8 @@ fn nixBuildFlake(
     build_type: BuildType,
     flake_ref: FlakeRef,
     options: struct {
-        build_args: []const []const u8,
+        build_options: []const []const u8,
+        flake_options: []const []const u8,
         result_dir: ?[]const u8 = null,
         dry: bool = false,
     },
@@ -394,9 +405,9 @@ fn nixBuildFlake(
     var argv = ArrayList([]const u8).init(allocator);
     defer argv.deinit();
 
-    // nix ${flake-flags} build ${attribute} [--out-link <dir>] [${build_args}]
+    // nix ${enable_flake_flags} build ${attribute} [--out-link <dir>] [${build_options}] [${flake_options}]
     try argv.append("nix");
-    try argv.appendSlice(flake_flags);
+    try argv.appendSlice(enable_flake_flags);
     try argv.appendSlice(&.{ "build", attribute });
 
     if (options.result_dir) |dir| {
@@ -408,7 +419,8 @@ fn nixBuildFlake(
         try argv.append("--dry-run");
     }
 
-    try argv.appendSlice(options.build_args);
+    try argv.appendSlice(options.build_options);
+    try argv.appendSlice(options.flake_options);
 
     if (verbose) log.cmd(argv.items);
 
@@ -641,27 +653,35 @@ fn build(allocator: Allocator, arg_iter: *ArgIterator) !void {
     const tmp_result_dir = try fmt.allocPrint(allocator, "{s}/result", .{tmp_dir});
     defer allocator.free(tmp_result_dir);
 
-    const build_options = .{
-        .build_args = args.build_args.items,
-        .result_dir = if (args.output) |output|
-            output
-        else if (build_type == .SystemActivation)
-            tmp_result_dir
-        else
-            null,
-        .dry = dry_build,
-    };
-
     // Location of the resulting NixOS generation
     var result: []const u8 = undefined;
 
     if (flake_ref) |flake| {
-        result = nixBuildFlake(allocator, build_type, flake, build_options) catch |err| {
+        result = nixBuildFlake(allocator, build_type, flake, .{
+            .build_options = args.build_options.items,
+            .flake_options = args.flake_options.items,
+            .result_dir = if (args.output) |output|
+                output
+            else if (build_type == .SystemActivation)
+                tmp_result_dir
+            else
+                null,
+            .dry = dry_build,
+        }) catch |err| {
             log.err("failed to build the system configuration", .{});
             return err;
         };
     } else {
-        result = nixBuild(allocator, build_type, build_options) catch |err| {
+        result = nixBuild(allocator, build_type, .{
+            .build_options = args.build_options.items,
+            .result_dir = if (args.output) |output|
+                output
+            else if (build_type == .SystemActivation)
+                tmp_result_dir
+            else
+                null,
+            .dry = dry_build,
+        }) catch |err| {
             log.err("failed to build the system configuration", .{});
             return err;
         };
@@ -759,7 +779,7 @@ pub fn buildMain(allocator: Allocator, args: *ArgIterator) u8 {
             BuildError.UnknownHostname => return 1,
             BuildError.UnsupportedOs => return 1,
             else => {
-                log.err("{s}", .{@errorName(err)});
+                log.err("unhandled error: {s}", .{@errorName(err)});
                 return 1;
             },
         }

@@ -45,7 +45,7 @@ of commands and flags that are planned to be implemented.
   - [x] `--vm-with-bootloader`
   - [x] `--verbose`
   - [x] Nix build options
-  - [ ] Nix flake options
+  - [x] Nix flake options
   - [ ] Nix copy closure options
 - [ ] `container`
   - [ ] `list`
