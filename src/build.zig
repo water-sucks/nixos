@@ -95,7 +95,7 @@ pub const BuildArgs = struct {
         \\    -s, --specialisation <NAME>    Activate the given specialisation (default: contents of
         \\                                   /etc/NIXOS_SPECIALISATION if it exists)
         \\    --switch                       Alias for --activate --boot
-        \\    -u, --upgrade                  Upgrade the root user's 'nixos' channel
+        \\    -u, --upgrade                  Upgrade the root user's `nixos` channel
         \\    --upgrade-all                  Upgrade all of the root user's channels
         \\    --vm                           Build a script that starts a NixOS virtual machine with the
         \\                                   given configuration
@@ -211,12 +211,15 @@ var verbose: bool = false;
 
 pub const BuildError = error{
     ConfigurationNotFound,
-    CommandFailed,
+    NixBuildFailed,
     PermissionDenied,
+    ResourceCreationFailed,
+    SetNixProfileFailed,
+    SwitchToConfigurationFailed,
     UnknownHostname,
     UnknownSpecialization,
-    UnsupportedOs,
-};
+    UpgradeChannelsFailed,
+} || ArgParseError || Allocator.Error;
 
 pub const BuildType = enum {
     System,
@@ -261,6 +264,8 @@ fn getFlakeRef(arg: []const u8) !?FlakeRef {
 // can be returned.
 var exit_status: u8 = 0;
 
+const channel_directory = "/nix/var/nix/profiles/per-user/root/channels";
+
 /// Iterate through all Nix channels and upgrade them if necessary
 fn upgradeChannels(allocator: Allocator, all: bool) !void {
     var argv = ArrayList([]const u8).init(allocator);
@@ -270,14 +275,28 @@ fn upgradeChannels(allocator: Allocator, all: bool) !void {
     if (!all) {
         try argv.append("nixos");
 
-        var dir = try fs.openIterableDirAbsolute("/nix/var/nix/profiles/per-user/root/channels", .{});
+        var dir = fs.openIterableDirAbsolute(channel_directory, .{}) catch |err| {
+            switch (err) {
+                error.AccessDenied => {
+                    log.err("unable to open {s}: permission denied", .{channel_directory});
+                    return BuildError.PermissionDenied;
+                },
+                error.DeviceBusy => log.err("unable to open {s}: device busy", .{channel_directory}),
+                error.FileNotFound => log.err("unable to {s}: no such file or directory", .{channel_directory}),
+                error.NotDir => log.err("{s} is not a directory", .{channel_directory}),
+
+                error.SymLinkLoop => log.err("encountered symlink loop while opening {s}", .{channel_directory}),
+                else => log.err("unexpected error encountered opening {s}: {s}", .{ channel_directory, @errorName(err) }),
+            }
+            return err;
+        };
         defer dir.close();
 
         // Upgrade channels with ".update-on-nixos-rebuild"
         var iter = dir.iterate();
         while (try iter.next()) |entry| {
             if (entry.kind == .directory) {
-                const filename = try fmt.allocPrint(allocator, "/nix/var/nix/profiles/per-user/root/channels/{s}/.update-on-nixos-rebuild", .{entry.name});
+                const filename = try fmt.allocPrint(allocator, "{s}/{s}/.update-on-nixos-rebuild", .{ channel_directory, entry.name });
                 defer allocator.free(filename);
                 if (fileExistsAbsolute(filename)) {
                     try argv.append(entry.name);
@@ -291,10 +310,11 @@ fn upgradeChannels(allocator: Allocator, all: bool) !void {
     const result = runCmd(.{
         .allocator = allocator,
         .argv = argv.items,
-    }) catch return BuildError.CommandFailed;
+    }) catch return BuildError.UpgradeChannelsFailed;
 
     if (result.status != 0) {
-        return BuildError.CommandFailed;
+        exit_status = result.status;
+        return BuildError.UpgradeChannelsFailed;
     }
 }
 
@@ -319,7 +339,20 @@ fn mkTmpDir(allocator: Allocator, name: []const u8) ![]const u8 {
     errdefer allocator.free(dirname);
 
     // TODO: replace to make consistent with
-    try fs.makeDirAbsolute(dirname);
+    fs.makeDirAbsolute(dirname) catch |err| {
+        switch (err) {
+            error.AccessDenied => {
+                log.err("unable to create temporary directory {s}: permission denied", .{dirname});
+                return BuildError.PermissionDenied;
+            },
+            error.PathAlreadyExists => log.err("unable to create temporary directory {s}: path already exists", .{dirname}),
+            error.FileNotFound => log.err("unable to create temporary directory {s}: no such file or directory", .{dirname}),
+            error.NoSpaceLeft => log.err("unable to create temporary directory {s}: no space left on device", .{dirname}),
+            error.NotDir => log.err("{s} is not a directory", .{tmpdir_location}),
+            else => log.err("unexpected error creating temporary directory {s}: {s}", .{ dirname, @errorName(err) }),
+        }
+        return err;
+    };
 
     return dirname;
 }
@@ -365,11 +398,11 @@ fn nixBuild(
     const result = runCmd(.{
         .allocator = allocator,
         .argv = argv.items,
-    }) catch return BuildError.CommandFailed;
+    }) catch return BuildError.NixBuildFailed;
 
     if (result.status != 0) {
-        exit_status = 0;
-        return BuildError.CommandFailed;
+        exit_status = result.status;
+        return BuildError.NixBuildFailed;
     }
 
     return result.stdout.?;
@@ -427,28 +460,43 @@ fn nixBuildFlake(
     var result = runCmd(.{
         .allocator = allocator,
         .argv = argv.items,
-    }) catch return BuildError.CommandFailed;
-
-    if (result.status != 0) {
-        exit_status = result.status;
-        return BuildError.CommandFailed;
-    }
+    }) catch return BuildError.NixBuildFailed;
 
     if (result.stdout) |stdout| {
         allocator.free(stdout);
     }
 
+    if (result.status != 0) {
+        exit_status = result.status;
+        return BuildError.NixBuildFailed;
+    }
+
     // No stdout output is emitted by nix build without --print-out-paths,
     // avoiding that option here to support Nix versions without it.
     // Reading the symlink suffices.
+    const result_dir = options.result_dir orelse "./result";
     var path_buf: [os.PATH_MAX]u8 = undefined;
-    const path = try os.readlink(options.result_dir orelse "./result", &path_buf);
+    const path = os.readlink(result_dir, &path_buf) catch |err| {
+        switch (err) {
+            error.AccessDenied => {
+                log.err("unable to readlink {s}: permission denied", .{result_dir});
+                return BuildError.PermissionDenied;
+            },
+            error.FileNotFound => @panic("result dir not found after building"),
+            error.FileSystem => log.err("unable to readlink {s}: i/o error", .{result_dir}),
+            error.NotLink, error.NotDir => @panic("result dir is not a symlink"),
+            error.SymLinkLoop => @panic("result dir is a symlink loop"),
+            error.SystemResources => return error.OutOfMemory, // corresponds to errno NOMEM when reading link
+            else => log.err("unexpected error encountered when reading symlink {s}: {s}", .{ result_dir, @errorName(err) }),
+        }
+        return err;
+    };
     return allocator.dupe(u8, path);
 }
 
 /// Set the target system's NixOS system profile to the newly built generation
 /// to prepare for --activate or --boot
-fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []const u8) !void {
+fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []const u8) BuildError!void {
     var profile_dir: []const u8 = undefined;
 
     if (profile) |name| {
@@ -456,22 +504,25 @@ fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []c
             // Create profile name directory if needed; this is grossly stupid
             // and requires root execution of `nixos`, because yeah.
             // How do I fix this?
-            var base_dir = try fs.openDirAbsolute("/nix/var/nix/profiles", .{});
-            defer base_dir.close();
-
-            var subpath = try fmt.allocPrint(allocator, "system-profiles/{s}", .{name});
-            allocator.free(subpath);
+            const dirname = "/nix/var/nix/profiles/system-profiles";
+            os.mkdir("/nix/var/nix/profiles/system-profiles", 0o755) catch |err| {
+                switch (err) {
+                    error.AccessDenied => {
+                        log.err("unable to create system profile directory {s}: permission denied", .{dirname});
+                        return BuildError.PermissionDenied;
+                    },
+                    error.PathAlreadyExists => log.err("unable to create system profile directory {s}: path already exists", .{dirname}),
+                    error.FileNotFound => log.err("unable to create system profile directory {s}: no such file or directory", .{dirname}),
+                    error.NotDir => log.err("unable to create system profile directory {s}: not a directory", .{dirname}),
+                    error.NoSpaceLeft => log.err("unable to create system profile directory {s}: no space left on device", .{dirname}),
+                    else => log.err("unexpected error creating system profile directory {s}: {s}", .{ dirname, @errorName(err) }),
+                }
+                return BuildError.ResourceCreationFailed;
+            };
 
             profile_dir = try fmt.allocPrint(allocator, "/nix/var/nix/profiles/system-profiles/{s}", .{name});
-
-            base_dir.makePath(subpath) catch |err| {
-                log.err("unable to create profile directory {s}: {s}", .{ profile_dir, @errorName(err) });
-                return BuildError.PermissionDenied;
-            };
         }
     } else {
-        // FIXME: Gross, I'm allocating this because I want to just use a single free.
-        // Brain damage.
         profile_dir = try fmt.allocPrint(allocator, "/nix/var/nix/profiles/system", .{});
     }
     defer allocator.free(profile_dir);
@@ -483,23 +534,45 @@ fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []c
     const result = runCmd(.{
         .allocator = allocator,
         .argv = argv,
-    }) catch return BuildError.CommandFailed;
+    }) catch return BuildError.SetNixProfileFailed;
 
     if (result.status != 0) {
         exit_status = result.status;
-        return BuildError.CommandFailed;
+        return BuildError.SetNixProfileFailed;
     }
 }
 
+const specialization_file = "/etc/NIXOS_SPECIALISATION";
+
 // Find specialization name by looking at /etc/NIXOS_SPECIALISATION
 fn findSpecialization(allocator: Allocator) !?[]const u8 {
-    const file = fs.openFileAbsolute("/etc/NIXOS_SPECIALISATION", .{ .mode = .read_only }) catch return null;
+    const file = fs.openFileAbsolute("/etc/NIXOS_SPECIALISATION", .{ .mode = .read_only }) catch |err| {
+        switch (err) {
+            error.AccessDenied => log.warn("unable to read {s}: permission denied", .{specialization_file}),
+            error.FileNotFound => {
+                // Probably going to be a common error, because not many people use specializations
+                if (verbose) log.warn("unable to read {s}: no such file or directory", .{specialization_file});
+                return null;
+            },
+            error.DeviceBusy => log.warn("unable to open {s}: device busy", .{specialization_file}),
+            // error.NotFile => log.warn("{s} is not a file", .{specialization_file}),
+            error.SymLinkLoop => log.warn("encountered symlink loop while opening {s}", .{specialization_file}),
+            else => log.warn("unexpected error reading {s}: {s}", .{ specialization_file, @errorName(err) }),
+        }
+        return err;
+    };
     defer file.close();
 
     var buf_reader = std.io.bufferedReader(file.reader());
     var in_stream = buf_reader.reader();
 
-    const specialization = try in_stream.readUntilDelimiterOrEofAlloc(allocator, '\n', std.math.maxInt(usize));
+    const specialization = in_stream.readUntilDelimiterOrEofAlloc(allocator, '\n', std.math.maxInt(usize)) catch |err| {
+        switch (err) {
+            error.IsDir => log.warn("{s} is not a file", .{specialization_file}),
+            else => log.warn("unable to read {s}: {s}", .{ specialization_file, @errorName(err) }),
+        }
+        return null;
+    };
 
     if (specialization != null and specialization.?.len == 0) {
         return null;
@@ -529,21 +602,16 @@ fn runSwitchToConfiguration(
         .allocator = allocator,
         .argv = argv,
         .env_map = &env_map,
-    }) catch return BuildError.CommandFailed;
+    }) catch return BuildError.SwitchToConfigurationFailed;
 
     if (result.status != 0) {
         exit_status = result.status;
-        return BuildError.CommandFailed;
+        return BuildError.SwitchToConfigurationFailed;
     }
 }
 
-fn build(allocator: Allocator, arg_iter: *ArgIterator) !void {
+fn build(allocator: Allocator, arg_iter: *ArgIterator) BuildError!void {
     const args = try BuildArgs.parseArgs(allocator, arg_iter);
-
-    if (!fileExistsAbsolute("/etc/NIXOS")) {
-        log.err("the build command is currently unsupported on non-NixOS systems", .{});
-        return BuildError.UnsupportedOs;
-    }
 
     // TODO: check if user running is root?
 
@@ -582,7 +650,11 @@ fn build(allocator: Allocator, arg_iter: *ArgIterator) !void {
 
         if (nixos_config_is_flake) {
             const dir = try fmt.allocPrint(allocator, "{s}#", .{nixos_config});
-            flake_ref = try getFlakeRef(dir);
+
+            flake_ref = getFlakeRef(dir) catch |err| {
+                log.err("unable to determine hostname: {s}", .{@errorName(err)});
+                return BuildError.UnknownHostname;
+            };
         }
     }
 
@@ -629,12 +701,24 @@ fn build(allocator: Allocator, arg_iter: *ArgIterator) !void {
     if (args.upgrade_channels) {
         upgradeChannels(allocator, args.upgrade_all_channels) catch |err| {
             log.err("upgrading channels failed", .{});
-            return err;
+            if (err == BuildError.PermissionDenied) {
+                return BuildError.PermissionDenied;
+            } else if (err == BuildError.OutOfMemory) {
+                return BuildError.OutOfMemory;
+            }
+            return BuildError.UpgradeChannelsFailed;
         };
     }
 
     // Create temporary directory for artifacts
-    const tmp_dir = try mkTmpDir(allocator, "nixos-build");
+    const tmp_dir = mkTmpDir(allocator, "nixos-build") catch |err| {
+        if (err == BuildError.PermissionDenied) {
+            return BuildError.PermissionDenied;
+        } else if (err == BuildError.OutOfMemory) {
+            return BuildError.OutOfMemory;
+        }
+        return BuildError.ResourceCreationFailed;
+    };
     defer allocator.free(tmp_dir);
     defer {
         fs.deleteTreeAbsolute(tmp_dir) catch |err| {
@@ -669,7 +753,12 @@ fn build(allocator: Allocator, arg_iter: *ArgIterator) !void {
             .dry = dry_build,
         }) catch |err| {
             log.err("failed to build the system configuration", .{});
-            return err;
+            if (err == BuildError.PermissionDenied) {
+                return BuildError.PermissionDenied;
+            } else if (err == BuildError.OutOfMemory) {
+                return BuildError.OutOfMemory;
+            }
+            return BuildError.NixBuildFailed;
         };
     } else {
         result = nixBuild(allocator, build_type, .{
@@ -683,7 +772,12 @@ fn build(allocator: Allocator, arg_iter: *ArgIterator) !void {
             .dry = dry_build,
         }) catch |err| {
             log.err("failed to build the system configuration", .{});
-            return err;
+            if (err == BuildError.PermissionDenied) {
+                return BuildError.PermissionDenied;
+            } else if (err == BuildError.OutOfMemory) {
+                return BuildError.OutOfMemory;
+            }
+            return BuildError.NixBuildFailed;
         };
     }
 
@@ -693,13 +787,13 @@ fn build(allocator: Allocator, arg_iter: *ArgIterator) !void {
         const dirname = try fmt.allocPrint(allocator, "{s}/bin", .{result});
         defer allocator.free(dirname);
 
-        var dir = try fs.openIterableDirAbsolute(dirname, .{});
+        var dir = fs.openIterableDirAbsolute(dirname, .{}) catch @panic("unable to open /bin in result dir");
         defer dir.close();
 
         var filename: ?[]const u8 = null;
 
         var iter = dir.iterate();
-        while (try iter.next()) |entry| {
+        while (iter.next() catch @panic("unable to iterate VM result directory")) |entry| {
             if (mem.startsWith(u8, entry.name, "run-") and mem.endsWith(u8, entry.name, "-vm")) {
                 filename = entry.name;
                 break;
@@ -708,7 +802,7 @@ fn build(allocator: Allocator, arg_iter: *ArgIterator) !void {
 
         if (filename) |f| {
             log.print("Done. The virtual machine can be started by running {s}/{s}.\n", .{ dirname, f });
-        } else unreachable; // Something catastrophic has happened, and the VM is in a different place.
+        } else @panic("virtual machine not located in /bin of result dir");
     }
 
     if (build_type != .SystemActivation) {
@@ -718,9 +812,7 @@ fn build(allocator: Allocator, arg_iter: *ArgIterator) !void {
     // Set nix-env profile, if needed
     if (args.boot or args.activate and !args.dry) {
         setNixEnvProfile(allocator, args.profile_name, result) catch |err| {
-            if (err == BuildError.CommandFailed) {
-                log.err("failed to set system profile with nix-env", .{});
-            }
+            log.err("failed to set system profile with nix-env", .{});
             return err;
         };
     }
@@ -728,7 +820,10 @@ fn build(allocator: Allocator, arg_iter: *ArgIterator) !void {
     // Run switch-to-configuration script, if needed. This will use the
     // specialization in /etc/NIXOS_SPECIALISATION, or it will default
     // to no specialization if no explicit specialization is provided.
-    const specialization = args.specialization orelse try findSpecialization(allocator);
+    const specialization = args.specialization orelse findSpecialization(allocator) catch blk: {
+        log.warn("using base configuration without specialisations", .{});
+        break :blk null;
+    };
 
     const stc = if (specialization) |spec|
         try fmt.allocPrint(allocator, "{s}/specialisation/{s}/bin/switch-to-configuration", .{ result, spec })
@@ -740,7 +835,7 @@ fn build(allocator: Allocator, arg_iter: *ArgIterator) !void {
         .install_bootloader = args.install_bootloader,
     };
 
-    // Assert the spepcialization exists
+    // Assert the specialization exists
     if (specialization) |spec| {
         if (!fileExistsAbsolute(stc)) {
             log.err("failed to find specialization {s}", .{spec});
@@ -765,23 +860,29 @@ fn build(allocator: Allocator, arg_iter: *ArgIterator) !void {
 
 // Run build and provide the relevant exit code
 pub fn buildMain(allocator: Allocator, args: *ArgIterator) u8 {
+    if (!fileExistsAbsolute("/etc/NIXOS")) {
+        log.err("the build command is currently unsupported on non-NixOS systems", .{});
+        return 3;
+    }
+
     build(allocator, args) catch |err| {
         switch (err) {
             ArgParseError.HelpInvoked => return 0,
-            BuildError.ConfigurationNotFound => return 1,
-            BuildError.CommandFailed => {
-                return if (exit_status != 0)
-                    exit_status
-                else
-                    1;
+            ArgParseError.ConflictingOptions => return 2,
+            ArgParseError.InvalidArgument => return 2,
+            ArgParseError.InvalidSubcommand => return 2,
+            ArgParseError.MissingRequiredArgument => return 2,
+
+            BuildError.NixBuildFailed, BuildError.SetNixProfileFailed, BuildError.UpgradeChannelsFailed, BuildError.SwitchToConfigurationFailed => {
+                return if (exit_status != 0) exit_status else 1;
             },
             BuildError.PermissionDenied => return 13,
-            BuildError.UnknownHostname => return 1,
-            BuildError.UnsupportedOs => return 1,
-            else => {
-                log.err("unhandled error: {s}", .{@errorName(err)});
+            BuildError.ResourceCreationFailed => return 4,
+            Allocator.Error.OutOfMemory => {
+                log.err("out of memory, cannot continue", .{});
                 return 1;
             },
+            else => return 1,
         }
     };
     return 0;

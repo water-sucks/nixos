@@ -115,15 +115,37 @@ pub const EnterArgs = struct {
 
 const EnterError = error{
     ActivationError,
-    ChrootError,
+    ChrootFailed,
     MountFailed,
     PermissionDenied,
     UnshareError,
     UnsupportedOs,
-};
+} || ArgParseError || Allocator.Error;
 
 var verbose: bool = false;
 var exit_status: u8 = 0;
+
+inline fn checkMountError(dir: []const u8, errno: usize) !void {
+    switch (os.errno(errno)) {
+        // unhandled: EFAULT, EINVAL, EMFILE, ENODEV, ENOTBLK, ENXIO
+        .SUCCESS => {
+            if (verbose) log.info("mounted {s} successfully", .{dir});
+            return;
+        },
+        .ACCES, .PERM => {
+            log.err("mounting {s} failed: permission denied", .{dir});
+            return EnterError.PermissionDenied;
+        },
+        .BUSY => log.err("mounting {s} failed: device busy", .{dir}),
+        .LOOP => log.err("encountered symlink loop while mounting {s}", .{dir}),
+        .NAMETOOLONG => log.err("mounting {s} failed: name too long", .{dir}),
+        .NOENT => log.err("mounting {s} failed: no such file or directory", .{dir}),
+        .NOMEM => return EnterError.OutOfMemory,
+        .NOTDIR => log.err("mounting {s} failed: not a directory", .{dir}),
+        else => log.err("unhandled mount error while mounting {s}: {d}\n", .{ dir, os.errno(errno) }),
+    }
+    return EnterError.MountFailed;
+}
 
 /// Create private namespace for chroot process (TODO: should this call out to
 /// unshare command, or be implemented by itself with the syscalls?)
@@ -155,9 +177,16 @@ fn unshare(allocator: Allocator) !void {
     defer env_map.deinit();
     try env_map.put(NIXOS_REEXEC, "1");
 
-    process.execve(allocator, argv.items, &env_map) catch {
-        return EnterError.UnshareError;
-    };
+    const err = process.execve(allocator, argv.items, &env_map);
+    switch (err) {
+        error.OutOfMemory => return EnterError.OutOfMemory,
+        error.AccessDenied => log.err("unable to run process in private namespace: permission denied", .{}),
+        error.SystemResources => return EnterError.OutOfMemory,
+        error.FileNotFound => log.err("unable to run process in private namespace: unshare not found", .{}),
+        error.InvalidExe => log.err("unable to run process in private namespace: unshare is not executable", .{}),
+        else => log.err("unexpected error running process in private namespace: {s}", .{@errorName(err)}),
+    }
+    return err;
 }
 
 // Bind mount a directory in / to a directory in mountpoint.
@@ -183,18 +212,7 @@ fn bindMount(allocator: Allocator, mountpoint: []const u8, dir: []const u8) !voi
     defer allocator.free(root_dirname);
 
     const errno = linux.mount(root_dirname, dirname.ptr, "", linux.MS.BIND | linux.MS.REC, 0);
-    switch (os.errno(errno)) {
-        .SUCCESS => if (verbose) log.info("bind-mounted /{s} successfully", .{dir}),
-        .PERM => {
-            log.err("mounting /{s} failed: permission denied", .{dir});
-            return EnterError.PermissionDenied;
-        },
-        else => {
-            log.err("mount error while mounting /{s}: {d}\n", .{ dir, os.errno(errno) });
-            exit_status = @truncate(errno);
-            return EnterError.MountFailed;
-        },
-    }
+    try checkMountError(root_dirname, errno);
 }
 
 // Get the location at which to bind-mount resolv.conf.
@@ -262,7 +280,7 @@ fn activate(allocator: Allocator, root: []const u8, system: []const u8, silent: 
 
     if (verbose) log.cmd(argv.items);
 
-    // Run activations script for reals; ignore errors because why not ig
+    // Run activation script; ignore errors to mimic original behavior
     _ = runCmd(.{
         .allocator = allocator,
         .argv = argv.items,
@@ -302,10 +320,10 @@ fn startChroot(allocator: Allocator, root: []const u8, args: []const []const u8)
     // unset TMPDIR
     env_map.remove("TMPDIR");
 
-    process.execve(allocator, argv.items, &env_map) catch return EnterError.ChrootError;
+    process.execve(allocator, argv.items, &env_map) catch return EnterError.ChrootFailed;
 }
 
-fn enter(allocator: Allocator, raw_args: *ArgIterator) !void {
+fn enter(allocator: Allocator, raw_args: *ArgIterator) EnterError!void {
     var args = try EnterArgs.parseArgs(allocator, raw_args);
     defer args.deinit();
 
@@ -318,7 +336,9 @@ fn enter(allocator: Allocator, raw_args: *ArgIterator) !void {
     const is_reexec = (os.getenv(NIXOS_REEXEC) orelse "").len != 0;
     if (!is_reexec) {
         unshare(allocator) catch |err| {
-            log.err("unable to unshare: {s}", .{@errorName(err)});
+            if (err == EnterError.OutOfMemory) {
+                return EnterError.OutOfMemory;
+            }
             return EnterError.UnshareError;
         };
     }
@@ -329,22 +349,23 @@ fn enter(allocator: Allocator, raw_args: *ArgIterator) !void {
     if (verbose) log.info("remounting root privately for namespace", .{});
 
     var errno = linux.mount("/", "/", "", linux.MS.REMOUNT | linux.MS.PRIVATE | linux.MS.REC, 0);
-    switch (os.errno(errno)) {
-        .SUCCESS => if (verbose) log.info("remounted root successfully", .{}),
-        .PERM => {
-            log.err("mount failed: permission denied", .{});
-            return EnterError.PermissionDenied;
-        },
-        else => {
-            log.err("mount error while remounting root: {d}\n", .{os.errno(errno)});
-            exit_status = @truncate(errno);
-            return EnterError.MountFailed;
-        },
-    }
+    try checkMountError("/", errno);
 
     // Check if mountpoint is valid NixOS system
     var mountpoint_buffer: [os.PATH_MAX]u8 = undefined;
-    const mountpoint = try os.realpath(args.root orelse "/mnt", &mountpoint_buffer);
+    const root = args.root orelse "/mnt";
+    const mountpoint = os.realpath(root, &mountpoint_buffer) catch |err| {
+        switch (err) {
+            error.AccessDenied => {
+                log.err("unable to determine realpath of {s}: permission denied", .{root});
+                return EnterError.PermissionDenied;
+            },
+            error.FileNotFound => log.err("unable to determine realpath of {s}: no such file or directory", .{root}),
+            error.SymLinkLoop => log.err("encountered symlink loop while determining realpath of {s}", .{root}),
+            else => log.err("unexpected error encountered when determining realpath of {s}: {s}", .{ root, @errorName(err) }),
+        }
+        return EnterError.MountFailed;
+    };
 
     const mountpoint_is_nixos = blk: {
         const filename = try fmt.allocPrint(allocator, "{s}/etc/NIXOS", .{mountpoint});
@@ -371,18 +392,7 @@ fn enter(allocator: Allocator, raw_args: *ArgIterator) !void {
         defer allocator.free(resolv_conf);
 
         errno = linux.mount("/etc/resolv.conf", resolv_conf, "", linux.MS.BIND, 0);
-        switch (os.errno(errno)) {
-            .SUCCESS => if (verbose) log.info("bind-mounted resolv.conf successfully", .{}),
-            .PERM => {
-                log.err("mounting resolv.conf failed: permission denied", .{});
-                return EnterError.PermissionDenied;
-            },
-            else => {
-                log.err("mount error while mounting resolv.conf /: {d}\n", .{os.errno(errno)});
-                exit_status = @truncate(errno);
-                return EnterError.MountFailed;
-            },
-        }
+        try checkMountError("/etc/resolv.conf", errno);
     }
 
     const system = args.system orelse "/nix/var/nix/profiles/system";
@@ -413,13 +423,22 @@ pub fn enterMain(allocator: Allocator, args: *ArgIterator) u8 {
     enter(allocator, args) catch |err| {
         switch (err) {
             ArgParseError.HelpInvoked => return 0,
-            EnterError.MountFailed => return exit_status,
-            EnterError.PermissionDenied => return 13,
-            EnterError.UnsupportedOs => return 1,
-            EnterError.UnshareError => return 2,
-            else => |e| {
-                log.err("unhandled error: {s}", .{@errorName(e)});
+            ArgParseError.ConflictingOptions => return 2,
+            ArgParseError.InvalidArgument => return 2,
+            ArgParseError.InvalidSubcommand => return 2,
+            ArgParseError.MissingRequiredArgument => return 2,
+
+            EnterError.ActivationError, EnterError.ChrootFailed => {
+                return if (exit_status != 0) exit_status else 1;
             },
+            EnterError.PermissionDenied => return 13,
+            EnterError.UnsupportedOs => return 3,
+            EnterError.MountFailed => return 4,
+            Allocator.Error.OutOfMemory => {
+                log.err("out of memory, cannot continue", .{});
+                return 1;
+            },
+            else => return 1,
         }
     };
 
