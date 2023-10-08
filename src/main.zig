@@ -1,5 +1,7 @@
 const std = @import("std");
 const mem = std.mem;
+const Allocator = mem.Allocator;
+const ArgIterator = std.process.ArgIterator;
 
 const build = @import("build.zig");
 const enter = @import("enter.zig");
@@ -11,20 +13,65 @@ const App = argparse.App;
 const ArgParseError = argparse.ArgParseError;
 const Command = argparse.Command;
 
-const usage =
-    \\Usage:
-    \\    nixos <command> [command options]
-    \\
-    \\Commands:
-    \\    build    Build a NixOS configuration
-    \\    enter    Chroot into a NixOS installation
-    \\
-    \\Options:
-    \\    -h, --help    Show this help menu
-    \\
-    \\For more information about a command, add --help.
-    \\
-;
+const MainArgs = struct {
+    subcommand: ?Subcommand = null,
+
+    const Subcommand = enum {
+        build,
+        enter,
+    };
+
+    const usage =
+        \\Usage:
+        \\    nixos <command> [command options]
+        \\
+        \\Commands:
+        \\    build    Build a NixOS configuration
+        \\    enter    Chroot into a NixOS installation
+        \\
+        \\Options:
+        \\    -h, --help    Show this help menu
+        \\
+        \\For more information about a command, add --help.
+        \\
+    ;
+
+    pub fn parseArgs(args: *ArgIterator) !MainArgs {
+        var result: MainArgs = MainArgs{};
+
+        const next_arg = args.next();
+
+        if (next_arg == null) {
+            log.print("{s}\n", .{usage});
+            log.err("no subcommand specified", .{});
+            return ArgParseError.MissingRequiredArgument;
+        }
+
+        const arg = next_arg.?;
+
+        if (argparse.argIs(arg, "--help", "-h")) {
+            log.print(usage, .{});
+            return ArgParseError.HelpInvoked;
+        }
+
+        if (mem.eql(u8, arg, "build")) {
+            result.subcommand = .build;
+        } else if (mem.eql(u8, arg, "enter")) {
+            result.subcommand = .enter;
+        } else {
+            log.print("{s}\n", .{usage});
+            if (argparse.isFlag(arg)) {
+                log.err("unrecognised flag {s}", .{arg});
+                return ArgParseError.InvalidArgument;
+            } else {
+                log.err("unknown subcommand {s}", .{arg});
+                return ArgParseError.InvalidSubcommand;
+            }
+        }
+
+        return result;
+    }
+};
 
 pub fn main() !u8 {
     var arena_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -37,34 +84,17 @@ pub fn main() !u8 {
     // Skip executable name
     _ = args.next();
 
-    const next_arg = args.next();
-
-    if (next_arg == null) {
-        log.print("{s}\n", .{usage});
-        log.err("no subcommand specified", .{});
-        return 1;
-    }
-
-    const arg = next_arg.?;
-
-    if (argparse.argIs(arg, "--help", "-h")) {
-        log.print(usage, .{});
-        return 0;
-    }
-
-    if (mem.eql(u8, arg, "build")) {
-        return build.buildMain(allocator, &args);
-    } else if (mem.eql(u8, arg, "enter")) {
-        return enter.enterMain(allocator, &args);
-    } else {
-        log.print("{s}\n", .{usage});
-        if (argparse.isFlag(arg)) {
-            log.err("unrecognised flag {s}", .{arg});
-        } else {
-            log.err("unknown subcommand {s}", .{arg});
+    const mainArgs = MainArgs.parseArgs(&args) catch |err| {
+        switch (err) {
+            ArgParseError.HelpInvoked => return 0,
+            else => return 2,
         }
-        return 1;
-    }
+    };
 
-    return 0;
+    const status = switch (mainArgs.subcommand.?) {
+        .build => build.buildMain(allocator, &args),
+        .enter => enter.enterMain(allocator, &args),
+    };
+
+    return status;
 }
