@@ -16,6 +16,7 @@ const argparse = @import("argparse.zig");
 const ArgParseError = argparse.ArgParseError;
 const argIs = argparse.argIs;
 const argIn = argparse.argIn;
+const argError = argparse.argError;
 const getNextArgs = argparse.getNextArgs;
 const conflict = argparse.conflict;
 const require = argparse.require;
@@ -86,24 +87,26 @@ pub const BuildArgs = struct {
         \\    -b, --boot                     Make the built generation the default for next boot
         \\    -d, --dry                      Show what would be built or ran but do not actually run it
         \\    -f, --flake <REF>              Build the NixOS system from the specified flake ref
-        \\    --no-flake                     Do not imply --flake if flake.nix exists in config location
-        \\    --install-bootloader           (Re)install the bootloader on the device specified by the
+        \\    -h, --help                     Show this help menu
+        \\        --install-bootloader       (Re)install the bootloader on the device specified by the
         \\                                   relevant configuration options
+        \\        --no-flake                 Do not imply --flake if flake.nix exists in config location
         \\    -o, --output <LOCATION>        Symlink the output to a location (default: ./result, none on
         \\                                   system activation)
         \\    -p, --profile-name <NAME>      Name of the system profile to use
         \\    -s, --specialisation <NAME>    Activate the given specialisation (default: contents of
         \\                                   /etc/NIXOS_SPECIALISATION if it exists)
-        \\    --switch                       Alias for --activate --boot
+        \\        --switch                   Alias for --activate --boot
         \\    -u, --upgrade                  Upgrade the root user's `nixos` channel
-        \\    --upgrade-all                  Upgrade all of the root user's channels
-        \\    --vm                           Build a script that starts a NixOS virtual machine with the
+        \\        --upgrade-all              Upgrade all of the root user's channels
+        \\    -v, --verbose                  Show verbose logging
+        \\        --vm                       Build a script that starts a NixOS virtual machine with the
         \\                                   given configuration
-        \\    --vm-with-bootloader           Same as --vm, but with a bootloader instead of booting into
+        \\        --vm-with-bootloader       Same as --vm, but with a bootloader instead of booting into
         \\                                   the kernel directly
         \\
-        \\`nixos build` also forwards Nix options passed here to all Nix invocations.
-        \\Check the manual for more details (we do a little trolling, there's no manpage).
+        \\This command also forwards Nix options passed here to all Nix invocations.
+        \\Check the Nix manual page for more details on what options are available.
         \\
     ;
 
@@ -181,11 +184,10 @@ pub const BuildArgs = struct {
                 const next_args = try getNextArgs(args, arg, 2);
                 try result.build_options.appendSlice(&.{ arg, next_args[0], next_args[1] });
             } else {
-                log.print(usage, .{});
                 if (argparse.isFlag(arg)) {
-                    log.err("unrecognised flag {s}", .{arg});
+                    argError("unrecognised flag '{s}'", .{arg});
                 } else {
-                    log.err("argument {s} is not valid in this context", .{arg});
+                    argError("argument '{s}' is not valid in this context", .{arg});
                 }
                 return ArgParseError.InvalidArgument;
             }

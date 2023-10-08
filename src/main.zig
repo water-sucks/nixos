@@ -9,6 +9,7 @@ const enter = @import("enter.zig");
 const log = @import("log.zig");
 
 const argparse = @import("argparse.zig");
+const argError = argparse.argError;
 const App = argparse.App;
 const ArgParseError = argparse.ArgParseError;
 const Command = argparse.Command;
@@ -32,7 +33,7 @@ const MainArgs = struct {
         \\Options:
         \\    -h, --help    Show this help menu
         \\
-        \\For more information about a command, add --help.
+        \\For more information about a command, add --help after.
         \\
     ;
 
@@ -42,8 +43,7 @@ const MainArgs = struct {
         const next_arg = args.next();
 
         if (next_arg == null) {
-            log.print("{s}\n", .{usage});
-            log.err("no subcommand specified", .{});
+            argError("no subcommand specified", .{});
             return ArgParseError.MissingRequiredArgument;
         }
 
@@ -59,12 +59,11 @@ const MainArgs = struct {
         } else if (mem.eql(u8, arg, "enter")) {
             result.subcommand = .enter;
         } else {
-            log.print("{s}\n", .{usage});
             if (argparse.isFlag(arg)) {
-                log.err("unrecognised flag {s}", .{arg});
+                argError("unrecognised flag '{s}'", .{arg});
                 return ArgParseError.InvalidArgument;
             } else {
-                log.err("unknown subcommand {s}", .{arg});
+                argError("unknown subcommand '{s}'", .{arg});
                 return ArgParseError.InvalidSubcommand;
             }
         }

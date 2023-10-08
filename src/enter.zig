@@ -17,6 +17,7 @@ const ArgIterator = process.ArgIterator;
 
 const argparse = @import("argparse.zig");
 const argIs = argparse.argIs;
+const argError = argparse.argError;
 const getNextArgs = argparse.getNextArgs;
 const ArgParseError = argparse.ArgParseError;
 
@@ -51,11 +52,12 @@ pub const EnterArgs = struct {
         \\
         \\Options:
         \\    -c, --command    Command to execute in Bash
+        \\    -h, --help       Show this help menu
         \\    -r, --root       Path to the NixOS system root to enter (default: /mnt)
         \\    -s, --silent     Suppress all system activation output
-        \\    --system         NixOS system configuration to activate (default:
+        \\        --system     NixOS system configuration to activate (default:
         \\                     /nix/var/nix/profiles/system)
-        \\    -v, --verbose    Print verbose info about setup
+        \\    -v, --verbose    Show verbose logging
         \\    --               Interpret the remaining args as the command to be invoked
         \\
     ;
@@ -92,8 +94,7 @@ pub const EnterArgs = struct {
                 }
                 break;
             } else {
-                log.print("{s}\n", .{usage});
-                log.err("unrecognised flag {s}", .{arg});
+                argError("unrecognised flag '{s}'", .{arg});
                 return ArgParseError.InvalidArgument;
             }
 
@@ -101,7 +102,7 @@ pub const EnterArgs = struct {
         }
 
         if (result.command_args.items.len != 0 and result.command != null) {
-            log.err("cannot specify both --command and --", .{});
+            argError("cannot specify both --command and --", .{});
             return ArgParseError.ConflictingOptions;
         }
 

@@ -30,6 +30,11 @@ pub fn argIs(arg: []const u8, full: []const u8, short: ?[]const u8) bool {
     return false;
 }
 
+pub fn argError(comptime fmt: []const u8, args: anytype) void {
+    log.err(fmt, args);
+    log.print("\nFor more information, add --help.\n", .{});
+}
+
 /// Check if an argument name is equal to a list of candidates.
 pub fn argIn(arg: []const u8, candidates: []const []const u8) bool {
     for (candidates) |candidate| {
@@ -74,9 +79,9 @@ pub fn getNextArgs(args: *ArgIterator, name: []const u8, comptime amount: usize)
 /// inadequate number of arguments.
 inline fn missingRequiredArgMessage(name: []const u8, required: usize, provided: usize) ArgParseError {
     if (provided == 0) {
-        log.err("{s} requires {d} argument{s}", .{ name, required, if (required > 1) "s" else "" });
+        argError("{s} requires {d} argument{s}", .{ name, required, if (required > 1) "s" else "" });
     } else {
-        log.err("{s} requires {d} arguments, but {d} {s} given", .{ name, required, provided, if (provided > 1) "were" else "was" });
+        argError("{s} requires {d} arguments, but {d} {s} given", .{ name, required, provided, if (provided > 1) "were" else "was" });
     }
 
     return ArgParseError.MissingRequiredArgument;
@@ -100,7 +105,7 @@ pub fn conflict(args: anytype, conflicts: anytype) ArgParseError!void {
         if (isSet(@field(args, key))) {
             inline for (fields) |field| {
                 if (isSet(@field(args, field))) {
-                    log.err("{s} and {s} flags conflict", .{ key, field });
+                    argError("{s} and {s} flags conflict", .{ key, field });
                     return ArgParseError.ConflictingOptions;
                 }
             }
@@ -156,9 +161,9 @@ pub fn require(args: anytype, required: anytype) ArgParseError!void {
 /// required flag not being set.
 inline fn missingRequiredFlagMessage(arg: []const u8, required: anytype) ArgParseError {
     if (required.len == 1) {
-        log.err("{s} requires {s} to be set", .{ arg, required[0] });
+        argError("{s} requires {s} to be set", .{ arg, required[0] });
     } else if (required.len == 2) {
-        log.err("{s} requires either {s} or {s} to be set", .{ arg, required[0], required[1] });
+        argError("{s} requires either {s} or {s} to be set", .{ arg, required[0], required[1] });
     } else {
         // log.err doesn't work too well for multiple args because it adds a newline
         log.print("error: {s} requires at least one of ", .{arg});
@@ -171,7 +176,8 @@ inline fn missingRequiredFlagMessage(arg: []const u8, required: anytype) ArgPars
             }
             i += 1;
         }
-        log.print("to be set\n", .{});
+        log.prirt("to be set\n", .{});
+        log.print("\nFor more information, add --help.\n");
     }
 
     return ArgParseError.MissingRequiredArgument;
