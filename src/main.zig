@@ -6,6 +6,9 @@ const ArgIterator = std.process.ArgIterator;
 const build = @import("build.zig");
 const enter = @import("enter.zig");
 
+const BuildArgs = build.BuildArgs;
+const EnterArgs = enter.EnterArgs;
+
 const log = @import("log.zig");
 
 const argparse = @import("argparse.zig");
@@ -15,11 +18,11 @@ const ArgParseError = argparse.ArgParseError;
 const Command = argparse.Command;
 
 const MainArgs = struct {
-    subcommand: ?Subcommand = null,
+    subcommand: Subcommand = undefined,
 
-    const Subcommand = enum {
-        build,
-        enter,
+    const Subcommand = union(enum) {
+        build: BuildArgs,
+        enter: EnterArgs,
     };
 
     const usage =
@@ -37,7 +40,7 @@ const MainArgs = struct {
         \\
     ;
 
-    pub fn parseArgs(args: *ArgIterator) !MainArgs {
+    pub fn parseArgs(allocator: Allocator, args: *ArgIterator) !MainArgs {
         var result: MainArgs = MainArgs{};
 
         const next_arg = args.next();
@@ -55,9 +58,9 @@ const MainArgs = struct {
         }
 
         if (mem.eql(u8, arg, "build")) {
-            result.subcommand = .build;
+            result.subcommand = .{ .build = try BuildArgs.parseArgs(allocator, args) };
         } else if (mem.eql(u8, arg, "enter")) {
-            result.subcommand = .enter;
+            result.subcommand = .{ .enter = try EnterArgs.parseArgs(allocator, args) };
         } else {
             if (argparse.isFlag(arg)) {
                 argError("unrecognised flag '{s}'", .{arg});
@@ -77,22 +80,22 @@ pub fn main() !u8 {
     defer arena_allocator.deinit();
     const allocator = arena_allocator.allocator();
 
-    var args = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
+    var argv = try std.process.argsWithAllocator(allocator);
+    defer argv.deinit();
 
     // Skip executable name
-    _ = args.next();
+    _ = argv.next();
 
-    const mainArgs = MainArgs.parseArgs(&args) catch |err| {
+    const structured_args = MainArgs.parseArgs(allocator, &argv) catch |err| {
         switch (err) {
             ArgParseError.HelpInvoked => return 0,
             else => return 2,
         }
     };
 
-    const status = switch (mainArgs.subcommand.?) {
-        .build => build.buildMain(allocator, &args),
-        .enter => enter.enterMain(allocator, &args),
+    const status = switch (structured_args.subcommand) {
+        .build => |args| build.buildMain(allocator, args),
+        .enter => |args| enter.enterMain(allocator, args),
     };
 
     return status;

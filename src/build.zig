@@ -221,7 +221,7 @@ pub const BuildError = error{
     UnknownHostname,
     UnknownSpecialization,
     UpgradeChannelsFailed,
-} || ArgParseError || Allocator.Error;
+} || Allocator.Error;
 
 pub const BuildType = enum {
     System,
@@ -612,9 +612,7 @@ fn runSwitchToConfiguration(
     }
 }
 
-fn build(allocator: Allocator, arg_iter: *ArgIterator) BuildError!void {
-    const args = try BuildArgs.parseArgs(allocator, arg_iter);
-
+fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
     // TODO: check if user running is root?
 
     const build_type: BuildType = if (args.vm)
@@ -861,7 +859,7 @@ fn build(allocator: Allocator, arg_iter: *ArgIterator) BuildError!void {
 }
 
 // Run build and provide the relevant exit code
-pub fn buildMain(allocator: Allocator, args: *ArgIterator) u8 {
+pub fn buildMain(allocator: Allocator, args: BuildArgs) u8 {
     if (!fileExistsAbsolute("/etc/NIXOS")) {
         log.err("the build command is currently unsupported on non-NixOS systems", .{});
         return 3;
@@ -869,12 +867,6 @@ pub fn buildMain(allocator: Allocator, args: *ArgIterator) u8 {
 
     build(allocator, args) catch |err| {
         switch (err) {
-            ArgParseError.HelpInvoked => return 0,
-            ArgParseError.ConflictingOptions => return 2,
-            ArgParseError.InvalidArgument => return 2,
-            ArgParseError.InvalidSubcommand => return 2,
-            ArgParseError.MissingRequiredArgument => return 2,
-
             BuildError.NixBuildFailed, BuildError.SetNixProfileFailed, BuildError.UpgradeChannelsFailed, BuildError.SwitchToConfigurationFailed => {
                 return if (exit_status != 0) exit_status else 1;
             },

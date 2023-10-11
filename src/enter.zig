@@ -121,7 +121,7 @@ const EnterError = error{
     PermissionDenied,
     UnshareError,
     UnsupportedOs,
-} || ArgParseError || Allocator.Error;
+} || Allocator.Error;
 
 var verbose: bool = false;
 var exit_status: u8 = 0;
@@ -324,10 +324,7 @@ fn startChroot(allocator: Allocator, root: []const u8, args: []const []const u8)
     process.execve(allocator, argv.items, &env_map) catch return EnterError.ChrootFailed;
 }
 
-fn enter(allocator: Allocator, raw_args: *ArgIterator) EnterError!void {
-    var args = try EnterArgs.parseArgs(allocator, raw_args);
-    defer args.deinit();
-
+fn enter(allocator: Allocator, args: EnterArgs) EnterError!void {
     // Just for cleanliness's sake in other functions
     if (args.verbose) {
         verbose = true;
@@ -415,7 +412,7 @@ fn enter(allocator: Allocator, raw_args: *ArgIterator) EnterError!void {
     }
 }
 
-pub fn enterMain(allocator: Allocator, args: *ArgIterator) u8 {
+pub fn enterMain(allocator: Allocator, args: EnterArgs) u8 {
     if (builtin.os.tag != .linux) {
         log.err("the enter command is unsupported on non-Linux systems", .{});
         return 3;
@@ -423,12 +420,6 @@ pub fn enterMain(allocator: Allocator, args: *ArgIterator) u8 {
 
     enter(allocator, args) catch |err| {
         switch (err) {
-            ArgParseError.HelpInvoked => return 0,
-            ArgParseError.ConflictingOptions => return 2,
-            ArgParseError.InvalidArgument => return 2,
-            ArgParseError.InvalidSubcommand => return 2,
-            ArgParseError.MissingRequiredArgument => return 2,
-
             EnterError.ActivationError, EnterError.ChrootFailed => {
                 return if (exit_status != 0) exit_status else 1;
             },
