@@ -507,13 +507,13 @@ fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []c
             // and requires root execution of `nixos`, because yeah.
             // How do I fix this?
             const dirname = "/nix/var/nix/profiles/system-profiles";
-            os.mkdir("/nix/var/nix/profiles/system-profiles", 0o755) catch |err| {
+            os.mkdir("/nix/var/nix/profiles/system-profiles", 0o755) catch |err| blk: {
                 switch (err) {
                     error.AccessDenied => {
                         log.err("unable to create system profile directory {s}: permission denied", .{dirname});
                         return BuildError.PermissionDenied;
                     },
-                    error.PathAlreadyExists => log.err("unable to create system profile directory {s}: path already exists", .{dirname}),
+                    error.PathAlreadyExists => break :blk,
                     error.FileNotFound => log.err("unable to create system profile directory {s}: no such file or directory", .{dirname}),
                     error.NotDir => log.err("unable to create system profile directory {s}: not a directory", .{dirname}),
                     error.NoSpaceLeft => log.err("unable to create system profile directory {s}: no space left on device", .{dirname}),
