@@ -5,9 +5,11 @@ const ArgIterator = std.process.ArgIterator;
 
 const build = @import("build.zig");
 const enter = @import("enter.zig");
+const generation = @import("generation.zig");
 
 const BuildArgs = build.BuildArgs;
 const EnterArgs = enter.EnterArgs;
+const GenerationArgs = generation.GenerationArgs;
 
 const log = @import("log.zig");
 
@@ -23,6 +25,7 @@ const MainArgs = struct {
     const Subcommand = union(enum) {
         build: BuildArgs,
         enter: EnterArgs,
+        generation: GenerationArgs,
     };
 
     const usage =
@@ -30,8 +33,9 @@ const MainArgs = struct {
         \\    nixos <command> [command options]
         \\
         \\Commands:
-        \\    build    Build a NixOS configuration
-        \\    enter    Chroot into a NixOS installation
+        \\    build         Build a NixOS configuration
+        \\    enter         Chroot into a NixOS installation
+        \\    generation    Manage NixOS generations
         \\
         \\Options:
         \\    -h, --help    Show this help menu
@@ -40,10 +44,10 @@ const MainArgs = struct {
         \\
     ;
 
-    pub fn parseArgs(allocator: Allocator, args: *ArgIterator) !MainArgs {
+    pub fn parseArgs(allocator: Allocator, argv: *ArgIterator) !MainArgs {
         var result: MainArgs = MainArgs{};
 
-        const next_arg = args.next();
+        const next_arg = argv.next();
 
         if (next_arg == null) {
             argError("no subcommand specified", .{});
@@ -58,9 +62,11 @@ const MainArgs = struct {
         }
 
         if (mem.eql(u8, arg, "build")) {
-            result.subcommand = .{ .build = try BuildArgs.parseArgs(allocator, args) };
+            result.subcommand = .{ .build = try BuildArgs.parseArgs(allocator, argv) };
         } else if (mem.eql(u8, arg, "enter")) {
-            result.subcommand = .{ .enter = try EnterArgs.parseArgs(allocator, args) };
+            result.subcommand = .{ .enter = try EnterArgs.parseArgs(allocator, argv) };
+        } else if (mem.eql(u8, arg, "generation")) {
+            result.subcommand = .{ .generation = try GenerationArgs.parseArgs(argv) };
         } else {
             if (argparse.isFlag(arg)) {
                 argError("unrecognised flag '{s}'", .{arg});
@@ -96,6 +102,7 @@ pub fn main() !u8 {
     const status = switch (structured_args.subcommand) {
         .build => |args| build.buildMain(allocator, args),
         .enter => |args| enter.enterMain(allocator, args),
+        .generation => |args| generation.generationMain(allocator, args),
     };
 
     return status;

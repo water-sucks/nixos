@@ -2,6 +2,7 @@
 //! category.
 
 const std = @import("std");
+const fmt = std.fmt;
 const fs = std.fs;
 const io = std.io;
 const mem = std.mem;
@@ -134,4 +135,37 @@ pub fn fileExistsAbsolute(filename: []const u8) bool {
     var file = fs.openFileAbsolute(filename, .{}) catch return false;
     file.close();
     return true;
+}
+
+/// Compare strings lexicographically to see if one is less than other.
+pub fn stringLessThan(_: void, lhs: []const u8, rhs: []const u8) bool {
+    const result = mem.order(u8, lhs, rhs);
+    return result == .lt;
+}
+
+/// Concatenate slice of strings together with a separator
+/// in between each string. Caller owns returned memory.
+pub fn concatStringsSep(allocator: Allocator, strings: []const []const u8, sep: []const u8) ![]u8 {
+    if (strings.len < 1) return fmt.allocPrint(allocator, "", .{});
+    if (strings.len == 1) return fmt.allocPrint(allocator, "{s}", .{strings[0]});
+
+    // Determine length of resultant buffer
+    var total_len: usize = 0;
+    for (strings[0..(strings.len - 1)]) |str| {
+        total_len += str.len;
+        total_len += sep.len;
+    }
+    total_len += strings[strings.len - 1].len;
+
+    var buf_index: usize = 0;
+    var result: []u8 = try allocator.alloc(u8, total_len);
+    for (strings[0..(strings.len - 1)]) |string| {
+        mem.copy(u8, result[buf_index..], string);
+        buf_index += string.len;
+        mem.copy(u8, result[buf_index..], sep);
+        buf_index += sep.len;
+    }
+    mem.copy(u8, result[buf_index..], strings[strings.len - 1]);
+
+    return result;
 }
