@@ -547,7 +547,7 @@ fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []c
 const specialization_file = "/etc/NIXOS_SPECIALISATION";
 
 // Find specialization name by looking at /etc/NIXOS_SPECIALISATION
-fn findSpecialization(allocator: Allocator) !?[]const u8 {
+pub fn findSpecialization(allocator: Allocator) !?[]const u8 {
     const file = fs.openFileAbsolute("/etc/NIXOS_SPECIALISATION", .{ .mode = .read_only }) catch |err| {
         switch (err) {
             error.AccessDenied => log.warn("unable to read {s}: permission denied", .{specialization_file}),
@@ -584,7 +584,7 @@ fn findSpecialization(allocator: Allocator) !?[]const u8 {
 }
 
 /// Run the switch-to-configuration.pl script
-fn runSwitchToConfiguration(
+pub fn runSwitchToConfiguration(
     allocator: Allocator,
     location: []const u8,
     command: []const u8,

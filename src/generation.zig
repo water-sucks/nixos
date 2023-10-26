@@ -11,6 +11,9 @@ const argError = argparse.argError;
 
 const log = @import("log.zig");
 
+const utils = @import("utils.zig");
+const fileExistsAbsolute = utils.fileExistsAbsolute;
+
 const generationList = @import("generation/list.zig");
 const generationRollback = @import("generation/rollback.zig");
 const generationSwitch = @import("generation/switch.zig");
@@ -107,6 +110,11 @@ pub const GenerationArgs = struct {
 };
 
 pub fn generationMain(allocator: Allocator, args: GenerationArgs) u8 {
+    if (!fileExistsAbsolute("/etc/NIXOS")) {
+        log.err("the build command is currently unsupported on non-NixOS systems", .{});
+        return 3;
+    }
+
     return switch (args.subcommand.?) {
         .list => |sub_args| generationList.generationListMain(allocator, args.profile, sub_args),
         .rollback => generationRollback.generationRollbackMain(allocator, args.profile),
