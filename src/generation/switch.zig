@@ -118,7 +118,9 @@ pub fn switchGeneration(allocator: Allocator, gen_number: usize, profile_name: [
         }
     }
 
-    runSwitchToConfiguration(allocator, stc, "switch", .{}) catch return GenerationSwitchError.SwitchToConfigurationFailed;
+    runSwitchToConfiguration(allocator, stc, "switch", .{
+        .exit_status = &exit_status,
+    }) catch return GenerationSwitchError.SwitchToConfigurationFailed;
 }
 
 pub fn generationSwitchMain(allocator: Allocator, gen_number: usize, profile: ?[]const u8) u8 {
