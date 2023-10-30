@@ -8,7 +8,7 @@ Why? Because why not, to be honest. Written in Zig, because I like Zig.
 
 `nixos` replaces these tools with respective subcommmands, listed below:
 
-- `nixos-rebuild` → `nixos build`
+- `nixos-rebuild` → `nixos build` + `nixos generation`
 - `nixos-enter` → `nixos enter`
 
 More to come in the future, see [TODO](#todo) for a list
@@ -105,6 +105,12 @@ of commands and flags that are planned to be implemented.
 - [ ] `option`
   - [ ] `--list`
   - [ ] `--json`
-- [ ] `rollback`
-  - [ ] `--choose`
-  - [ ] `--generation <number>`
+- [x] `generation`
+  - [x] `list`
+    - [x] `--json`
+  - [x] `switch <number>`
+    - [ ] `--dry`
+    - [ ] `--verbose`
+  - [x] `rollback`
+    - [ ] `--dry`
+    - [ ] `--verbose`
