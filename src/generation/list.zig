@@ -379,20 +379,75 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
     if (args.json) {
         std.json.stringify(generations.items, .{ .whitespace = .indent_2 }, stdout) catch unreachable;
         print(stdout, "\n", .{});
-    } else {
-        // TODO: get real max length of columns
+        return;
+    }
 
-        // Generation, Build Date, NixOS Version, Kernel Version, Specializations
-        const format = "{s:<15}{s:<23}{s:<26}{s:<16}{s:<14}\n";
+    const headers: []const []const u8 = &.{ "Generation", "Build Date", "NixOS Version", "Kernel Version", "Specialisations" };
 
-        print(stdout, format, .{ "Generation", "Build Date", "NixOS Version", "Kernel Version", "Specialisations" });
+    var max_row_len = comptime blk: {
+        var tmp: []const usize = &[_]usize{};
+        inline for (headers) |header| {
+            tmp = tmp ++ [_]usize{header.len};
+        }
+        var new: [tmp.len]usize = undefined;
+        std.mem.copy(usize, &new, tmp);
+        break :blk new;
+    };
 
-        for (generations.items) |*gen| {
-            const generation = try fmt.allocPrint(allocator, "{d}{s}", .{ gen.generation, if (gen.current) "*" else "" });
-            const specialisations = try concatStringsSep(allocator, gen.specialisations, ",");
-            print(stdout, format, .{ generation, gen.date, gen.nixos_version, gen.kernel_version, specialisations });
+    var i: usize = 0;
+
+    var generation_numbers = try allocator.alloc([]const u8, generations.items.len);
+    defer {
+        var j: usize = 0;
+        while (j < i) : (j += 1) {
+            allocator.free(generation_numbers[j]);
+        }
+        allocator.free(generation_numbers);
+    }
+    var specialization_lists = try allocator.alloc([]const u8, generations.items.len);
+    defer {
+        var j: usize = 0;
+        while (j < i) : (j += 1) {
+            allocator.free(specialization_lists[j]);
+        }
+        allocator.free(specialization_lists);
+    }
+
+    for (generations.items, generation_numbers, specialization_lists) |gen, *num, *spec| {
+        num.* = try fmt.allocPrint(allocator, "{d}{s}", .{ gen.generation, if (gen.current) "*" else "" });
+        spec.* = try concatStringsSep(allocator, gen.specialisations, ",");
+        i += 1;
+
+        max_row_len[0] = @max(max_row_len[0], num.*.len); // Generation
+        max_row_len[1] = @max(max_row_len[1], gen.date.len); // Date
+        max_row_len[2] = @max(max_row_len[2], gen.nixos_version.len); // NixOS Version
+        max_row_len[3] = @max(max_row_len[3], gen.kernel_version.len); // Kernel Version
+        max_row_len[4] = @max(max_row_len[4], spec.*.len); // Specialisations
+    }
+
+    for (headers, 0..) |header, j| {
+        print(stdout, "{s}", .{header});
+        var k: usize = 4 + max_row_len[j] - header.len;
+        while (k > 0) {
+            print(stdout, " ", .{});
+            k -= 1;
         }
     }
+    print(stdout, "\n", .{});
+
+    for (generations.items, generation_numbers, specialization_lists, 0..) |gen, num, spec, idx| {
+        const row = [_][]const u8{ num, gen.date, gen.nixos_version, gen.kernel_version, spec };
+        for (row, 0..) |col, j| {
+            print(stdout, "{s}", .{col});
+            var k: usize = 4 + max_row_len[j] - col.len;
+            while (k > 0) {
+                print(stdout, " ", .{});
+                k -= 1;
+            }
+        }
+        if (idx < generations.items.len - 1) print(stdout, "\n", .{});
+    }
+    print(stdout, "\n", .{});
 }
 
 pub fn generationListMain(allocator: Allocator, profile: ?[]const u8, args: GenerationListArgs) u8 {
