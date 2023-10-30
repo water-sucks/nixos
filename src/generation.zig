@@ -34,6 +34,8 @@ pub const GenerationArgs = struct {
     };
 
     pub const usage =
+        \\Manage NixOS generations on this machine.
+        \\
         \\Usage:
         \\    nixos generation [options] <command>
         \\
@@ -44,7 +46,9 @@ pub const GenerationArgs = struct {
         \\
         \\Options:
         \\    -h, --help        Show this help menu
-        \\        --profile     System profile to use
+        \\    -p, --profile     System profile to use
+        \\
+        \\For more information about a subcommand, add --help after.
         \\
     ;
 

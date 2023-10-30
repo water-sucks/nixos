@@ -24,6 +24,8 @@ pub const GenerationListArgs = struct {
     json: bool = false,
 
     const usage =
+        \\List all generations in a NixOS profile and their details.
+        \\
         \\Usage:
         \\    nixos generation list [options]
         \\

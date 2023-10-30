@@ -79,6 +79,8 @@ pub const BuildArgs = struct {
     };
 
     const usage =
+        \\Build a NixOS system from a configuration.
+        \\
         \\Usage:
         \\    nixos build [options]
         \\
@@ -105,7 +107,7 @@ pub const BuildArgs = struct {
         \\        --vm-with-bootloader       Same as --vm, but with a bootloader instead of booting into
         \\                                   the kernel directly
         \\
-        \\This command also forwards Nix options passed here to all Nix invocations.
+        \\This command also forwards Nix options passed here to all relevant Nix invocations.
         \\Check the Nix manual page for more details on what options are available.
         \\
     ;

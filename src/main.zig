@@ -29,6 +29,8 @@ const MainArgs = struct {
     };
 
     const usage =
+        \\A tool for managing NixOS installations.
+        \\
         \\Usage:
         \\    nixos <command> [command options]
         \\

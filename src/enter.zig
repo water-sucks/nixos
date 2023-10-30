@@ -47,6 +47,8 @@ pub const EnterArgs = struct {
     const Self = @This();
 
     const usage =
+        \\Enter a NixOS chroot environment.
+        \\
         \\Usage:
         \\    nixos enter [options]
         \\
