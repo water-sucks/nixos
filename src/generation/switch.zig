@@ -124,9 +124,9 @@ pub fn switchGeneration(allocator: Allocator, gen_number: usize, profile_name: [
 }
 
 pub fn generationSwitchMain(allocator: Allocator, gen_number: usize, profile: ?[]const u8) u8 {
-    const profile_dir = profile orelse "system";
+    const profile_name = profile orelse "system";
 
-    switchGeneration(allocator, gen_number, profile_dir) catch |err| {
+    switchGeneration(allocator, gen_number, profile_name) catch |err| {
         switch (err) {
             GenerationSwitchError.SetNixProfileFailed, GenerationSwitchError.SwitchToConfigurationFailed => {
                 return if (exit_status != 0) exit_status else 1;
