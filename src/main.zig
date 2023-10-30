@@ -84,6 +84,15 @@ const MainArgs = struct {
 };
 
 pub fn main() !u8 {
+    // If you want to be decent about memory management, use this.
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // defer {
+    //     const result = gpa.deinit();
+    //     std.debug.print("alloc result: {}\n", .{result});
+    // }
+    // const allocator = gpa.allocator();
+
+    // If you're lazy when it comes to memory management, use this.
     var arena_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena_allocator.deinit();
     const allocator = arena_allocator.allocator();
