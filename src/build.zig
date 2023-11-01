@@ -21,6 +21,8 @@ const getNextArgs = argparse.getNextArgs;
 const conflict = argparse.conflict;
 const require = argparse.require;
 
+const Constants = @import("constants.zig");
+
 const log = @import("log.zig");
 
 const utils = @import("utils.zig");
@@ -268,7 +270,7 @@ fn getFlakeRef(arg: []const u8) !?FlakeRef {
 // can be returned.
 var exit_status: u8 = 0;
 
-const channel_directory = "/nix/var/nix/profiles/per-user/root/channels";
+const channel_directory = Constants.nix_profiles ++ "/per-user/root/channels";
 
 /// Iterate through all Nix channels and upgrade them if necessary
 fn upgradeChannels(allocator: Allocator, all: bool) !void {
@@ -508,26 +510,25 @@ fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []c
             // Create profile name directory if needed; this is grossly stupid
             // and requires root execution of `nixos`, because yeah.
             // How do I fix this?
-            const dirname = "/nix/var/nix/profiles/system-profiles";
-            os.mkdir("/nix/var/nix/profiles/system-profiles", 0o755) catch |err| blk: {
+            os.mkdir(Constants.nix_system_profiles, 0o755) catch |err| blk: {
                 switch (err) {
                     error.AccessDenied => {
-                        log.err("unable to create system profile directory {s}: permission denied", .{dirname});
+                        log.err("unable to create system profile directory {s}: permission denied", .{Constants.nix_system_profiles});
                         return BuildError.PermissionDenied;
                     },
                     error.PathAlreadyExists => break :blk,
-                    error.FileNotFound => log.err("unable to create system profile directory {s}: no such file or directory", .{dirname}),
-                    error.NotDir => log.err("unable to create system profile directory {s}: not a directory", .{dirname}),
-                    error.NoSpaceLeft => log.err("unable to create system profile directory {s}: no space left on device", .{dirname}),
-                    else => log.err("unexpected error creating system profile directory {s}: {s}", .{ dirname, @errorName(err) }),
+                    error.FileNotFound => log.err("unable to create system profile directory {s}: no such file or directory", .{Constants.nix_system_profiles}),
+                    error.NotDir => log.err("unable to create system profile directory {s}: not a directory", .{Constants.nix_system_profiles}),
+                    error.NoSpaceLeft => log.err("unable to create system profile directory {s}: no space left on device", .{Constants.nix_system_profiles}),
+                    else => log.err("unexpected error creating system profile directory {s}: {s}", .{ Constants.nix_system_profiles, @errorName(err) }),
                 }
                 return BuildError.ResourceCreationFailed;
             };
 
-            profile_dir = try fmt.allocPrint(allocator, "/nix/var/nix/profiles/system-profiles/{s}", .{name});
+            profile_dir = try fmt.allocPrint(allocator, "{s}/{s}", .{ Constants.nix_system_profiles, name });
         }
     } else {
-        profile_dir = try fmt.allocPrint(allocator, "/nix/var/nix/profiles/system", .{});
+        profile_dir = try fmt.allocPrint(allocator, Constants.nix_profiles, .{});
     }
     defer allocator.free(profile_dir);
 
@@ -546,22 +547,20 @@ fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []c
     }
 }
 
-const specialization_file = "/etc/NIXOS_SPECIALISATION";
-
 // Find specialization name by looking at /etc/NIXOS_SPECIALISATION
 pub fn findSpecialization(allocator: Allocator) !?[]const u8 {
-    const file = fs.openFileAbsolute("/etc/NIXOS_SPECIALISATION", .{ .mode = .read_only }) catch |err| {
+    const file = fs.openFileAbsolute(Constants.nixos_specialization, .{ .mode = .read_only }) catch |err| {
         switch (err) {
-            error.AccessDenied => log.warn("unable to read {s}: permission denied", .{specialization_file}),
+            error.AccessDenied => log.warn("unable to read {s}: permission denied", .{Constants.nixos_specialization}),
             error.FileNotFound => {
                 // Probably going to be a common error, because not many people use specializations
-                if (verbose) log.warn("unable to read {s}: no such file or directory", .{specialization_file});
+                if (verbose) log.warn("unable to read {s}: no such file or directory", .{Constants.nixos_specialization});
                 return null;
             },
-            error.DeviceBusy => log.warn("unable to open {s}: device busy", .{specialization_file}),
+            error.DeviceBusy => log.warn("unable to open {s}: device busy", .{Constants.nixos_specialization}),
             // error.NotFile => log.warn("{s} is not a file", .{specialization_file}),
-            error.SymLinkLoop => log.warn("encountered symlink loop while opening {s}", .{specialization_file}),
-            else => log.warn("unexpected error reading {s}: {s}", .{ specialization_file, @errorName(err) }),
+            error.SymLinkLoop => log.warn("encountered symlink loop while opening {s}", .{Constants.nixos_specialization}),
+            else => log.warn("unexpected error reading {s}: {s}", .{ Constants.nixos_specialization, @errorName(err) }),
         }
         return err;
     };
@@ -572,8 +571,8 @@ pub fn findSpecialization(allocator: Allocator) !?[]const u8 {
 
     const specialization = in_stream.readUntilDelimiterOrEofAlloc(allocator, '\n', std.math.maxInt(usize)) catch |err| {
         switch (err) {
-            error.IsDir => log.warn("{s} is not a file", .{specialization_file}),
-            else => log.warn("unable to read {s}: {s}", .{ specialization_file, @errorName(err) }),
+            error.IsDir => log.warn("{s} is not a file", .{Constants.nixos_specialization}),
+            else => log.warn("unable to read {s}: {s}", .{ Constants.nixos_specialization, @errorName(err) }),
         }
         return null;
     };
@@ -862,7 +861,7 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
 
 // Run build and provide the relevant exit code
 pub fn buildMain(allocator: Allocator, args: BuildArgs) u8 {
-    if (!fileExistsAbsolute("/etc/NIXOS")) {
+    if (!fileExistsAbsolute(Constants.etc_nixos)) {
         log.err("the build command is currently unsupported on non-NixOS systems", .{});
         return 3;
     }

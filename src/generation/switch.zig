@@ -12,6 +12,8 @@ const argIs = argparse.argIs;
 const getNextArgs = argparse.getNextArgs;
 const ArgParseError = argparse.ArgParseError;
 
+const Constants = @import("../constants.zig");
+
 const log = @import("../log.zig");
 
 const utils = @import("../utils.zig");
@@ -150,9 +152,9 @@ pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchArgs, profil
 
     // Generate profile directory name
     const base_profile_dirname = if (mem.eql(u8, profile_name, "system"))
-        "/nix/var/nix/profiles"
+        Constants.nix_profiles
     else
-        "/nix/var/nix/profiles/system-profiles";
+        Constants.nix_system_profiles;
 
     // $base_profile_dirname/$profile_name-$gen_number-link
     const profile_link = try fmt.allocPrint(allocator, "{s}/{s}-{s}-link", .{ base_profile_dirname, profile_name, generation });

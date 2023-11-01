@@ -9,6 +9,8 @@ const argIs = argparse.argIs;
 const isFlag = argparse.isFlag;
 const argError = argparse.argError;
 
+const Constants = @import("constants.zig");
+
 const log = @import("log.zig");
 
 const utils = @import("utils.zig");
@@ -114,8 +116,8 @@ pub const GenerationArgs = struct {
 };
 
 pub fn generationMain(allocator: Allocator, args: GenerationArgs) u8 {
-    if (!fileExistsAbsolute("/etc/NIXOS")) {
-        log.err("the build command is currently unsupported on non-NixOS systems", .{});
+    if (!fileExistsAbsolute(Constants.etc_nixos)) {
+        log.err("the generation command is unsupported on non-NixOS systems", .{});
         return 3;
     }
 

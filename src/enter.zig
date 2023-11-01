@@ -21,6 +21,8 @@ const argError = argparse.argError;
 const getNextArgs = argparse.getNextArgs;
 const ArgParseError = argparse.ArgParseError;
 
+const Constants = @import("constants.zig");
+
 const log = @import("log.zig");
 
 const utils = @import("utils.zig");
@@ -221,7 +223,7 @@ fn bindMount(allocator: Allocator, mountpoint: []const u8, dir: []const u8) !voi
 // Get the location at which to bind-mount resolv.conf.
 // Caller owns returned memory.
 fn getResolvConfLocation(allocator: Allocator, mountpoint: []const u8) ![:0]const u8 {
-    const target_resolv_conf = try fmt.allocPrint(allocator, "{s}/etc/resolv.conf", .{mountpoint});
+    const target_resolv_conf = try fmt.allocPrint(allocator, "{s}{s}", .{ mountpoint, Constants.resolv_conf });
     defer allocator.free(target_resolv_conf);
 
     var created: bool = false;
@@ -368,7 +370,7 @@ fn enter(allocator: Allocator, args: EnterArgs) EnterError!void {
     };
 
     const mountpoint_is_nixos = blk: {
-        const filename = try fmt.allocPrint(allocator, "{s}/etc/NIXOS", .{mountpoint});
+        const filename = try fmt.allocPrint(allocator, "{s}{s}", .{ mountpoint, Constants.etc_nixos });
         defer allocator.free(filename);
         break :blk fileExistsAbsolute(filename);
     };
@@ -383,19 +385,19 @@ fn enter(allocator: Allocator, args: EnterArgs) EnterError!void {
     try bindMount(allocator, mountpoint, "proc");
 
     // Bind mount resolv.conf from current system to root if it exists
-    if (fileExistsAbsolute("/etc/resolv.conf")) {
-        if (verbose) log.info("bind-mounting /etc/resolv.conf for Internet access", .{});
+    if (fileExistsAbsolute(Constants.resolv_conf)) {
+        if (verbose) log.info("bind-mounting {s} for Internet access", .{Constants.resolv_conf});
         const resolv_conf = getResolvConfLocation(allocator, mountpoint) catch |err| {
             log.err("failed to determine where to mount resolv.conf: {s}", .{@errorName(err)});
             return EnterError.MountFailed;
         };
         defer allocator.free(resolv_conf);
 
-        errno = linux.mount("/etc/resolv.conf", resolv_conf, "", linux.MS.BIND, 0);
-        try checkMountError("/etc/resolv.conf", errno);
+        errno = linux.mount(Constants.resolv_conf, resolv_conf, "", linux.MS.BIND, 0);
+        try checkMountError(Constants.resolv_conf, errno);
     }
 
-    const system = args.system orelse "/nix/var/nix/profiles/system";
+    const system = args.system orelse (Constants.nix_profiles ++ "/system");
 
     try activate(allocator, mountpoint, system, args.silent);
 
