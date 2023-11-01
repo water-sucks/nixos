@@ -109,8 +109,8 @@ of commands and flags that are planned to be implemented.
   - [x] `list`
     - [x] `--json`
   - [x] `switch <number>`
-    - [ ] `--dry`
-    - [ ] `--verbose`
+    - [x] `--dry`
+    - [x] `--verbose`
   - [x] `rollback`
-    - [ ] `--dry`
-    - [ ] `--verbose`
+    - [x] `--dry`
+    - [x] `--verbose`

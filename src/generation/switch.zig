@@ -103,11 +103,15 @@ const GenerationSwitchError = error{
 var exit_status: u8 = 0;
 var verbose: bool = false;
 
-pub fn setNixEnvProfile(allocator: Allocator, profile_dirname: []const u8, generation: []const u8) !void {
+pub fn setNixEnvProfile(allocator: Allocator, profile_dirname: []const u8, generation: []const u8, dry: bool) !void {
     var argv = ArrayList([]const u8).init(allocator);
     defer argv.deinit();
 
     try argv.appendSlice(&.{ "nix-env", "--profile", profile_dirname, "--switch-generation", generation });
+
+    if (verbose) log.cmd(argv.items);
+
+    if (dry) return;
 
     var result = runCmd(.{
         .allocator = allocator,
@@ -216,7 +220,8 @@ pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchArgs, profil
         }
     }
 
-    try runSwitchToConfiguration(allocator, stc, "switch");
+    const action = if (args.dry) "dry-activate" else "switch";
+    try runSwitchToConfiguration(allocator, stc, action);
 }
 
 pub fn generationSwitchMain(allocator: Allocator, args: GenerationSwitchArgs, profile: ?[]const u8) u8 {

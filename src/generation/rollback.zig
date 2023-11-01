@@ -80,13 +80,15 @@ const GenerationRollbackError = error{
 var exit_status: u8 = 0;
 var verbose: bool = false;
 
-pub fn setNixEnvProfile(allocator: Allocator, profile_dirname: []const u8) !void {
+pub fn setNixEnvProfile(allocator: Allocator, profile_dirname: []const u8, dry: bool) !void {
     var argv = ArrayList([]const u8).init(allocator);
     defer argv.deinit();
 
     try argv.appendSlice(&.{ "nix-env", "--profile", profile_dirname, "--rollback" });
 
     if (verbose) log.cmd(argv.items);
+
+    if (dry) return;
 
     var result = runCmd(.{
         .allocator = allocator,
@@ -128,10 +130,12 @@ fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackArgs, profil
         try fmt.allocPrint(allocator, "/nix/var/nix/system-profiles/{s}", .{profile_name});
 
     // Rollback and set generation profile
-    setNixEnvProfile(allocator, profile_dirname) catch |err| {
+    setNixEnvProfile(allocator, profile_dirname, args.dry) catch |err| {
         log.err("failed to set system profile with nix-env", .{});
         return err;
     };
+
+    log.info("activating generation...", .{});
 
     // Switch to configuration
     const specialization = args.specialization orelse findSpecialization(allocator) catch blk: {
@@ -152,7 +156,8 @@ fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackArgs, profil
         }
     }
 
-    try runSwitchToConfiguration(allocator, stc, "switch");
+    const action = if (args.dry) "dry-activate" else "switch";
+    try runSwitchToConfiguration(allocator, stc, action);
 }
 
 pub fn generationRollbackMain(allocator: Allocator, args: GenerationRollbackArgs, profile: ?[]const u8) u8 {
