@@ -8,6 +8,7 @@ const ArgIterator = std.process.ArgIterator;
 const argparse = @import("../argparse.zig");
 const argError = argparse.argError;
 const argIs = argparse.argIs;
+const getNextArgs = argparse.getNextArgs;
 const ArgParseError = argparse.ArgParseError;
 
 const log = @import("../log.zig");
@@ -23,6 +24,7 @@ const findSpecialization = build.findSpecialization;
 pub const GenerationRollbackArgs = struct {
     verbose: bool = false,
     dry: bool = false,
+    specialization: ?[]const u8 = null,
 
     const usage =
         \\Rollback to the previous NixOS generation.
@@ -31,9 +33,11 @@ pub const GenerationRollbackArgs = struct {
         \\    nixos generation rollback [options]
         \\
         \\Options:
-        \\    -d, --dry        Show what would be activated, but do not activate
-        \\    -h, --help       Show this help menu
-        \\    -v, --verbose    Show verbose logging
+        \\    -d, --dry               Show what would be activated, but do not activate
+        \\    -h, --help              Show this help menu
+        \\    -s, --specialisation    Activate the given speialisation (default: contents
+        \\                            of /etc/NIXOS_SPECIALISATION if it exists)
+        \\    -v, --verbose           Show verbose logging
         \\
     ;
 
@@ -47,6 +51,9 @@ pub const GenerationRollbackArgs = struct {
             } else if (argIs(arg, "--help", "-h")) {
                 log.print("{s}", .{usage});
                 return ArgParseError.HelpInvoked;
+            } else if (argIs(arg, "--specialisation", "-s")) {
+                const next = (try getNextArgs(argv, arg, 1))[0];
+                result.specialization = next;
             } else if (argIs(arg, "--verbose", "-v")) {
                 result.verbose = true;
             } else {
@@ -68,7 +75,6 @@ pub const GenerationRollbackArgs = struct {
 const GenerationRollbackError = error{
     SetNixProfileFailed,
     SwitchToConfigurationFailed,
-    UnknownSpecialization,
 } || Allocator.Error;
 
 var exit_status: u8 = 0;
@@ -122,10 +128,13 @@ fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackArgs, profil
         try fmt.allocPrint(allocator, "/nix/var/nix/system-profiles/{s}", .{profile_name});
 
     // Rollback and set generation profile
-    try setNixEnvProfile(allocator, profile_dirname);
+    setNixEnvProfile(allocator, profile_dirname) catch |err| {
+        log.err("failed to set system profile with nix-env", .{});
+        return err;
+    };
 
     // Switch to configuration
-    const specialization = findSpecialization(allocator) catch blk: {
+    const specialization = args.specialization orelse findSpecialization(allocator) catch blk: {
         log.warn("using base configuration without specialisations", .{});
         break :blk null;
     };
@@ -138,8 +147,8 @@ fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackArgs, profil
 
     if (specialization) |spec| {
         if (!fileExistsAbsolute(stc)) {
-            log.err("failed to find specialization {s}", .{spec});
-            return GenerationRollbackError.UnknownSpecialization;
+            log.warn("could not find specialisation '{s}'", .{spec});
+            log.warn("using base configuration without specialisations", .{});
         }
     }
 
@@ -154,7 +163,6 @@ pub fn generationRollbackMain(allocator: Allocator, args: GenerationRollbackArgs
             GenerationRollbackError.SetNixProfileFailed, GenerationRollbackError.SwitchToConfigurationFailed => {
                 return if (exit_status != 0) exit_status else 1;
             },
-            GenerationRollbackError.UnknownSpecialization => return 1,
             Allocator.Error.OutOfMemory => {
                 log.err("out of memory, cannot continue", .{});
                 return 1;
