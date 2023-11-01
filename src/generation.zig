@@ -18,6 +18,8 @@ const generationList = @import("generation/list.zig");
 const generationRollback = @import("generation/rollback.zig");
 const generationSwitch = @import("generation/switch.zig");
 const GenerationListArgs = generationList.GenerationListArgs;
+const GenerationSwitchArgs = generationSwitch.GenerationSwitchArgs;
+const GenerationRollbackArgs = generationRollback.GenerationRollbackArgs;
 
 const GenerationError = error{};
 
@@ -29,8 +31,8 @@ pub const GenerationArgs = struct {
 
     const GenerationCommand = union(enum) {
         list: GenerationListArgs,
-        rollback,
-        @"switch": usize,
+        rollback: GenerationRollbackArgs,
+        @"switch": GenerationSwitchArgs,
     };
 
     pub const usage =
@@ -83,10 +85,9 @@ pub const GenerationArgs = struct {
             } else if (mem.eql(u8, arg, "list")) {
                 result.subcommand = .{ .list = try GenerationListArgs.parseArgs(argv) };
             } else if (mem.eql(u8, arg, "rollback")) {
-                result.subcommand = .rollback;
-                return result;
+                result.subcommand = .{ .rollback = try GenerationRollbackArgs.parseArgs(argv) };
             } else if (mem.eql(u8, arg, "switch")) {
-                result.subcommand = .{ .@"switch" = try getSwitchArg(argv) };
+                result.subcommand = .{ .@"switch" = try GenerationSwitchArgs.parseArgs(argv) };
             } else {
                 if (argparse.isFlag(arg)) {
                     argError("unrecognised flag '{s}'", .{arg});
@@ -94,9 +95,8 @@ pub const GenerationArgs = struct {
                     if (result.subcommand == null) {
                         argError("unknown subcommand '{s}'", .{arg});
                         return ArgParseError.InvalidSubcommand;
-                    } else {
-                        argError("argument '{s}' is not valid in this context", .{arg});
                     }
+                    argError("argument '{s}' is not valid in this context", .{arg});
                 }
                 return ArgParseError.InvalidArgument;
             }
@@ -121,7 +121,7 @@ pub fn generationMain(allocator: Allocator, args: GenerationArgs) u8 {
 
     return switch (args.subcommand.?) {
         .list => |sub_args| generationList.generationListMain(allocator, args.profile, sub_args),
-        .rollback => generationRollback.generationRollbackMain(allocator, args.profile),
-        .@"switch" => |gen_number| generationSwitch.generationSwitchMain(allocator, gen_number, args.profile),
+        .rollback => |sub_args| generationRollback.generationRollbackMain(allocator, sub_args, args.profile),
+        .@"switch" => |sub_args| generationSwitch.generationSwitchMain(allocator, sub_args, args.profile),
     };
 }

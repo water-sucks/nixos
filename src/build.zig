@@ -586,11 +586,11 @@ pub fn findSpecialization(allocator: Allocator) !?[]const u8 {
 }
 
 /// Run the switch-to-configuration.pl script
-pub fn runSwitchToConfiguration(
+fn runSwitchToConfiguration(
     allocator: Allocator,
     location: []const u8,
     command: []const u8,
-    options: struct { exit_status: *u8, install_bootloader: bool = false },
+    options: struct { install_bootloader: bool = false },
 ) !void {
     var env_map = try std.process.getEnvMap(allocator);
     defer env_map.deinit();
@@ -609,7 +609,7 @@ pub fn runSwitchToConfiguration(
     }) catch return BuildError.SwitchToConfigurationFailed;
 
     if (result.status != 0) {
-        options.exit_status.* = result.status;
+        exit_status = result.status;
         return BuildError.SwitchToConfigurationFailed;
     }
 }
@@ -834,7 +834,6 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
     defer allocator.free(stc);
 
     const stc_options = .{
-        .exit_status = &exit_status,
         .install_bootloader = args.install_bootloader,
     };
 

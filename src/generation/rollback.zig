@@ -3,6 +3,12 @@ const fmt = std.fmt;
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
+const ArgIterator = std.process.ArgIterator;
+
+const argparse = @import("../argparse.zig");
+const argError = argparse.argError;
+const argIs = argparse.argIs;
+const ArgParseError = argparse.ArgParseError;
 
 const log = @import("../log.zig");
 
@@ -10,13 +16,54 @@ const utils = @import("../utils.zig");
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 const runCmd = utils.runCmd;
 
-var exit_status: u8 = 0;
-
-// Reusing specialization and switch-to-configuration logic
-// from `nixos build`, because I'm lazy.
+// Reusing specialization logic from `nixos build`, because I'm lazy.
 const build = @import("../build.zig");
 const findSpecialization = build.findSpecialization;
-const runSwitchToConfiguration = build.runSwitchToConfiguration;
+
+pub const GenerationRollbackArgs = struct {
+    verbose: bool = false,
+    dry: bool = false,
+
+    const usage =
+        \\Rollback to the previous NixOS generation.
+        \\
+        \\Usage:
+        \\    nixos generation rollback [options]
+        \\
+        \\Options:
+        \\    -d, --dry        Show what would be activated, but do not activate
+        \\    -h, --help       Show this help menu
+        \\    -v, --verbose    Show verbose logging
+        \\
+    ;
+
+    pub fn parseArgs(argv: *ArgIterator) !GenerationRollbackArgs {
+        var result: GenerationRollbackArgs = GenerationRollbackArgs{};
+
+        var next_arg = argv.next();
+        while (next_arg) |arg| {
+            if (argIs(arg, "--dry", "-d")) {
+                result.dry = true;
+            } else if (argIs(arg, "--help", "-h")) {
+                log.print("{s}", .{usage});
+                return ArgParseError.HelpInvoked;
+            } else if (argIs(arg, "--verbose", "-v")) {
+                result.verbose = true;
+            } else {
+                if (argparse.isFlag(arg)) {
+                    argError("unrecognised flag '{s}'", .{arg});
+                } else {
+                    argError("argument '{s}' is not valid in this context", .{arg});
+                }
+                return ArgParseError.InvalidArgument;
+            }
+
+            next_arg = argv.next();
+        }
+
+        return result;
+    }
+};
 
 const GenerationRollbackError = error{
     SetNixProfileFailed,
@@ -24,11 +71,16 @@ const GenerationRollbackError = error{
     UnknownSpecialization,
 } || Allocator.Error;
 
+var exit_status: u8 = 0;
+var verbose: bool = false;
+
 pub fn setNixEnvProfile(allocator: Allocator, profile_dirname: []const u8) !void {
     var argv = ArrayList([]const u8).init(allocator);
     defer argv.deinit();
 
     try argv.appendSlice(&.{ "nix-env", "--profile", profile_dirname, "--rollback" });
+
+    if (verbose) log.cmd(argv.items);
 
     var result = runCmd(.{
         .allocator = allocator,
@@ -41,7 +93,29 @@ pub fn setNixEnvProfile(allocator: Allocator, profile_dirname: []const u8) !void
     }
 }
 
-fn rollbackGeneration(allocator: Allocator, profile_name: []const u8) !void {
+fn runSwitchToConfiguration(
+    allocator: Allocator,
+    location: []const u8,
+    command: []const u8,
+) !void {
+    const argv = &.{ location, command };
+
+    if (verbose) log.cmd(argv);
+
+    const result = runCmd(.{
+        .allocator = allocator,
+        .argv = argv,
+    }) catch return GenerationRollbackError.SwitchToConfigurationFailed;
+
+    if (result.status != 0) {
+        exit_status = result.status;
+        return GenerationRollbackError.SwitchToConfigurationFailed;
+    }
+}
+
+fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackArgs, profile_name: []const u8) !void {
+    verbose = args.verbose;
+
     const profile_dirname = if (mem.eql(u8, profile_name, "system"))
         try fmt.allocPrint(allocator, "/nix/var/nix/profiles/system", .{})
     else
@@ -69,15 +143,13 @@ fn rollbackGeneration(allocator: Allocator, profile_name: []const u8) !void {
         }
     }
 
-    runSwitchToConfiguration(allocator, stc, "switch", .{
-        .exit_status = &exit_status,
-    }) catch return GenerationRollbackError.SwitchToConfigurationFailed;
+    try runSwitchToConfiguration(allocator, stc, "switch");
 }
 
-pub fn generationRollbackMain(allocator: Allocator, profile: ?[]const u8) u8 {
-    const profile_dir = profile orelse "system";
+pub fn generationRollbackMain(allocator: Allocator, args: GenerationRollbackArgs, profile: ?[]const u8) u8 {
+    const profile_name = profile orelse "system";
 
-    rollbackGeneration(allocator, profile_dir) catch |err| {
+    rollbackGeneration(allocator, args, profile_name) catch |err| {
         switch (err) {
             GenerationRollbackError.SetNixProfileFailed, GenerationRollbackError.SwitchToConfigurationFailed => {
                 return if (exit_status != 0) exit_status else 1;
