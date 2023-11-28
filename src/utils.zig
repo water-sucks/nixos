@@ -137,6 +137,16 @@ pub fn fileExistsAbsolute(filename: []const u8) bool {
     return true;
 }
 
+/// Read file in its entirety into a string buffer.
+/// Caller owns returned memory.
+pub fn readFile(allocator: Allocator, path: []const u8) ![]const u8 {
+    const file = try fs.openFileAbsolute(path, .{});
+    defer file.close();
+
+    const contents = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
+    return contents;
+}
+
 /// Compare strings lexicographically to see if one is less than other.
 pub fn stringLessThan(_: void, lhs: []const u8, rhs: []const u8) bool {
     const result = mem.order(u8, lhs, rhs);
