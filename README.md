@@ -10,6 +10,7 @@ Why? Because why not, to be honest. Written in Zig, because I like Zig.
 
 - `nixos-rebuild` → `nixos build` + `nixos generation`
 - `nixos-enter` → `nixos enter`
+- `nixos-generate-config` → `nixos generate-config`
 
 More to come in the future, see [TODO](#todo) for a list
 of commands and flags that are planned to be implemented.
@@ -24,93 +25,34 @@ of commands and flags that are planned to be implemented.
 
 ### Implemented Commands/Flags
 
-- [ ] `build`
-  - [x] `--activate`
-  - [x] `--boot`
-  - [ ] `--build-host <host>`
-  - [x] `--dry`
-  - [x] `--flake <flake-uri#name>`
-  - [x] `--install-bootloader`
-  - [x] `--no-flake`
-  - [ ] `--no-build-nix`
-  - [x] `--output <location>`
-  - [x] `--profile-name <name>`
-  - [x] `--specialisation <name>`
-  - [x] `--switch`
-  - [ ] `--target-host <host>`
-  - [x] `--upgrade`
-  - [x] `--upgrade-all`
-  - [ ] `--use-remote-sudo`
-  - [x] `--vm`
-  - [x] `--vm-with-bootloader`
-  - [x] `--verbose`
-  - [x] Nix build options
-  - [x] Nix flake options
-  - [ ] Nix copy closure options
+- [-] `build`
 - [ ] `container`
   - [ ] `list`
   - [ ] `create <name>`
-    - [ ] `--auto-start`
-    - [ ] `--bridge <iface>`
-    - [ ] `--config <string>`
-    - [ ] `--config-file <path>`
-    - [ ] `--ensure-unique-name`
-    - [ ] `--flake <flake-uri#name>`
-    - [ ] `--host-address <address>`
-    - [ ] `--local-address <address>`
-    - [ ] `--nixos-path <path>`
-    - [ ] `--port <port>`
-    - [ ] `--system-path <path>`
   - [ ] `destroy <name>`
   - [ ] `start <name>`
   - [ ] `stop <name>`
   - [ ] `status <name>`
   - [ ] `update <name>`
-    - [ ] `--nixos-path <path>`
-    - [ ] `--config <string>`
-    - [ ] `--config-file <path>`
-    - [ ] `--flake <flake-uri#name>`
   - [ ] `login <name>`
-    - [ ] `--root`
   - [ ] `run <name> <args...>`
   - [ ] `show-ip <name>`
   - [ ] `show-host-key <name>`
 - [x] `enter`
-  - [x] `--command <cmd>`
-  - [x] `--root <directory>`
-  - [x] `--silent`
-  - [x] `--system <directory>`
-  - [x] `--`
 - [ ] `edit-config`
-- [ ] `generate-config`
-  - [ ] `--flake`
-  - [ ] `--force`
-  - [ ] `--root <directory>`
-  - [ ] `--dir <directory>`
-  - [ ] `--show-hardware-config`
+- [-] `generate-config`
 - [ ] `info`
-  - [ ] `--nixpkgs-revision`
-  - [ ] `--configuration-revision`
-  - [ ] `--json`
-  - [ ] `--markdown`
 - [ ] `manual`
 - [ ] `install`
-  - [ ] `--closure <path>`
-  - [ ] `--channel <derivation>`
-  - [ ] `--flake <flake-uri#name>`
-  - [ ] `--root`
-  - [ ] `--verbose`
-  - [ ] Nix build options
-  - [ ] Nix flake options
 - [ ] `option`
-  - [ ] `--list`
-  - [ ] `--json`
 - [x] `generation`
   - [x] `list`
-    - [x] `--json`
   - [x] `switch <number>`
-    - [x] `--dry`
-    - [x] `--verbose`
   - [x] `rollback`
-    - [x] `--dry`
-    - [x] `--verbose`
+  - [?] `diff`
+
+### Possible Future Commands
+
+I would like for this to become a standard NixOS tool, which means that I want
+to cater to potentially many interests. If you would like for any subcommands
+to be implemented that you think fit this project, please file an issue.
