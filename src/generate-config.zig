@@ -100,7 +100,6 @@ const GenerateConfigError = error{
 // for now to /etc/nixos-cli/generate-config.json.
 const GenerateConfigConfiguration = struct {
     hostPlatform: ?[]const u8 = null,
-    bootloaderConfig: ?[]const u8 = null,
     xserverEnabled: bool = false,
     desktopConfig: ?[]const u8 = null,
     extraAttrs: ?[]KVPair = null,

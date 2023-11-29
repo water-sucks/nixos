@@ -20,6 +20,7 @@
   };
 
   outputs = {
+    self,
     nixpkgs,
     flake-parts,
     ...
@@ -66,6 +67,7 @@
             maintainers = with maintainers; [water-sucks];
           };
         };
+
         devShells.default = pkgs.mkShell {
           name = "nixos-shell";
           packages = [
@@ -78,6 +80,12 @@
 
           ZIG_DOCS = "${zig}/doc/langref.html";
           ZIG_STD_DOCS = "${zig}/doc/std/index.html";
+        };
+      };
+
+      flake = {
+        nixosModules = {
+          nixos-cli = import ./module.nix self;
         };
       };
     };
