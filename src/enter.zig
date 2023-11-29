@@ -83,7 +83,7 @@ pub const EnterArgs = struct {
                 result.command = next;
             } else if (argIs(arg, "--root", "-r")) {
                 const next = (try getNextArgs(args, arg, 1))[0];
-                result.command = next;
+                result.root = next;
             } else if (argIs(arg, "--silent", "-s")) {
                 result.silent = true;
             } else if (argIs(arg, "--help", "-h")) {
