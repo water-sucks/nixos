@@ -12,7 +12,7 @@ in {
 
     package = lib.mkOption {
       type = types.package;
-      default = self.packages.${self.stdenv.hostPlatform.system}.default;
+      default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
       description = "Package to use for nixos-cli";
     };
   };
@@ -20,7 +20,7 @@ in {
   config = lib.mkIf cfg.enable {
     environment.systemPackages = [cfg.package];
 
-    environment.etc."nixos-cli/generate-config.json" = builtins.toJSON {
+    environment.etc."nixos-cli/generate-config.json".text = builtins.toJSON {
       hostPlatform = pkgs.stdenv.hostPlatform.system;
       xserverEnabled = lib.mkDefault config.services.xserver.enable;
       # Inherit this from the old nixos-generate-config attrs. Easy to deal with, for now.

@@ -15,6 +15,27 @@ Why? Because why not, to be honest. Written in Zig, because I like Zig.
 More to come in the future, see [TODO](#todo) for a list
 of commands and flags that are planned to be implemented.
 
+## Usage
+
+Use this repo as a flake input. A NixOS module is also provided, and this is
+the recommended way to use this program.
+
+```nix
+{
+  inputs.nixos-cli.url = "github:water-sucks/nixos";
+
+  outputs = { nixpkgs, nixos-cli, ... }: {
+    nixosConfigurations.system-name = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        nixos-cli.nixosModules.nixos-cli
+        # other configuration goes here
+      ];
+    };
+  };
+}
+```
+
 ## Differences to Standard NixOS Tooling
 
 - It's 1 tool, not 10 different ones with roughly similar options
