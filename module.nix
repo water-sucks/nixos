@@ -6,6 +6,8 @@ self: {
 }: let
   cfg = config.services.nixos-cli;
   inherit (lib) types;
+
+  jsonFormat = pkgs.formats.json {};
 in {
   options.services.nixos-cli = {
     enable = lib.mkEnableOption "unified NixOS tooling replacement for nixos-* utilities";
@@ -20,7 +22,7 @@ in {
   config = lib.mkIf cfg.enable {
     environment.systemPackages = [cfg.package];
 
-    environment.etc."nixos-cli/generate-config.json".text = builtins.toJSON {
+    environment.etc."nixos-cli/generate-config.json".source = jsonFormat.generate "nixos-generate-config.json" {
       hostPlatform = pkgs.stdenv.hostPlatform.system;
       xserverEnabled = lib.mkDefault config.services.xserver.enable;
       # Inherit this from the old nixos-generate-config attrs. Easy to deal with, for now.
