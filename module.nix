@@ -24,11 +24,11 @@ in {
 
     environment.etc."nixos-cli/generate-config.json".source = jsonFormat.generate "nixos-generate-config.json" {
       hostPlatform = pkgs.stdenv.hostPlatform.system;
-      xserverEnabled = lib.mkDefault config.services.xserver.enable;
+      xserverEnabled = config.services.xserver.enable;
       # Inherit this from the old nixos-generate-config attrs. Easy to deal with, for now.
-      desktopConfig = lib.mkDefault config.system.nixos-generate-config.desktopConfiguration;
-      extraAttrs = lib.mkDefault {};
-      extraConfig = lib.mkDefault "";
+      desktopConfig = config.system.nixos-generate-config.desktopConfiguration;
+      extraAttrs = {};
+      extraConfig = "";
     };
   };
 }
