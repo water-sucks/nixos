@@ -115,38 +115,38 @@ As you can see, the goal is roughly to capture the intent of the user in her nai
     - Implement comprehensive testing to ensure the new command works with various NixOS setups.
     - Incorporate testing into Nixpkgs test infrastructure.
     - Adopt test driven design method where/if appropriate.
-7. **Documentation:**
+- **Documentation:**
     - Create detailed documentation for the unified command.
     - Include usage examples, command syntax, and potential use cases.
     - Consider automatic source-based documentation tooling to keep maintenance overhead low.
-8. **Community Engagement:**
+- **Community Engagement:**
     - Share your project with the NixOS community.
     - Gather feedback and suggestions for improvement.
     - Collaborate with the community to refine and enhance the unified command.
     - Write a tutorial how to write a plugin in a language of choice.
-9. **Write eventual follow up RFCs:**
+- **Write eventual follow up RFCs:**
     - Share your lessens learnt and design choices via the RFC process to the broader community.
     - Request consens on this new endeavor with motion to upstream into Nixpkgs.
     - Remove any blockers for consensus as they come up via the RFC feedback.
-10. **Security Considerations:**
+- **Security Considerations:**
     - Ensure that the unified command follows best practices for security.
     - Implement safeguards to prevent unintended consequences.
-11. **Error Handling:**
+- **Error Handling:**
     - Implement robust error handling to provide meaningful error messages.
     - Include troubleshooting information in the documentation.
-12. **Optimization and Performance:**
+- **Optimization and Performance:**
     - Optimize the unified command for performance.
     - Consider caching mechanisms for repeated operations.
-13. **Versioning:**
+- **Versioning:**
     - Implement versioning for the unified command to manage changes and updates.
     - Communicate changes clearly in release notes.
-14. **Maintenance Plan:**
+- **Maintenance Plan:**
     - Develop a plan for ongoing maintenance and updates.
     - Consider creating a community-driven project for long-term sustainability.
-15. **Release:**
+- **Release:**
     - Prepare for the initial release.
     - Share the unified command through package managers or other distribution channels.
-16. **Feedback Loop:**
+- **Feedback Loop:**
     - Encourage users to provide feedback.
     - Iterate on the command based on user experiences and suggestions.
 
