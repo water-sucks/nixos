@@ -595,7 +595,7 @@ fn findStableDevPath(allocator: Allocator, device: []const u8) ![]const u8 {
     defer by_uuid_dir.close();
     var uuid_iter = by_uuid_dir.iterate();
     while (uuid_iter.next() catch |err| {
-        log.err("error iterating {s}: {s}", .{ by_uuid_dirname, @errorName(err) });
+        log.warn("error iterating {s}: {s}", .{ by_uuid_dirname, @errorName(err) });
         return try allocator.dupe(u8, device);
     }) |entry| {
         const device2_name = try fs.path.joinZ(allocator, &.{ by_uuid_dirname, entry.name });
@@ -911,26 +911,26 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
             const slave_device_dirname = try fmt.allocPrint(allocator, "/sys/class/block/{s}/slaves", .{device_name});
             defer allocator.free(slave_device_dirname);
 
-            var slave_device_dir = fs.openIterableDirAbsolute(slave_device_dirname, .{}) catch |err| {
+            var slave_device_dir = fs.openIterableDirAbsolute(slave_device_dirname, .{}) catch |err| blk: {
                 log.warn("unable to open {s}: {s}", .{ slave_device_dirname, @errorName(err) });
-                return GenerateConfigError.ResourceAccessFailed;
+                break :blk null;
             };
-            defer slave_device_dir.close();
-            var slave_device_iter = slave_device_dir.iterate();
-
             var slave_name: ?[]const u8 = null;
             var has_one_slave = false;
-
-            while (slave_device_iter.next() catch |err| {
-                log.err("error iterating {s}: {s}", .{ slave_device_dirname, @errorName(err) });
-                return GenerateConfigError.ResourceAccessFailed;
-            }) |entry| {
-                if (!has_one_slave and slave_name == null) {
-                    has_one_slave = true;
-                    slave_name = entry.name;
-                } else if (has_one_slave) {
-                    has_one_slave = false;
-                    break;
+            if (slave_device_dir) |*dir| {
+                defer dir.close();
+                var iter = dir.iterate();
+                while (iter.next() catch |err| blk: {
+                    log.warn("error iterating {s}: {s}", .{ slave_device_dirname, @errorName(err) });
+                    break :blk null;
+                }) |entry| {
+                    if (!has_one_slave and slave_name == null) {
+                        has_one_slave = true;
+                        slave_name = entry.name;
+                    } else if (has_one_slave) {
+                        has_one_slave = false;
+                        break;
+                    }
                 }
             }
 
@@ -1064,56 +1064,65 @@ fn generateHwConfignNix(allocator: Allocator, config: GenerateConfigConfiguratio
 
     // Find all needed kernel modules and packages corresponding to connected PCI devices
     const pci_dirname = "/sys/bus/pci/devices";
-    var pci_dir = fs.openIterableDirAbsolute(pci_dirname, .{}) catch |err| {
+    var pci_dir = fs.openIterableDirAbsolute(pci_dirname, .{}) catch |err| blk: {
         log.err("unable to open {s}: {s}", .{ pci_dirname, @errorName(err) });
-        return GenerateConfigError.ResourceAccessFailed;
+        break :blk null;
     };
-    defer pci_dir.close();
-    var pci_iter = pci_dir.iterate();
-    while (pci_iter.next() catch return GenerateConfigError.ResourceAccessFailed) |entry| {
-        const name = try fs.path.join(allocator, &.{ pci_dirname, entry.name });
-        defer allocator.free(name);
-        pciCheck(allocator, name, array_refs) catch return GenerateConfigError.ResourceAccessFailed;
+    if (pci_dir) |*dir| {
+        defer dir.close();
+        var iter = dir.iterate();
+        while (iter.next() catch null) |entry| {
+            const name = try fs.path.join(allocator, &.{ pci_dirname, entry.name });
+            defer allocator.free(name);
+            pciCheck(allocator, name, array_refs) catch return GenerateConfigError.ResourceAccessFailed;
+        }
     }
 
     // Find all needed kernel modules and packages corresponding to connected USB devices
     const usb_dirname = "/sys/bus/usb/devices";
-    var usb_dir = fs.openIterableDirAbsolute(usb_dirname, .{}) catch |err| {
-        log.err("unable to open {s}: {s}", .{ usb_dirname, @errorName(err) });
-        return GenerateConfigError.ResourceAccessFailed;
+    var usb_dir = fs.openIterableDirAbsolute(usb_dirname, .{}) catch |err| blk: {
+        log.warn("unable to open {s}: {s}", .{ usb_dirname, @errorName(err) });
+        break :blk null;
     };
-    defer usb_dir.close();
-    var usb_iter = pci_dir.iterate();
-    while (usb_iter.next() catch return GenerateConfigError.ResourceAccessFailed) |entry| {
-        const name = try fs.path.join(allocator, &.{ usb_dirname, entry.name });
-        defer allocator.free(name);
-        usbCheck(allocator, name, array_refs) catch return GenerateConfigError.ResourceAccessFailed;
+    if (usb_dir) |*dir| {
+        defer dir.close();
+        var iter = dir.iterate();
+        while (iter.next() catch null) |entry| {
+            const name = try fs.path.join(allocator, &.{ usb_dirname, entry.name });
+            defer allocator.free(name);
+            usbCheck(allocator, name, array_refs) catch return GenerateConfigError.ResourceAccessFailed;
+        }
     }
 
     // Find all needed kernel modules corresponding to connected block devices
     const block_dirname = "/sys/class/block";
-    var block_dir = fs.openIterableDirAbsolute(block_dirname, .{}) catch |err| {
-        log.err("unable to open {s}: {s}", .{ block_dirname, @errorName(err) });
-        return GenerateConfigError.ResourceAccessFailed;
+    var block_dir = fs.openIterableDirAbsolute(block_dirname, .{}) catch |err| blk: {
+        log.warn("unable to open {s}: {s}", .{ block_dirname, @errorName(err) });
+        break :blk null;
     };
-    defer block_dir.close();
-    var block_iter = block_dir.iterate();
-    while (block_iter.next() catch return GenerateConfigError.ResourceAccessFailed) |entry| {
-        const path = try fs.path.join(allocator, &.{ block_dirname, entry.name, "device" });
-        defer allocator.free(path);
-        const module = findModuleName(allocator, path) catch null;
-        if (module) |m| {
-            try initrd_available_modules.append(m);
+    if (block_dir) |*dir| {
+        defer dir.close();
+        var iter = dir.iterate();
+        while (iter.next() catch null) |entry| {
+            const path = try fs.path.join(allocator, &.{ block_dirname, entry.name, "device" });
+            defer allocator.free(path);
+            const module = findModuleName(allocator, path) catch null;
+            if (module) |m| {
+                try initrd_available_modules.append(m);
+            }
         }
     }
 
     // Find all needed kernel modules corresponding to connected MMC devices
     const mmc_host_dirname = "/sys/class/mmc_host";
-    var mmc_host_dir = fs.openIterableDirAbsolute(mmc_host_dirname, .{}) catch null;
+    var mmc_host_dir = fs.openIterableDirAbsolute(mmc_host_dirname, .{}) catch |err| blk: {
+        log.warn("unable to open {s}: {s}", .{ mmc_host_dirname, @errorName(err) });
+        break :blk null;
+    };
     if (mmc_host_dir) |*dir| {
         defer dir.close();
         var iter = dir.iterate();
-        while (iter.next() catch return GenerateConfigError.ResourceAccessFailed) |entry| {
+        while (iter.next() catch null) |entry| {
             const path = try fs.path.join(allocator, &.{ mmc_host_dirname, entry.name, "device" });
             defer allocator.free(path);
             const module = findModuleName(allocator, path) catch null;
@@ -1124,15 +1133,17 @@ fn generateHwConfignNix(allocator: Allocator, config: GenerateConfigConfiguratio
     }
 
     // Detect bcachefs
-    var dev_dir = fs.openIterableDirAbsolute("/dev", .{}) catch |err| {
-        log.err("unable to open /dev: {s}", .{@errorName(err)});
-        return GenerateConfigError.ResourceAccessFailed;
+    var dev_dir = fs.openIterableDirAbsolute("/dev", .{}) catch |err| blk: {
+        log.warn("unable to open /dev: {s}", .{@errorName(err)});
+        break :blk null;
     };
-    var dev_iter = dev_dir.iterate();
-    while (dev_iter.next() catch return GenerateConfigError.ResourceAccessFailed) |entry| {
-        if (mem.startsWith(u8, entry.name, "bcache")) {
-            try initrd_available_modules.append("bcache");
-            break;
+    if (dev_dir) |dir| {
+        var iter = dir.iterate();
+        while (iter.next() catch null) |entry| {
+            if (mem.startsWith(u8, entry.name, "bcache")) {
+                try initrd_available_modules.append("bcache");
+                break;
+            }
         }
     }
 
@@ -1182,9 +1193,9 @@ fn generateHwConfignNix(allocator: Allocator, config: GenerateConfigConfiguratio
     }
 
     // Generate swap device configuration
-    const swap_devices = findSwapDevices(allocator) catch |err| {
-        log.err("error finding swap devices: {s}", .{@errorName(err)});
-        return GenerateConfigError.ResourceAccessFailed;
+    const swap_devices = findSwapDevices(allocator) catch |err| blk: {
+        log.warn("error finding swap devices: {s}", .{@errorName(err)});
+        break :blk try allocator.alloc([]u8, 0);
     };
     defer {
         for (swap_devices) |dev| allocator.free(dev);
@@ -1192,11 +1203,14 @@ fn generateHwConfignNix(allocator: Allocator, config: GenerateConfigConfiguratio
     }
 
     var absolute_buf: [os.PATH_MAX]u8 = undefined;
-    const absolute_root = os.realpath(args.root orelse "/", &absolute_buf) catch return GenerateConfigError.ResourceAccessFailed;
+    const absolute_root = os.realpath(args.root orelse "/", &absolute_buf) catch |err| {
+        log.err("unable to find realpath of root: {s}", .{@errorName(err)});
+        return GenerateConfigError.ResourceAccessFailed;
+    };
     const root = if (mem.eql(u8, absolute_root, "/")) "" else absolute_root;
 
     // Generate configuration entries for mounted filesystems
-    const filesystems = findFilesystems(allocator, root) catch return GenerateConfigError.ResourceAccessFailed;
+    const filesystems = findFilesystems(allocator, root) catch try allocator.alloc(Filesystem, 0);
     defer {
         for (filesystems) |*filesystem| filesystem.deinit(allocator);
         allocator.free(filesystems);
@@ -1209,16 +1223,18 @@ fn generateHwConfignNix(allocator: Allocator, config: GenerateConfigConfiguratio
     }
 
     const net_dirname = "/sys/class/net";
-    var net_dir = fs.openIterableDirAbsolute(net_dirname, .{}) catch |err| {
-        log.err("unable to open {s}: {s}", .{ net_dirname, @errorName(err) });
-        return GenerateConfigError.ResourceAccessFailed;
+    var net_dir = fs.openIterableDirAbsolute(net_dirname, .{}) catch |err| blk: {
+        log.warn("unable to open {s}: {s}", .{ net_dirname, @errorName(err) });
+        break :blk null;
     };
-    defer net_dir.close();
-    var net_iter = net_dir.iterate();
-    while (net_iter.next() catch return GenerateConfigError.ResourceAccessFailed) |entry| {
-        if (!mem.eql(u8, entry.name, "lo")) {
-            const attr = try fmt.allocPrint(allocator, "  # networking.interfaces.{s}.useDHCP = lib.mkDefault true;\n", .{entry.name});
-            try networking_attrs.append(attr);
+    if (net_dir) |*dir| {
+        defer dir.close();
+        var iter = dir.iterate();
+        while (iter.next() catch null) |entry| {
+            if (!mem.eql(u8, entry.name, "lo")) {
+                const attr = try fmt.allocPrint(allocator, "  # networking.interfaces.{s}.useDHCP = lib.mkDefault true;\n", .{entry.name});
+                try networking_attrs.append(attr);
+            }
         }
     }
 
@@ -1443,7 +1459,7 @@ fn generateConfig(allocator: Allocator, args: GenerateConfigArgs) !void {
             error.FileNotFound => log.err("unable to open {s}: no such file or directory", .{hw_nix_filename}),
             else => log.err("unable to open {s}: {s}", .{ hw_nix_filename, @errorName(err) }),
         }
-        return GenerateConfigError.PermissionDenied;
+        return GenerateConfigError.ResourceAccessFailed;
     };
     defer hw_nix_file.close();
     _ = hw_nix_file.write(hw_config) catch |err| {
@@ -1478,7 +1494,7 @@ fn generateConfig(allocator: Allocator, args: GenerateConfigArgs) !void {
             error.FileNotFound => log.err("unable to open {s}", .{config_nix_filename}),
             else => log.err("unable to open {s}: {s}", .{ config_nix_filename, @errorName(err) }),
         }
-        return GenerateConfigError.PermissionDenied;
+        return GenerateConfigError.ResourceAccessFailed;
     };
     defer config_nix_file.close();
     _ = config_nix_file.write(config_str) catch |err| {
