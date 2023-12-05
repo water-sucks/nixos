@@ -30,7 +30,7 @@ in {
         hostPlatform = pkgs.stdenv.hostPlatform.system;
         xserverEnabled = config.services.xserver.enable;
         inherit desktopConfig;
-        inherit (cfg) extraAttrs;
+        extraAttrs = [];
         extraConfig = "";
       };
   };
