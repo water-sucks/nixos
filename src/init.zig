@@ -44,7 +44,7 @@ pub const InitConfigArgs = struct {
         \\Options:
         \\    -d, --dir <NAME>              Directory to write configuration to
         \\    -f, --force                   Force generation of configuration.nix
-        \\    -n, --no-filesystems          Do not generate `fileSystem` option configuration
+        \\    -n, --no-fs                   Do not generate `fileSystem` option configuration
         \\    -r, --root <DIR>              Treat the given directory as the root directory
         \\    -s, --show-hardware-config    Print hardware config to stdout and exit
         \\
@@ -63,7 +63,7 @@ pub const InitConfigArgs = struct {
                 return ArgParseError.HelpInvoked;
             } else if (argIs(arg, "--force", "-f")) {
                 result.force = true;
-            } else if (argIs(arg, "--no-filesystems", "-n")) {
+            } else if (argIs(arg, "--no-fs", "-n")) {
                 result.no_fs = true;
             } else if (argIs(arg, "--root", "-r")) {
                 const next = (try getNextArgs(args, arg, 1))[0];
@@ -1210,7 +1210,10 @@ fn generateHwConfignNix(allocator: Allocator, config: InitConfigConfiguration, a
     const root = if (mem.eql(u8, absolute_root, "/")) "" else absolute_root;
 
     // Generate configuration entries for mounted filesystems
-    const filesystems = findFilesystems(allocator, root) catch try allocator.alloc(Filesystem, 0);
+    const filesystems = if (!args.no_fs)
+        findFilesystems(allocator, root) catch try allocator.alloc(Filesystem, 0)
+    else
+        try allocator.alloc(Filesystem, 0);
     defer {
         for (filesystems) |*filesystem| filesystem.deinit(allocator);
         allocator.free(filesystems);
