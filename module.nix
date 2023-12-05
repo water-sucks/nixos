@@ -22,13 +22,16 @@ in {
   config = lib.mkIf cfg.enable {
     environment.systemPackages = [cfg.package];
 
-    environment.etc."nixos-cli/generate-config.json".source = jsonFormat.generate "nixos-generate-config.json" {
-      hostPlatform = pkgs.stdenv.hostPlatform.system;
-      xserverEnabled = config.services.xserver.enable;
+    environment.etc."nixos-cli/generate-config.json".source = let
       # Inherit this from the old nixos-generate-config attrs. Easy to deal with, for now.
-      desktopConfig = config.system.nixos-generate-config.desktopConfiguration;
-      extraAttrs = {};
-      extraConfig = "";
-    };
+      desktopConfig = lib.concatStringsSep "\n" config.system.nixos-generate-config.desktopConfiguration;
+    in
+      jsonFormat.generate "nixos-generate-config.json" {
+        hostPlatform = pkgs.stdenv.hostPlatform.system;
+        xserverEnabled = config.services.xserver.enable;
+        inherit desktopConfig;
+        inherit (cfg) extraAttrs;
+        extraConfig = "";
+      };
   };
 }
