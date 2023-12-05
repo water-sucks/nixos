@@ -1,5 +1,6 @@
 const std = @import("std");
 const fmt = std.fmt;
+const fs = std.fs;
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
@@ -10,6 +11,8 @@ const argError = argparse.argError;
 const argIs = argparse.argIs;
 const getNextArgs = argparse.getNextArgs;
 const ArgParseError = argparse.ArgParseError;
+
+const Constants = @import("../constants.zig");
 
 const log = @import("../log.zig");
 
@@ -125,9 +128,10 @@ fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackArgs, profil
     verbose = args.verbose;
 
     const profile_dirname = if (mem.eql(u8, profile_name, "system"))
-        try fmt.allocPrint(allocator, "/nix/var/nix/profiles/system", .{})
+        try fmt.allocPrint(allocator, Constants.nix_profiles, .{})
     else
-        try fmt.allocPrint(allocator, "/nix/var/nix/system-profiles/{s}", .{profile_name});
+        try fs.path.join(allocator, &.{ Constants.nix_system_profiles, profile_name });
+    defer allocator.free(profile_dirname);
 
     // Rollback and set generation profile
     setNixEnvProfile(allocator, profile_dirname, args.dry) catch |err| {
@@ -144,9 +148,9 @@ fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackArgs, profil
     };
 
     const stc = if (specialization) |spec|
-        try fmt.allocPrint(allocator, "{s}/specialisation/{s}/bin/switch-to-configuration", .{ profile_dirname, spec })
+        try fs.path.join(allocator, &.{ profile_dirname, "specialisation", spec, "/bin/switch-to-configuration" })
     else
-        try fmt.allocPrint(allocator, "{s}/bin/switch-to-configuration", .{profile_dirname});
+        try fs.path.join(allocator, &.{ profile_dirname, "/bin/switch-to-configuration" });
     defer allocator.free(stc);
 
     if (specialization) |spec| {

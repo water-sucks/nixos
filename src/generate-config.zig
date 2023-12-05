@@ -118,9 +118,8 @@ fn quote(allocator: Allocator, string: []const u8) ![]u8 {
 
 // Read command configuration. Caller owns returned memory.
 fn getCommandConfig(allocator: Allocator) !json.Parsed(GenerateConfigConfiguration) {
-    // TODO: how to make user-configurable?
-    const config_filename = try fs.cwd().realpathAlloc(allocator, Constants.config_location ++ "/generate-config.json");
-    defer allocator.free(config_filename);
+    var path_buf: [os.PATH_MAX]u8 = undefined;
+    const config_filename = try os.readlink(Constants.config_location ++ "/generate-config.json", &path_buf);
 
     const config_file = fs.openFileAbsolute(config_filename, .{}) catch |err| {
         switch (err) {
@@ -580,11 +579,9 @@ fn findStableDevPath(allocator: Allocator, device: []const u8) ![]const u8 {
         return try allocator.dupe(u8, device);
     }
 
-    const device_name = try fmt.allocPrintZ(allocator, "{s}", .{device});
-    defer allocator.free(device_name);
-
+    const device_name = os.toPosixPath(device) catch return GenerateConfigError.OutOfMemory;
     var dev_stat: linux.Stat = undefined;
-    var errno: usize = linux.stat(device_name.ptr, &dev_stat);
+    var errno: usize = linux.stat(&device_name, &dev_stat);
     if (errno > 0) {
         return try allocator.dupe(u8, device);
     }
@@ -769,12 +766,10 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
 
         // Check if mountpoint is directory
         const is_dir = blk: {
-            const dirname = try fmt.allocPrintZ(allocator, "{s}", .{mountpoint_absolute});
-            defer allocator.free(dirname);
+            const dirname = try os.toPosixPath(mountpoint_absolute);
             var stat_buf: linux.Stat = undefined;
-            const errno = linux.stat(dirname, &stat_buf);
+            const errno = linux.stat(&dirname, &stat_buf);
             if (errno > 0) {
-                log.warn("unable to stat {s}: {}", .{ mountpoint_absolute, os.errno(errno) });
                 break :blk false;
             }
             break :blk linux.S.ISDIR(stat_buf.mode);
@@ -1329,14 +1324,12 @@ fn generateHwConfignNix(allocator: Allocator, config: GenerateConfigConfiguratio
 /// Generate configuration.nix text.
 /// Caller owns returned memory.
 fn generateConfigNix(allocator: Allocator, config: GenerateConfigConfiguration, virt_type: VirtualizationType) ![]const u8 {
-    // TODO: create bootloader config template
     var bootloader_config: []const u8 = undefined;
     const is_efi = blk: {
         const efi_dirname = "/sys/firmware/efi/efivars";
         var stat_buf: linux.Stat = undefined;
         const errno = linux.stat(efi_dirname, &stat_buf);
         if (errno > 0) {
-            log.warn("unable to stat {s}: {}", .{ efi_dirname, os.errno(errno) });
             break :blk false;
         }
         break :blk linux.S.ISDIR(stat_buf.mode);
@@ -1346,7 +1339,6 @@ fn generateConfigNix(allocator: Allocator, config: GenerateConfigConfiguration, 
         var stat_buf: linux.Stat = undefined;
         const errno = linux.stat(extlinux_dirname, &stat_buf);
         if (errno > 0) {
-            log.warn("unable to stat {s}: {}", .{ extlinux_dirname, os.errno(errno) });
             break :blk false;
         }
         break :blk linux.S.ISDIR(stat_buf.mode);

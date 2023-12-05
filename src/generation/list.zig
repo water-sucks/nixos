@@ -308,7 +308,7 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
 
     var path_buf: [os.PATH_MAX]u8 = undefined;
 
-    const current_generation_dirname = try fmt.allocPrint(allocator, "{s}/{s}", .{ profile_dirname, profile_name });
+    const current_generation_dirname = try fs.path.join(allocator, &.{ profile_dirname, profile_name });
     defer allocator.free(current_generation_dirname);
 
     // Check if generation is the current generation
@@ -340,7 +340,7 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
             // function and avoid extra work re-parsing the number.
             const generation_number = std.fmt.parseInt(usize, gen_number_slice, 10) catch continue;
 
-            const generation_dirname = try fmt.allocPrint(allocator, "{s}/{s}", .{ profile_dirname, entry.name });
+            const generation_dirname = try fs.path.join(allocator, &.{ profile_dirname, entry.name });
             defer allocator.free(generation_dirname);
 
             var generation_dir = fs.openDirAbsolute(generation_dirname, .{}) catch |err| {

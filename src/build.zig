@@ -302,7 +302,7 @@ fn upgradeChannels(allocator: Allocator, all: bool) !void {
         var iter = dir.iterate();
         while (try iter.next()) |entry| {
             if (entry.kind == .directory) {
-                const filename = try fmt.allocPrint(allocator, "{s}/{s}/.update-on-nixos-rebuild", .{ channel_directory, entry.name });
+                const filename = try fs.path.join(allocator, &.{ channel_directory, entry.name, ".update-on-nixos-rebuild" });
                 defer allocator.free(filename);
                 if (fileExistsAbsolute(filename)) {
                     try argv.append(entry.name);
@@ -525,10 +525,10 @@ fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []c
                 return BuildError.ResourceCreationFailed;
             };
 
-            profile_dir = try fmt.allocPrint(allocator, "{s}/{s}", .{ Constants.nix_system_profiles, name });
+            profile_dir = try fs.path.join(allocator, &.{ Constants.nix_system_profiles, name });
         }
     } else {
-        profile_dir = try fmt.allocPrint(allocator, Constants.nix_profiles, .{});
+        profile_dir = try fs.path.join(allocator, &.{ Constants.nix_profiles, "system" });
     }
     defer allocator.free(profile_dir);
 
@@ -644,7 +644,7 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
         const nixos_config = os.getenv("NIXOS_CONFIG") orelse "/etc/nixos";
 
         const nixos_config_is_flake = blk: {
-            const filename = try fmt.allocPrint(allocator, "{s}/flake.nix", .{nixos_config});
+            const filename = try fs.path.join(allocator, &.{ nixos_config, "flake.nix" });
             defer allocator.free(filename);
             break :blk fileExistsAbsolute(filename);
         };
@@ -668,7 +668,7 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
         const nixos_config = os.getenv("NIXOS_CONFIG");
 
         if (nixos_config) |dir| {
-            const filename = try fmt.allocPrint(allocator, "{s}/default.nix", .{dir});
+            const filename = try fs.path.join(allocator, &.{ dir, "default.nix" });
             defer allocator.free(filename);
             if (!fileExistsAbsolute(filename)) {
                 log.err("no configuration found, expected {s} to exist", .{filename});
@@ -735,7 +735,7 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
     const dry_build = args.dry and !(args.activate or args.boot);
 
     // Only use this temporary directory for builds to be activated with
-    const tmp_result_dir = try fmt.allocPrint(allocator, "{s}/result", .{tmp_dir});
+    const tmp_result_dir = try fs.path.join(allocator, &.{ tmp_dir, "result" });
     defer allocator.free(tmp_result_dir);
 
     // Location of the resulting NixOS generation
@@ -785,7 +785,7 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
     // Yes, this is all just to mimic the behavior of nixos-rebuild to print
     // a message saying the VM can be ran with a command. Stupid, I know.
     if ((build_type == .VM or build_type == .VMWithBootloader) and !args.dry) {
-        const dirname = try fmt.allocPrint(allocator, "{s}/bin", .{result});
+        const dirname = try fs.path.join(allocator, &.{ result, "bin" });
         defer allocator.free(dirname);
 
         var dir = fs.openIterableDirAbsolute(dirname, .{}) catch @panic("unable to open /bin in result dir");
@@ -827,9 +827,9 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
     };
 
     const stc = if (specialization) |spec|
-        try fmt.allocPrint(allocator, "{s}/specialisation/{s}/bin/switch-to-configuration", .{ result, spec })
+        try fs.path.join(allocator, &.{ result, "specialisation", spec, "bin", "switch-to-configuration" })
     else
-        try fmt.allocPrint(allocator, "{s}/bin/switch-to-configuration", .{result});
+        try fs.path.join(allocator, &.{ result, "bin", "switch-to-configuration" });
     defer allocator.free(stc);
 
     const stc_options = .{

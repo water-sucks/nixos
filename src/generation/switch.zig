@@ -160,7 +160,7 @@ pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchArgs, profil
     const profile_link = try fmt.allocPrint(allocator, "{s}/{s}-{s}-link", .{ base_profile_dirname, profile_name, generation });
     defer allocator.free(profile_link);
 
-    const current_profile_dirname = try fmt.allocPrint(allocator, "{s}/{s}", .{ base_profile_dirname, profile_name });
+    const current_profile_dirname = try fs.path.join(allocator, &.{ base_profile_dirname, profile_name });
     defer allocator.free(current_profile_dirname);
 
     // Check if it exists
@@ -210,9 +210,9 @@ pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchArgs, profil
     };
 
     const stc = if (specialization) |spec|
-        try fmt.allocPrint(allocator, "{s}/specialisation/{s}/bin/switch-to-configuration", .{ current_profile_dirname, spec })
+        try fs.path.join(allocator, &.{ current_profile_dirname, "specialisation", spec, "/bin/switch-to-configuration" })
     else
-        try fmt.allocPrint(allocator, "{s}/bin/switch-to-configuration", .{current_profile_dirname});
+        try fs.path.join(allocator, &.{ current_profile_dirname, "/bin/switch-to-configuration" });
     defer allocator.free(stc);
 
     if (specialization) |spec| {

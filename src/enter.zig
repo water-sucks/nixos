@@ -196,7 +196,7 @@ fn unshare(allocator: Allocator) !void {
 
 // Bind mount a directory in / to a directory in mountpoint.
 fn bindMount(allocator: Allocator, mountpoint: []const u8, dir: []const u8) !void {
-    const dirname = try fmt.allocPrintZ(allocator, "{s}/{s}", .{ mountpoint, dir });
+    const dirname = try fs.path.joinZ(allocator, &.{ mountpoint, dir });
     defer allocator.free(dirname);
 
     os.mkdir(dirname, 0o755) catch |err| {
@@ -213,17 +213,15 @@ fn bindMount(allocator: Allocator, mountpoint: []const u8, dir: []const u8) !voi
         }
     };
 
-    const root_dirname = try fmt.allocPrintZ(allocator, "/{s}", .{dir});
-    defer allocator.free(root_dirname);
-
-    const errno = linux.mount(root_dirname, dirname.ptr, "", linux.MS.BIND | linux.MS.REC, 0);
-    try checkMountError(root_dirname, errno);
+    const root_dirname = os.toPosixPath(dir) catch return EnterError.OutOfMemory;
+    const errno = linux.mount(&root_dirname, dirname.ptr, "", linux.MS.BIND | linux.MS.REC, 0);
+    try checkMountError(&root_dirname, errno);
 }
 
 // Get the location at which to bind-mount resolv.conf.
 // Caller owns returned memory.
 fn getResolvConfLocation(allocator: Allocator, mountpoint: []const u8) ![:0]const u8 {
-    const target_resolv_conf = try fmt.allocPrint(allocator, "{s}{s}", .{ mountpoint, Constants.resolv_conf });
+    const target_resolv_conf = try fs.path.join(allocator, &.{ mountpoint, Constants.resolv_conf });
     defer allocator.free(target_resolv_conf);
 
     var created: bool = false;
@@ -271,13 +269,13 @@ fn activate(allocator: Allocator, root: []const u8, system: []const u8, silent: 
     var env_map = try process.getEnvMap(allocator);
     defer env_map.deinit();
 
-    const locale_archive = try fmt.allocPrint(allocator, "{s}/sw/lib/locale/locale-archive", .{system});
+    const locale_archive = try fs.path.join(allocator, &.{ system, "/sw/lib/locale/locale-archive" });
     defer allocator.free(locale_archive);
 
     try env_map.put("LOCALE_ARCHIVE", locale_archive);
     try env_map.put("IN_NIXOS_ENTER", "1");
 
-    const activate_script = try fmt.allocPrint(allocator, "{s}/activate", .{system});
+    const activate_script = try fs.path.join(allocator, &.{ system, "/activate" });
 
     var argv = ArrayList([]const u8).init(allocator);
     defer argv.deinit();
@@ -296,7 +294,7 @@ fn activate(allocator: Allocator, root: []const u8, system: []const u8, silent: 
 
     argv.clearAndFree();
 
-    const systemd_tmpfiles = try fmt.allocPrint(allocator, "{s}/sw/bin/systemd-tmpfiles", .{system});
+    const systemd_tmpfiles = try fs.path.join(allocator, &.{ system, "/sw/bin/systemd-tmpfiles" });
     defer allocator.free(systemd_tmpfiles);
 
     try argv.appendSlice(&.{ "chroot", root, systemd_tmpfiles, "--create", "--remove", "-E" });
@@ -354,35 +352,22 @@ fn enter(allocator: Allocator, args: EnterArgs) EnterError!void {
     try checkMountError("/", errno);
 
     // Check if mountpoint is valid NixOS system
-    var mountpoint_buffer: [os.PATH_MAX]u8 = undefined;
     const root = args.root orelse "/mnt";
-    const mountpoint = os.realpath(root, &mountpoint_buffer) catch |err| {
-        switch (err) {
-            error.AccessDenied => {
-                log.err("unable to determine realpath of {s}: permission denied", .{root});
-                return EnterError.PermissionDenied;
-            },
-            error.FileNotFound => log.err("unable to determine realpath of {s}: no such file or directory", .{root}),
-            error.SymLinkLoop => log.err("encountered symlink loop while determining realpath of {s}", .{root}),
-            else => log.err("unexpected error encountered when determining realpath of {s}: {s}", .{ root, @errorName(err) }),
-        }
-        return EnterError.MountFailed;
-    };
-
+    const mountpoint = try fs.path.resolve(allocator, &.{root});
     const mountpoint_is_nixos = blk: {
-        const filename = try fmt.allocPrint(allocator, "{s}{s}", .{ mountpoint, Constants.etc_nixos });
+        const filename = try fs.path.join(allocator, &.{ root, Constants.etc_nixos });
         defer allocator.free(filename);
         break :blk fileExistsAbsolute(filename);
     };
     if (!mountpoint_is_nixos) {
-        log.err("mountpoint {s} is not a valid NixOS system", .{mountpoint});
+        log.err("mountpoint {s} is not a valid NixOS system", .{root});
         return EnterError.UnsupportedOs;
     }
 
     // Recursively bind mount current /dev and /proc to mountpoint
     if (verbose) log.info("bind-mounting /dev and /proc to {s}", .{mountpoint});
-    try bindMount(allocator, mountpoint, "dev");
-    try bindMount(allocator, mountpoint, "proc");
+    try bindMount(allocator, mountpoint, "/dev");
+    try bindMount(allocator, mountpoint, "/proc");
 
     // Bind mount resolv.conf from current system to root if it exists
     if (fileExistsAbsolute(Constants.resolv_conf)) {
@@ -404,7 +389,7 @@ fn enter(allocator: Allocator, args: EnterArgs) EnterError!void {
     // Chroot into system and execve specified command
     if (verbose) log.info("entering chroot environment", .{});
 
-    const bash = try fmt.allocPrint(allocator, "{s}/sw/bin/bash", .{system});
+    const bash = try fs.path.join(allocator, &.{ system, "/sw/bin/bash" });
     defer allocator.free(bash);
 
     if (args.command) |command| {
