@@ -6,12 +6,12 @@ const ArgIterator = std.process.ArgIterator;
 const build = @import("build.zig");
 const enter = @import("enter.zig");
 const generation = @import("generation.zig");
-const generate_config = @import("generate-config.zig");
+const init = @import("init.zig");
 
 const BuildArgs = build.BuildArgs;
 const EnterArgs = enter.EnterArgs;
 const GenerationArgs = generation.GenerationArgs;
-const GenerateConfigArgs = generate_config.GenerateConfigArgs;
+const InitConfigArgs = init.InitConfigArgs;
 
 const log = @import("log.zig");
 
@@ -27,7 +27,7 @@ const MainArgs = struct {
     const Subcommand = union(enum) {
         build: BuildArgs,
         enter: EnterArgs,
-        generate_config: GenerateConfigArgs,
+        init: InitConfigArgs,
         generation: GenerationArgs,
     };
 
@@ -40,8 +40,8 @@ const MainArgs = struct {
         \\Commands:
         \\    build              Build a NixOS configuration
         \\    enter              Chroot into a NixOS installation
-        \\    generate-config    Generate a configuration.nix file
         \\    generation         Manage NixOS generations
+        \\    init               Initialize a configuration.nix file
         \\
         \\Options:
         \\    -h, --help    Show this help menu
@@ -71,10 +71,10 @@ const MainArgs = struct {
             result.subcommand = .{ .build = try BuildArgs.parseArgs(allocator, argv) };
         } else if (mem.eql(u8, arg, "enter")) {
             result.subcommand = .{ .enter = try EnterArgs.parseArgs(allocator, argv) };
-        } else if (mem.eql(u8, arg, "generate-config")) {
-            result.subcommand = .{ .generate_config = try GenerateConfigArgs.parseArgs(argv) };
         } else if (mem.eql(u8, arg, "generation")) {
             result.subcommand = .{ .generation = try GenerationArgs.parseArgs(argv) };
+        } else if (mem.eql(u8, arg, "init")) {
+            result.subcommand = .{ .init = try InitConfigArgs.parseArgs(argv) };
         } else {
             if (argparse.isFlag(arg)) {
                 argError("unrecognised flag '{s}'", .{arg});
@@ -119,8 +119,8 @@ pub fn main() !u8 {
     const status = switch (structured_args.subcommand) {
         .build => |args| build.buildMain(allocator, args),
         .enter => |args| enter.enterMain(allocator, args),
-        .generate_config => |args| generate_config.generateConfigMain(allocator, args),
         .generation => |args| generation.generationMain(allocator, args),
+        .init => |args| init.initConfigMain(allocator, args),
     };
 
     return status;

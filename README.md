@@ -10,7 +10,7 @@ Why? Because why not, to be honest. Written in Zig, because I like Zig.
 
 - `nixos-rebuild` → `nixos build` + `nixos generation`
 - `nixos-enter` → `nixos enter`
-- `nixos-generate-config` → `nixos generate-config`
+- `nixos-generate-config` → `nixos init`
 
 More to come in the future, see [TODO](#todo) for a list
 of commands and flags that are planned to be implemented.
@@ -61,8 +61,8 @@ the recommended way to use this program.
   - [ ] `show-host-key <name>`
 - [x] `enter`
 - [ ] `edit-config`
-- [-] `generate-config`
 - [ ] `info`
+- [-] `init`
 - [ ] `manual`
 - [ ] `install`
 - [ ] `option`
