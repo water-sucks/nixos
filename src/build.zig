@@ -1,6 +1,7 @@
 //! A replacement for `nixos-rebuild`.
 
 const std = @import("std");
+const opts = @import("options");
 const fmt = std.fmt;
 const fs = std.fs;
 const mem = std.mem;
@@ -38,8 +39,6 @@ pub const BuildArgs = struct {
     dry: bool = false,
     // Build the NixOS system from the specified flake ref
     flake: ?[]const u8 = null,
-    // Do not imply --flake if flake.nix exists in config location
-    no_flake: bool = false,
     // (Re)install the bootloader on the device specified by the relevant configuration options
     install_bootloader: bool = false,
     // Symlink the output to a location (default: ./result, none on system activation)
@@ -65,8 +64,6 @@ pub const BuildArgs = struct {
     const Self = @This();
 
     const conflicts = .{
-        // Cannot force usage of a flake and of no flakes
-        .{ "flake", .{"no_flake"} },
         // --dry cannot be used with --output
         .{ "dry", .{"output"} },
         // VM options can only be set by themselves, and not with boot or activate
@@ -84,25 +81,35 @@ pub const BuildArgs = struct {
         \\Build a NixOS system from a configuration.
         \\
         \\Usage:
+        \\
+    ++ (if (opts.flake)
+        \\    nixos build [flake-ref] [options]
+        \\
+        \\Arguments:
+        \\    [flake-ref]    Flake ref to build flake from (default: $NIXOS_CONFIG)
+        \\
+    else
         \\    nixos build [options]
+        \\
+    ) ++
         \\
         \\Options:
         \\    -a, --activate                 Activate the built configuration
         \\    -b, --boot                     Make the built generation the default for next boot
         \\    -d, --dry                      Show what would be built or ran but do not actually run it
-        \\    -f, --flake <REF>              Build the NixOS system from the specified flake ref
         \\    -h, --help                     Show this help menu
         \\        --install-bootloader       (Re)install the bootloader on the device specified by the
         \\                                   relevant configuration options
-        \\        --no-flake                 Do not imply --flake if flake.nix exists in config location
         \\    -o, --output <LOCATION>        Symlink the output to a location (default: ./result, none on
         \\                                   system activation)
         \\    -p, --profile-name <NAME>      Name of the system profile to use
         \\    -s, --specialisation <NAME>    Activate the given specialisation (default: contents of
         \\                                   /etc/NIXOS_SPECIALISATION if it exists)
         \\        --switch                   Alias for --activate --boot
+    ++ utils.optionalArgString(!opts.flake,
         \\    -u, --upgrade                  Upgrade the root user's `nixos` channel
         \\        --upgrade-all              Upgrade all of the root user's channels
+    ) ++
         \\    -v, --verbose                  Show verbose logging
         \\        --vm                       Build a script that starts a NixOS virtual machine with the
         \\                                   given configuration
@@ -135,11 +142,6 @@ pub const BuildArgs = struct {
                 result.boot = true;
             } else if (argIs(arg, "--dry", "-d")) {
                 result.dry = true;
-            } else if (argIs(arg, "--flake", "-f")) {
-                const next = (try getNextArgs(args, arg, 1))[0];
-                result.flake = next;
-            } else if (argIs(arg, "--no-flake", null)) {
-                result.no_flake = true;
             } else if (argIs(arg, "--help", "-h")) {
                 log.print(usage, .{});
                 return ArgParseError.HelpInvoked;
@@ -157,9 +159,9 @@ pub const BuildArgs = struct {
             } else if (argIs(arg, "--specialisation", "-s")) {
                 const next = (try getNextArgs(args, arg, 1))[0];
                 result.specialization = next;
-            } else if (argIs(arg, "--upgrade", "-u")) {
+            } else if (argIs(arg, "--upgrade", "-u") and !opts.flake) {
                 result.upgrade_channels = true;
-            } else if (argIs(arg, "--upgrade-all", null)) {
+            } else if (argIs(arg, "--upgrade-all", null) and !opts.flake) {
                 result.upgrade_channels = true;
                 result.upgrade_all_channels = true;
             } else if (argIn(arg, &.{ "--verbose", "-v", "-vv", "-vvv", "-vvvv", "-vvvvv" })) {
@@ -178,22 +180,25 @@ pub const BuildArgs = struct {
             } else if (argIs(arg, "--option", null)) {
                 const next_args = try getNextArgs(args, arg, 2);
                 try result.build_options.appendSlice(&.{ arg, next_args[0], next_args[1] });
-            } else if (argIn(arg, &.{ "--recreate-lock-file", "--no-update-lock-file", "--no-write-lock-file", "--no-registries", "--commit-lock-file" })) {
+            } else if (argIn(arg, &.{ "--recreate-lock-file", "--no-update-lock-file", "--no-write-lock-file", "--no-registries", "--commit-lock-file" }) and opts.flake) {
                 try result.flake_options.append(arg);
-            } else if (argIs(arg, "--update-input", null)) {
+            } else if (argIs(arg, "--update-input", null) and opts.flake) {
                 const next = (try getNextArgs(args, arg, 1))[0];
                 try result.flake_options.append(arg);
                 try result.flake_options.append(next);
-            } else if (argIs(arg, "--override-input", null)) {
+            } else if (argIs(arg, "--override-input", null) and opts.flake) {
                 const next_args = try getNextArgs(args, arg, 2);
                 try result.build_options.appendSlice(&.{ arg, next_args[0], next_args[1] });
             } else {
                 if (argparse.isFlag(arg)) {
                     argError("unrecognised flag '{s}'", .{arg});
+                    return ArgParseError.InvalidArgument;
+                } else if (opts.flake and result.flake == null) {
+                    result.flake = arg;
                 } else {
                     argError("argument '{s}' is not valid in this context", .{arg});
+                    return ArgParseError.InvalidArgument;
                 }
-                return ArgParseError.InvalidArgument;
             }
 
             next_arg = args.next();
@@ -628,41 +633,47 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
     if (verbose) log.info("looking for configuration...", .{});
     // Find flake if unset, and parse it into its separate components
     var flake_ref: ?FlakeRef = null;
-    if (args.flake) |flake| {
-        flake_ref = getFlakeRef(flake) catch {
-            log.err("unable to determine hostname", .{});
-            return BuildError.UnknownHostname;
-        };
 
-        if (flake_ref == null) {
-            log.err("hostname not provided in flake argument, cannot find configuration", .{});
-            return BuildError.ConfigurationNotFound;
-        }
-    } else if (!args.no_flake) {
-        // Check for existence of flake.nix in the NIXOS_CONFIG or /etc/nixos directory
-        // and use that if found, and if --no-flake is not set
-        const nixos_config = os.getenv("NIXOS_CONFIG") orelse "/etc/nixos";
-
-        const nixos_config_is_flake = blk: {
-            const filename = try fs.path.join(allocator, &.{ nixos_config, "flake.nix" });
-            defer allocator.free(filename);
-            break :blk fileExistsAbsolute(filename);
-        };
-
-        if (nixos_config_is_flake) {
-            const dir = try fmt.allocPrint(allocator, "{s}#", .{nixos_config});
-
-            flake_ref = getFlakeRef(dir) catch |err| {
-                log.err("unable to determine hostname: {s}", .{@errorName(err)});
+    if (opts.flake) {
+        if (args.flake) |flake| {
+            // Parse flake arg if explicitly specified as a positional argument.
+            flake_ref = getFlakeRef(flake) catch {
+                log.err("unable to determine hostname", .{});
                 return BuildError.UnknownHostname;
             };
-        }
-    }
 
-    if (flake_ref) |flake| {
-        if (verbose) log.info("found flake configuration {s}#{s}", .{ flake.path, flake.hostname });
+            if (flake_ref == null) {
+                log.err("hostname not provided in flake argument, cannot find configuration", .{});
+                return BuildError.ConfigurationNotFound;
+            }
+        } else {
+            // Check for existence of flake.nix in the NIXOS_CONFIG
+            // or /etc/nixos directory, and use that if found
+            const nixos_config = os.getenv("NIXOS_CONFIG") orelse "/etc/nixos";
+
+            const nixos_config_is_flake = blk: {
+                const filename = try fs.path.join(allocator, &.{ nixos_config, "flake.nix" });
+                defer allocator.free(filename);
+                break :blk fileExistsAbsolute(filename);
+            };
+
+            if (nixos_config_is_flake) {
+                const dir = try fmt.allocPrint(allocator, "{s}#", .{nixos_config});
+
+                flake_ref = getFlakeRef(dir) catch |err| {
+                    log.err("unable to determine hostname: {s}", .{@errorName(err)});
+                    return BuildError.UnknownHostname;
+                };
+            }
+
+            if (flake_ref) |flake| {
+                if (verbose) log.info("found flake configuration {s}#{s}", .{ flake.path, flake.hostname });
+            } else {
+                log.err("unable to find configuration, expected NIXOS_CONFIG to be set to location of flake", .{});
+                return BuildError.ConfigurationNotFound;
+            }
+        }
     } else {
-        if (verbose) log.info("no flake configuration found, looking for legacy configuration", .{});
         // Verify legacy configuration exists, if needed (no need to store location,
         // because it is implicitly used by `nix-build "<nixpkgs/nixos>"`)
         const nixos_config = os.getenv("NIXOS_CONFIG");
@@ -699,7 +710,7 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
     }
 
     // Upgrade all channels (should this be skipped in flake mode?)
-    if (args.upgrade_channels) {
+    if (!opts.flake and args.upgrade_channels) {
         upgradeChannels(allocator, args.upgrade_all_channels) catch |err| {
             log.err("upgrading channels failed", .{});
             if (err == BuildError.PermissionDenied) {
@@ -741,8 +752,8 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
     // Location of the resulting NixOS generation
     var result: []const u8 = undefined;
 
-    if (flake_ref) |flake| {
-        result = nixBuildFlake(allocator, build_type, flake, .{
+    if (opts.flake) {
+        result = nixBuildFlake(allocator, build_type, flake_ref.?, .{
             .build_options = args.build_options.items,
             .flake_options = args.flake_options.items,
             .result_dir = if (args.output) |output|

@@ -26,6 +26,20 @@ pub const ExecError = os.GetCwdError || os.ReadError || ChildProcess.SpawnError 
     StderrStreamTooLong,
 };
 
+// Return a help string or empty space depending on a condition.
+pub fn optionalArgString(comptime cond: bool, comptime help: []const u8) []const u8 {
+    return if (cond)
+        fmt.comptimePrint(
+            \\
+            \\{s}
+            \\
+        , .{help})
+    else
+        \\
+        \\
+        ;
+}
+
 /// A semi-convenient wrapper to run a system command.
 /// Caller owns `ExecError.stdout` if it succeeds.
 pub fn runCmd(
