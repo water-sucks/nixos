@@ -2,7 +2,6 @@ const std = @import("std");
 
 pub fn build(b: *std.build.Builder) void {
     const target = b.standardTargetOptions(.{});
-
     const optimize = b.standardOptimizeOption(.{});
 
     const exe = b.addExecutable(.{
@@ -12,6 +11,13 @@ pub fn build(b: *std.build.Builder) void {
         .optimize = optimize,
     });
     b.installArtifact(exe);
+
+    // Flake-specific features are enabled by default.
+    const shared_opts = b.addOptions();
+    const flake = b.option(bool, "flake", "Enable flake-specific commands and options") orelse true;
+
+    shared_opts.addOption(bool, "flake", flake);
+    exe.addOptions("options", shared_opts);
 
     const run = b.addRunArtifact(exe);
     run.step.dependOn(b.getInstallStep());
