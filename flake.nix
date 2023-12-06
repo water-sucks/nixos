@@ -32,39 +32,51 @@
 
       perSystem = {
         pkgs,
+        lib,
         system,
         ...
       }: let
-        zig = inputs.zig-overlay.packages.${system}."0.11.0";
+        zigPackage = inputs.zig-overlay.packages.${system}."0.11.0";
 
         inherit (inputs.gitignore.lib) gitignoreSource;
-      in {
-        packages.default = pkgs.stdenvNoCC.mkDerivation {
-          pname = "nixos";
-          version = "0.1.0";
-          src = gitignoreSource ./.;
 
-          nativeBuildInputs = [zig];
+        package = {
+          zig,
+          flake ? true,
+        }:
+          pkgs.stdenvNoCC.mkDerivation {
+            pname = "nixos";
+            version = "0.1.0";
+            src = gitignoreSource ./.;
 
-          dontConfigure = true;
-          dontInstall = true;
+            nativeBuildInputs = [zig];
 
-          buildPhase = ''
-            mkdir -p $out
-            mkdir -p .cache/{p,z,tmp}
-            zig build install \
-              --cache-dir $(pwd)/zig-cache \
-              --global-cache-dir $(pwd)/.cache \
-              -Dcpu=baseline \
-              --prefix $out
-          '';
+            dontConfigure = true;
+            dontInstall = true;
 
-          meta = with pkgs.lib; {
-            homepage = "https://github.com/water-sucks/nixos";
-            description = "A unified NixOS tooling replacement for nixos-* utilities";
-            license = licenses.gpl3Only;
-            maintainers = with maintainers; [water-sucks];
+            buildPhase = ''
+              mkdir -p $out
+              mkdir -p .cache/{p,z,tmp}
+              zig build install \
+                --cache-dir $(pwd)/zig-cache \
+                --global-cache-dir $(pwd)/.cache \
+                -Dcpu=baseline \
+                -Dflake=${lib.boolToString flake} \
+                --prefix $out
+            '';
+
+            meta = with pkgs.lib; {
+              homepage = "https://github.com/water-sucks/nixos";
+              description = "A unified NixOS tooling replacement for nixos-* utilities";
+              license = licenses.gpl3Only;
+              maintainers = with maintainers; [water-sucks];
+            };
           };
+      in {
+        packages = rec {
+          default = nixos;
+          nixos = pkgs.callPackage package {zig = zigPackage;};
+          nixosLegacy = nixos.override {flake = false;};
         };
 
         devShells.default = pkgs.mkShell {
@@ -74,11 +86,11 @@
             pkgs.zls
           ];
           nativeBuildInputs = [
-            zig
+            zigPackage
           ];
 
-          ZIG_DOCS = "${zig}/doc/langref.html";
-          ZIG_STD_DOCS = "${zig}/doc/std/index.html";
+          ZIG_DOCS = "${zigPackage}/doc/langref.html";
+          ZIG_STD_DOCS = "${zigPackage}/doc/std/index.html";
         };
       };
 
