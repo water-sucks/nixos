@@ -6,11 +6,13 @@ const ArgIterator = std.process.ArgIterator;
 const build = @import("build.zig");
 const enter = @import("enter.zig");
 const generation = @import("generation.zig");
+const info = @import("info.zig");
 const init = @import("init.zig");
 
 const BuildArgs = build.BuildArgs;
 const EnterArgs = enter.EnterArgs;
 const GenerationArgs = generation.GenerationArgs;
+const InfoArgs = info.InfoArgs;
 const InitConfigArgs = init.InitConfigArgs;
 
 const log = @import("log.zig");
@@ -28,6 +30,7 @@ const MainArgs = struct {
         build: BuildArgs,
         enter: EnterArgs,
         init: InitConfigArgs,
+        info: InfoArgs,
         generation: GenerationArgs,
     };
 
@@ -41,6 +44,7 @@ const MainArgs = struct {
         \\    build              Build a NixOS configuration
         \\    enter              Chroot into a NixOS installation
         \\    generation         Manage NixOS generations
+        \\    info               Show info about the currently running generation
         \\    init               Initialize a configuration.nix file
         \\
         \\Options:
@@ -73,6 +77,8 @@ const MainArgs = struct {
             result.subcommand = .{ .enter = try EnterArgs.parseArgs(allocator, argv) };
         } else if (mem.eql(u8, arg, "generation")) {
             result.subcommand = .{ .generation = try GenerationArgs.parseArgs(argv) };
+        } else if (mem.eql(u8, arg, "info")) {
+            result.subcommand = .{ .info = try InfoArgs.parseArgs(argv) };
         } else if (mem.eql(u8, arg, "init")) {
             result.subcommand = .{ .init = try InitConfigArgs.parseArgs(argv) };
         } else {
@@ -120,6 +126,7 @@ pub fn main() !u8 {
         .build => |args| build.buildMain(allocator, args),
         .enter => |args| enter.enterMain(allocator, args),
         .generation => |args| generation.generationMain(allocator, args),
+        .info => |args| info.infoMain(allocator, args),
         .init => |args| init.initConfigMain(allocator, args),
     };
 

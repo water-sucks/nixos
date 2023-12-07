@@ -22,6 +22,7 @@ in {
   config = lib.mkIf cfg.enable {
     environment.systemPackages = [cfg.package];
 
+    # Configuration for `nixos init`
     environment.etc."nixos-cli/init-config.json".source = let
       # Inherit this from the old nixos-generate-config attrs. Easy to deal with, for now.
       desktopConfig = lib.concatStringsSep "\n" config.system.nixos-generate-config.desktopConfiguration;
@@ -33,5 +34,21 @@ in {
         extraAttrs = [];
         extraConfig = "";
       };
+
+    # Hijack system builder commands to insert a `nixos-version.json` file at the root.
+    system.systemBuilderCommands = let
+      nixos-version-json = let
+        nixosCfg = config.system.nixos;
+      in
+        builtins.toJSON {
+          nixosVersion = "${nixosCfg.distroName} ${nixosCfg.release} (${nixosCfg.codeName})";
+          nixpkgsRevision = "${nixosCfg.revision}";
+          configurationRevision = "${config.system.configurationRevision}";
+        };
+    in ''
+      cat > "$out/nixos-version.json" << EOF
+      ${nixos-version-json}
+      EOF
+    '';
   };
 }
