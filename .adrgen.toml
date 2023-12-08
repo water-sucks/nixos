@@ -1,0 +1,6 @@
+default_meta = []
+default_status = 'accepted'
+directory = 'docs/adrs'
+id_digit_number = 3
+supported_statuses = ['accepted', 'superseded', 'amended', 'deprecated']
+template_file = 'docs/adrs/_template.md'

@@ -2,7 +2,7 @@
   description = "A unified NixOS tooling replacement for nixos-* utilities";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs?ref=refs/pull/272863/head";
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
@@ -84,6 +84,20 @@
           packages = [
             pkgs.alejandra
             pkgs.zls
+            (pkgs.adrgen.overrideAttrs (o: {
+              patches = [
+                (pkgs.fetchpatch {
+                  url = "https://github.com/asiermarques/adrgen/compare/main...blaggacao:adrgen:nixpkgs-patch/allow-override-config-file-name.patch";
+                  hash = "sha256-rJK/6wDCPpDSmxir2Rtg8GEUnXtPuPE+GcFsiqcjxZA=";
+                })
+              ];
+              ldflags =
+                o.ldflags
+                ++ [
+                  "-X github.com/asiermarques/adrgen/internal/config.FILENAME=.adrgen"
+                  "-X github.com/asiermarques/adrgen/internal/config.FORMAT=toml"
+                ];
+            }))
           ];
           nativeBuildInputs = [
             zigPackage
