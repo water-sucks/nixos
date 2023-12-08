@@ -4,16 +4,18 @@
 ## Introduction
 
 This is a unification of all the different pick NixOS tooling into one executable.
-Why? Because why not, to be honest. Written in Zig, because I like Zig.
-
-`nixos` replaces these tools with respective subcommmands, listed below:
+NixOS has its various tools spread out between several large scripts that have
+become on the verge of unmaintainable. This tool has one goal: to create a modular
+NixOS CLI that mirrors or enhances the functionality of all current NixOS tooling in
+`nixpkgs`, adds on to it if needed, and eventually come to replace it entirely.
 
 - `nixos-rebuild` → `nixos build` + `nixos generation`
 - `nixos-enter` → `nixos enter`
 - `nixos-generate-config` → `nixos init`
+- `nixos-version` → `nixos info`
 
-More to come in the future, see [TODO](#todo) for a list
-of commands and flags that are planned to be implemented.
+More to come in the future, see [TODO](#todo) for a list of commands that are
+planned to be implemented.
 
 ## Usage
 
@@ -26,7 +28,6 @@ the recommended way to use this program.
 
   outputs = { nixpkgs, nixos-cli, ... }: {
     nixosConfigurations.system-name = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
       modules = [
         nixos-cli.nixosModules.nixos-cli
         # other configuration goes here
@@ -36,41 +37,35 @@ the recommended way to use this program.
 }
 ```
 
-## Differences to Standard NixOS Tooling
-
-- It's 1 tool, not 10 different ones with roughly similar options
-- No mishmash of monstrous Bash and Perl scripts
-- It's written in Zig!
-
 ## TODO
 
 ### Implemented Commands/Flags
 
-- [-] `build`
-- [ ] `container`
-  - [ ] `list`
-  - [ ] `create <name>`
-  - [ ] `destroy <name>`
-  - [ ] `start <name>`
-  - [ ] `stop <name>`
-  - [ ] `status <name>`
-  - [ ] `update <name>`
-  - [ ] `login <name>`
-  - [ ] `run <name> <args...>`
-  - [ ] `show-ip <name>`
-  - [ ] `show-host-key <name>`
-- [x] `enter`
-- [ ] `edit-config`
-- [ ] `info`
-- [-] `init`
-- [ ] `manual`
-- [ ] `install`
-- [ ] `option`
-- [x] `generation`
-  - [x] `list`
-  - [x] `switch <number>`
-  - [x] `rollback`
-  - [?] `diff`
+- ➖ `build`
+- ❌ `container`
+  - ❌ `list`
+  - ❌ `create <name>`
+  - ❌ `destroy <name>`
+  - ❌ `start <name>`
+  - ❌ `stop <name>`
+  - ❌ `status <name>`
+  - ❌ `update <name>`
+  - ❌ `login <name>`
+  - ❌ `run <name> <args...>`
+  - ❌ `show-ip <name>`
+  - ❌ `show-host-key <name>`
+- ✅ `enter`
+- ❌ `edit-config`
+- ✅ `info`
+- ✅ `init`
+- ❌ `manual`
+- ❌ `install`
+- ❌ `option`
+- ➖ `generation`
+  - ✅ `list`
+  - ✅ `switch <number>`
+  - ✅ `rollback`
+  - ❓ `diff` (a la [nvd](https://gitlab.com/khumba/nvd))
 
 ### Possible Future Commands
 
