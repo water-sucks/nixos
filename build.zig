@@ -12,11 +12,14 @@ pub fn build(b: *std.build.Builder) void {
     });
     b.installArtifact(exe);
 
-    // Flake-specific features are enabled by default.
     const shared_opts = b.addOptions();
+    // Flake-specific features are enabled by default.
     const flake = b.option(bool, "flake", "Enable flake-specific commands and options") orelse true;
+    // Change the nixpkgs branch to initialize configurations with
+    const nixpkgs_version = b.option([]const u8, "nixpkgs-version", "Nixpkgs branch name to initialize configurations with") orelse "release-23.11";
 
     shared_opts.addOption(bool, "flake", flake);
+    shared_opts.addOption([]const u8, "nixpkgs_version", nixpkgs_version);
     exe.addOptions("options", shared_opts);
 
     const run = b.addRunArtifact(exe);
