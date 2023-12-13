@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const opts = @import("options");
 const fmt = std.fmt;
 const fs = std.fs;
@@ -1570,6 +1571,11 @@ fn initConfig(allocator: Allocator, args: InitConfigArgs) !void {
 }
 
 pub fn initConfigMain(allocator: Allocator, args: InitConfigArgs) u8 {
+    if (builtin.os.tag != .linux) {
+        log.err("the init command is unsupported on non-Linux systems");
+        return 3;
+    }
+
     initConfig(allocator, args) catch |err| {
         switch (err) {
             InitConfigError.ResourceAccessFailed => return 4,

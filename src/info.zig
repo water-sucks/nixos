@@ -17,6 +17,7 @@ const log = @import("log.zig");
 
 const utils = @import("utils.zig");
 const readFile = utils.readFile;
+const fileExistsAbsolute = utils.fileExistsAbsolute;
 
 const InfoError = error{} || Allocator.Error;
 
@@ -163,6 +164,11 @@ fn info(allocator: Allocator, args: InfoArgs) InfoError!void {
 }
 
 pub fn infoMain(allocator: Allocator, args: InfoArgs) u8 {
+    if (!fileExistsAbsolute(Constants.etc_nixos)) {
+        log.err("the generation command is unsupported on non-NixOS systems", .{});
+        return 3;
+    }
+
     info(allocator, args) catch |err| {
         switch (err) {
             Allocator.Error.OutOfMemory => {
