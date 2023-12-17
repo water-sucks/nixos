@@ -13,6 +13,8 @@ const ArgParseError = argparse.ArgParseError;
 
 const Constants = @import("constants.zig");
 
+const GenerationInfo = @import("generation.zig").GenerationInfo;
+
 const log = @import("log.zig");
 
 const utils = @import("utils.zig");
@@ -78,13 +80,6 @@ pub const InfoArgs = struct {
     }
 };
 
-// This will be parsed as JSON from the NixOS generation file.
-const GenerationInfo = struct {
-    version: ?[]const u8 = null,
-    nixpkgsRevision: ?[]const u8 = null,
-    configurationRevision: ?[]const u8 = null,
-};
-
 fn info(allocator: Allocator, args: InfoArgs) InfoError!void {
     const parsed_version_contents = blk: {
         const filename = Constants.current_system ++ "/nixos-version.json";
@@ -109,7 +104,7 @@ fn info(allocator: Allocator, args: InfoArgs) InfoError!void {
         GenerationInfo{};
 
     // Find version from os-release PRETTY_NAME field if not known
-    const nixos_version = if (version_info.version == null) blk: {
+    const nixos_version = if (version_info.nixosVersion == null) blk: {
         const filename = Constants.current_system ++ "/etc/os-release";
 
         const os_release = readFile(allocator, filename) catch break :blk null;
@@ -128,8 +123,8 @@ fn info(allocator: Allocator, args: InfoArgs) InfoError!void {
 
     // Fill in unfilled fields with "unknown",
     // it's not very fun to determine otherwise
-    if (version_info.version == null) {
-        version_info.version = nixos_version orelse "unknown";
+    if (version_info.nixosVersion == null) {
+        version_info.nixosVersion = nixos_version orelse "unknown";
     }
 
     if (version_info.configurationRevision == null) {
@@ -154,12 +149,12 @@ fn info(allocator: Allocator, args: InfoArgs) InfoError!void {
             \\ - configuration revision: `{s}`
             \\
         , .{
-            version_info.version.?,
+            version_info.nixosVersion.?,
             version_info.nixpkgsRevision.?,
             version_info.configurationRevision.?,
         }) catch unreachable;
     } else {
-        stdout.print("{s}\n", .{version_info.version.?}) catch unreachable;
+        stdout.print("{s}\n", .{version_info.nixosVersion.?}) catch unreachable;
     }
 }
 

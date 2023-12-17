@@ -14,6 +14,8 @@ const argIs = argparse.argIs;
 const argError = argparse.argError;
 const ArgParseError = argparse.ArgParseError;
 
+const GenerationInfo = @import("../generation.zig").GenerationInfo;
+
 const log = @import("../log.zig");
 
 const utils = @import("../utils.zig");
@@ -66,7 +68,7 @@ const GenerationListError = error{
     ResourceAccessFailed,
 } || Allocator.Error;
 
-// Metadata about a NixOS generatigiven on
+// Detailed Metadata about a NixOS generation
 pub const Generation = struct {
     // Generation number
     generation: usize,
@@ -87,19 +89,34 @@ pub const Generation = struct {
 
     // Caller owns returned memory, free with .deinit(allocator).
     pub fn getGenerationInfo(allocator: Allocator, path: fs.Dir, gen_number: usize) !Self {
-        // Read NixOS version from nixos-version file
-        var nixos_version: ?[]const u8 = null;
-
-        if (path.openFile("nixos-version", .{})) |file| {
+        // Read NixOS version from nixos-version file for configuration rev
+        var nixos_version_contents = blk: {
+            const file = path.openFile("nixos-version.json", .{}) catch break :blk null;
             defer file.close();
-            nixos_version = file.readToEndAlloc(allocator, 1000) catch |err| blk: {
-                log.warn("unable to read NixOS version file for generation {d}: {s}", .{ gen_number, @errorName(err) });
 
-                break :blk null;
-            };
-        } else |err| {
-            log.warn("unable to open NixOS version file for generation {d}: {s}", .{ gen_number, @errorName(err) });
-        }
+            const contents = file.readToEndAlloc(allocator, std.math.maxInt(usize)) catch break :blk null;
+            defer allocator.free(contents);
+
+            break :blk std.json.parseFromSlice(GenerationInfo, allocator, contents, .{
+                .allocate = .alloc_always,
+                .ignore_unknown_fields = true,
+            }) catch null;
+        };
+        defer if (nixos_version_contents) |json| json.deinit();
+        const nixos_version_info: GenerationInfo = if (nixos_version_contents) |contents| contents.value else GenerationInfo{};
+
+        var nixos_version: ?[]const u8 = blk: {
+            if (path.openFile("nixos-version", .{})) |file| {
+                defer file.close();
+                break :blk file.readToEndAlloc(allocator, 1000) catch |err| {
+                    log.warn("unable to read NixOS version file for generation {d}: {s}", .{ gen_number, @errorName(err) });
+                    break :blk null;
+                };
+            } else |err| {
+                log.warn("unable to open NixOS version file for generation {d}: {s}", .{ gen_number, @errorName(err) });
+            }
+            break :blk null;
+        };
 
         if (nixos_version == null) {
             nixos_version = try fmt.allocPrint(allocator, "unknown", .{});
@@ -178,8 +195,10 @@ pub const Generation = struct {
             log.warn("unable to find specialisations: {s}", .{@errorName(err)});
         }
 
-        // TODO: implement way of retrieving configuration rev
-        // (preferably without `nixos-version` if possible)
+        const configuration_revision = if (nixos_version_info.configurationRevision) |rev|
+            try allocator.dupe(u8, rev)
+        else
+            try fmt.allocPrint(allocator, "unknown", .{});
 
         const specializations = try specializations_list.toOwnedSlice();
         mem.sort([]const u8, specializations, {}, stringLessThan);
@@ -190,8 +209,8 @@ pub const Generation = struct {
             .nixos_version = nixos_version.?,
             .kernel_version = kernel_version,
             .current = false, // This is determined where we have access to the generation directory string.
+            .configuration_revision = configuration_revision,
             .specialisations = specializations,
-            .configuration_revision = "",
         };
     }
 
@@ -382,7 +401,7 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
         return;
     }
 
-    const headers: []const []const u8 = &.{ "Generation", "Build Date", "NixOS Version", "Kernel Version", "Specialisations" };
+    const headers: []const []const u8 = &.{ "Generation", "Build Date", "NixOS Version", "Kernel Version", "Configuration Revision", "Specialisations" };
 
     var max_row_len = comptime blk: {
         var tmp: []const usize = &[_]usize{};
@@ -422,7 +441,8 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
         max_row_len[1] = @max(max_row_len[1], gen.date.len); // Date
         max_row_len[2] = @max(max_row_len[2], gen.nixos_version.len); // NixOS Version
         max_row_len[3] = @max(max_row_len[3], gen.kernel_version.len); // Kernel Version
-        max_row_len[4] = @max(max_row_len[4], spec.*.len); // Specialisations
+        max_row_len[4] = @max(max_row_len[4], gen.configuration_revision.len); // Configuration Revision
+        max_row_len[5] = @max(max_row_len[5], spec.*.len); // Specialisations
     }
 
     for (headers, 0..) |header, j| {
@@ -436,7 +456,7 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
     print(stdout, "\n", .{});
 
     for (generations.items, generation_numbers, specialization_lists, 0..) |gen, num, spec, idx| {
-        const row = [_][]const u8{ num, gen.date, gen.nixos_version, gen.kernel_version, spec };
+        const row = [_][]const u8{ num, gen.date, gen.nixos_version, gen.kernel_version, gen.configuration_revision, spec };
         for (row, 0..) |col, j| {
             print(stdout, "{s}", .{col});
             var k: usize = 4 + max_row_len[j] - col.len;
