@@ -62,6 +62,12 @@ pub fn build(b: *std.build.Builder) void {
     options.addOption([]const u8, "git_rev", git_rev);
     exe.addOptions("options", options);
 
+    // Link to the Nix C API directly.
+    exe.linkLibC();
+    exe.linkSystemLibrary("nixexprc");
+    exe.linkSystemLibrary("nixstorec");
+    exe.linkSystemLibrary("nixutilc");
+
     const run = b.addRunArtifact(exe);
     run.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
