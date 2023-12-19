@@ -6,6 +6,9 @@
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
+    # Use unstable Nix C bindings
+    nix.url = "github:tweag/nix/nix-c-bindings";
+
     zig-overlay.url = "github:mitchellh/zig-overlay";
 
     flake-compat = {
@@ -37,19 +40,24 @@
         ...
       }: let
         zigPackage = inputs.zig-overlay.packages.${system}."0.11.0";
+        nixPackage = inputs.nix.packages.${system}.nix;
 
         inherit (inputs.gitignore.lib) gitignoreSource;
 
         package = {
           zig,
+          pkg-config,
+          nix,
           flake ? true,
         }:
-          pkgs.stdenvNoCC.mkDerivation {
+          pkgs.stdenv.mkDerivation {
             pname = "nixos";
             version = "0.5.0";
             src = gitignoreSource ./.;
 
-            nativeBuildInputs = [zig];
+            nativeBuildInputs = [zig pkg-config];
+
+            buildInputs = [nix];
 
             dontConfigure = true;
             dontInstall = true;
@@ -77,7 +85,10 @@
       in {
         packages = rec {
           default = nixos;
-          nixos = pkgs.callPackage package {zig = zigPackage;};
+          nixos = pkgs.callPackage package {
+            zig = zigPackage;
+            nix = nixPackage;
+          };
           nixosLegacy = nixos.override {flake = false;};
         };
 
@@ -89,6 +100,10 @@
           ];
           nativeBuildInputs = [
             zigPackage
+            pkgs.pkg-config
+          ];
+          buildInputs = [
+            nixPackage.dev
           ];
 
           ZIG_DOCS = "${zigPackage}/doc/langref.html";
