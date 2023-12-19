@@ -22,6 +22,12 @@ pub fn build(b: *std.build.Builder) void {
     shared_opts.addOption([]const u8, "nixpkgs_version", nixpkgs_version);
     exe.addOptions("options", shared_opts);
 
+    // Link to the Nix C API directly.
+    exe.linkLibC();
+    exe.linkSystemLibrary("nixexprc");
+    exe.linkSystemLibrary("nixstorec");
+    exe.linkSystemLibrary("nixutilc");
+
     const run = b.addRunArtifact(exe);
     run.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
