@@ -50,5 +50,10 @@ in {
       ${nixos-version-json}
       EOF
     '';
+
+    # Preserve NIXOS_CONFIG in sudo invocations of `nixos build`
+    security.sudo.extraConfig = ''
+      Defaults env_keep += "NIXOS_CONFIG"
+    '';
   };
 }
