@@ -30,7 +30,7 @@ const utils = @import("utils.zig");
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 const runCmd = utils.runCmd;
 
-pub const BuildArgs = struct {
+pub const ApplyArgs = struct {
     // Activate the built configuration
     activate: bool = false,
     // Make the built generation the default for next boot
@@ -78,18 +78,18 @@ pub const BuildArgs = struct {
     };
 
     const usage =
-        \\Build a NixOS system from a configuration.
+        \\Build and/or activate a NixOS system from a configuration.
         \\
         \\Usage:
         \\
     ++ (if (opts.flake)
-        \\    nixos build [flake-ref] [options]
+        \\    nixos apply [flake-ref] [options]
         \\
         \\Arguments:
-        \\    [flake-ref]    Flake ref to build flake from (default: $NIXOS_CONFIG)
+        \\    [flake-ref]    Flake ref to build configuration from (default: $NIXOS_CONFIG)
         \\
     else
-        \\    nixos build [options]
+        \\    nixos apply [options]
         \\
     ) ++
         \\
@@ -122,7 +122,7 @@ pub const BuildArgs = struct {
     ;
 
     fn init(allocator: Allocator) Self {
-        return BuildArgs{
+        return ApplyArgs{
             .build_options = ArrayList([]const u8).init(allocator),
             .flake_options = ArrayList([]const u8).init(allocator),
         };
@@ -130,8 +130,8 @@ pub const BuildArgs = struct {
 
     /// Parse arguments from the command line and construct a BuildArgs struct
     /// with the provided arguments. Caller owns a BuildArgs instance.
-    pub fn parseArgs(allocator: Allocator, args: *ArgIterator) !BuildArgs {
-        var result: BuildArgs = BuildArgs.init(allocator);
+    pub fn parseArgs(allocator: Allocator, args: *ArgIterator) !ApplyArgs {
+        var result: ApplyArgs = ApplyArgs.init(allocator);
         errdefer result.deinit();
 
         var next_arg: ?[]const u8 = args.next();
@@ -217,10 +217,10 @@ pub const BuildArgs = struct {
 };
 
 // Verbose output
-// This is easier than to use a field in BuildArgs and pass it around.
+// This is easier than to use a field in ApplyArgs and pass it around.
 var verbose: bool = false;
 
-pub const BuildError = error{
+pub const ApplyError = error{
     ConfigurationNotFound,
     NixBuildFailed,
     PermissionDenied,
@@ -290,7 +290,7 @@ fn upgradeChannels(allocator: Allocator, all: bool) !void {
             switch (err) {
                 error.AccessDenied => {
                     log.err("unable to open {s}: permission denied", .{channel_directory});
-                    return BuildError.PermissionDenied;
+                    return ApplyError.PermissionDenied;
                 },
                 error.DeviceBusy => log.err("unable to open {s}: device busy", .{channel_directory}),
                 error.FileNotFound => log.err("unable to {s}: no such file or directory", .{channel_directory}),
@@ -321,11 +321,11 @@ fn upgradeChannels(allocator: Allocator, all: bool) !void {
     const result = runCmd(.{
         .allocator = allocator,
         .argv = argv.items,
-    }) catch return BuildError.UpgradeChannelsFailed;
+    }) catch return ApplyError.UpgradeChannelsFailed;
 
     if (result.status != 0) {
         exit_status = result.status;
-        return BuildError.UpgradeChannelsFailed;
+        return ApplyError.UpgradeChannelsFailed;
     }
 }
 
@@ -354,7 +354,7 @@ fn mkTmpDir(allocator: Allocator, name: []const u8) ![]const u8 {
         switch (err) {
             error.AccessDenied => {
                 log.err("unable to create temporary directory {s}: permission denied", .{dirname});
-                return BuildError.PermissionDenied;
+                return ApplyError.PermissionDenied;
             },
             error.PathAlreadyExists => log.err("unable to create temporary directory {s}: path already exists", .{dirname}),
             error.FileNotFound => log.err("unable to create temporary directory {s}: no such file or directory", .{dirname}),
@@ -409,11 +409,11 @@ fn nixBuild(
     const result = runCmd(.{
         .allocator = allocator,
         .argv = argv.items,
-    }) catch return BuildError.NixBuildFailed;
+    }) catch return ApplyError.NixBuildFailed;
 
     if (result.status != 0) {
         exit_status = result.status;
-        return BuildError.NixBuildFailed;
+        return ApplyError.NixBuildFailed;
     }
 
     return result.stdout.?;
@@ -471,7 +471,7 @@ fn nixBuildFlake(
     var result = runCmd(.{
         .allocator = allocator,
         .argv = argv.items,
-    }) catch return BuildError.NixBuildFailed;
+    }) catch return ApplyError.NixBuildFailed;
 
     if (result.stdout) |stdout| {
         allocator.free(stdout);
@@ -479,7 +479,7 @@ fn nixBuildFlake(
 
     if (result.status != 0) {
         exit_status = result.status;
-        return BuildError.NixBuildFailed;
+        return ApplyError.NixBuildFailed;
     }
 
     // No stdout output is emitted by nix build without --print-out-paths,
@@ -491,7 +491,7 @@ fn nixBuildFlake(
         switch (err) {
             error.AccessDenied => {
                 log.err("unable to readlink {s}: permission denied", .{result_dir});
-                return BuildError.PermissionDenied;
+                return ApplyError.PermissionDenied;
             },
             error.FileNotFound => @panic("result dir not found after building"),
             error.FileSystem => log.err("unable to readlink {s}: i/o error", .{result_dir}),
@@ -507,7 +507,7 @@ fn nixBuildFlake(
 
 /// Set the target system's NixOS system profile to the newly built generation
 /// to prepare for --activate or --boot
-fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []const u8) BuildError!void {
+fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []const u8) ApplyError!void {
     var profile_dir: []const u8 = undefined;
 
     if (profile) |name| {
@@ -519,7 +519,7 @@ fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []c
                 switch (err) {
                     error.AccessDenied => {
                         log.err("unable to create system profile directory {s}: permission denied", .{Constants.nix_system_profiles});
-                        return BuildError.PermissionDenied;
+                        return ApplyError.PermissionDenied;
                     },
                     error.PathAlreadyExists => break :blk,
                     error.FileNotFound => log.err("unable to create system profile directory {s}: no such file or directory", .{Constants.nix_system_profiles}),
@@ -527,7 +527,7 @@ fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []c
                     error.NoSpaceLeft => log.err("unable to create system profile directory {s}: no space left on device", .{Constants.nix_system_profiles}),
                     else => log.err("unexpected error creating system profile directory {s}: {s}", .{ Constants.nix_system_profiles, @errorName(err) }),
                 }
-                return BuildError.ResourceCreationFailed;
+                return ApplyError.ResourceCreationFailed;
             };
 
             profile_dir = try fs.path.join(allocator, &.{ Constants.nix_system_profiles, name });
@@ -544,11 +544,11 @@ fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []c
     const result = runCmd(.{
         .allocator = allocator,
         .argv = argv,
-    }) catch return BuildError.SetNixProfileFailed;
+    }) catch return ApplyError.SetNixProfileFailed;
 
     if (result.status != 0) {
         exit_status = result.status;
-        return BuildError.SetNixProfileFailed;
+        return ApplyError.SetNixProfileFailed;
     }
 }
 
@@ -610,15 +610,15 @@ fn runSwitchToConfiguration(
         .allocator = allocator,
         .argv = argv,
         .env_map = &env_map,
-    }) catch return BuildError.SwitchToConfigurationFailed;
+    }) catch return ApplyError.SwitchToConfigurationFailed;
 
     if (result.status != 0) {
         exit_status = result.status;
-        return BuildError.SwitchToConfigurationFailed;
+        return ApplyError.SwitchToConfigurationFailed;
     }
 }
 
-fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
+fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
     // TODO: check if user running is root?
 
     const build_type: BuildType = if (args.vm)
@@ -639,12 +639,12 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
             // Parse flake arg if explicitly specified as a positional argument.
             flake_ref = getFlakeRef(flake) catch {
                 log.err("unable to determine hostname", .{});
-                return BuildError.UnknownHostname;
+                return ApplyError.UnknownHostname;
             };
 
             if (flake_ref == null) {
                 log.err("hostname not provided in flake argument, cannot find configuration", .{});
-                return BuildError.ConfigurationNotFound;
+                return ApplyError.ConfigurationNotFound;
             }
         } else {
             // Check for existence of flake.nix in the NIXOS_CONFIG
@@ -662,7 +662,7 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
 
                 flake_ref = getFlakeRef(dir) catch |err| {
                     log.err("unable to determine hostname: {s}", .{@errorName(err)});
-                    return BuildError.UnknownHostname;
+                    return ApplyError.UnknownHostname;
                 };
             }
 
@@ -670,7 +670,7 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
                 if (verbose) log.info("found flake configuration {s}#{s}", .{ flake.path, flake.hostname });
             } else {
                 log.err("unable to find configuration, expected NIXOS_CONFIG to be set to location of flake", .{});
-                return BuildError.ConfigurationNotFound;
+                return ApplyError.ConfigurationNotFound;
             }
         }
     } else {
@@ -683,7 +683,7 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
             defer allocator.free(filename);
             if (!fileExistsAbsolute(filename)) {
                 log.err("no configuration found, expected {s} to exist", .{filename});
-                return BuildError.ConfigurationNotFound;
+                return ApplyError.ConfigurationNotFound;
             } else {
                 if (verbose) log.info("found legacy configuration at {s}", .{filename});
             }
@@ -704,32 +704,32 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
                 if (verbose) log.info("found legacy configuration at {s}", .{config});
             } else {
                 log.err("no configuration found, expected 'nixos-config' attribute to exist in NIX_PATH", .{});
-                return BuildError.ConfigurationNotFound;
+                return ApplyError.ConfigurationNotFound;
             }
         }
     }
 
-    // Upgrade all channels (should this be skipped in flake mode?)
+    // Upgrade all channels
     if (!opts.flake and args.upgrade_channels) {
         upgradeChannels(allocator, args.upgrade_all_channels) catch |err| {
             log.err("upgrading channels failed", .{});
-            if (err == BuildError.PermissionDenied) {
-                return BuildError.PermissionDenied;
-            } else if (err == BuildError.OutOfMemory) {
-                return BuildError.OutOfMemory;
+            if (err == ApplyError.PermissionDenied) {
+                return ApplyError.PermissionDenied;
+            } else if (err == ApplyError.OutOfMemory) {
+                return ApplyError.OutOfMemory;
             }
-            return BuildError.UpgradeChannelsFailed;
+            return ApplyError.UpgradeChannelsFailed;
         };
     }
 
     // Create temporary directory for artifacts
-    const tmp_dir = mkTmpDir(allocator, "nixos-build") catch |err| {
-        if (err == BuildError.PermissionDenied) {
-            return BuildError.PermissionDenied;
-        } else if (err == BuildError.OutOfMemory) {
-            return BuildError.OutOfMemory;
+    const tmp_dir = mkTmpDir(allocator, "nixos-apply") catch |err| {
+        if (err == ApplyError.PermissionDenied) {
+            return ApplyError.PermissionDenied;
+        } else if (err == ApplyError.OutOfMemory) {
+            return ApplyError.OutOfMemory;
         }
-        return BuildError.ResourceCreationFailed;
+        return ApplyError.ResourceCreationFailed;
     };
     defer allocator.free(tmp_dir);
     defer {
@@ -765,12 +765,12 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
             .dry = dry_build,
         }) catch |err| {
             log.err("failed to build the system configuration", .{});
-            if (err == BuildError.PermissionDenied) {
-                return BuildError.PermissionDenied;
-            } else if (err == BuildError.OutOfMemory) {
-                return BuildError.OutOfMemory;
+            if (err == ApplyError.PermissionDenied) {
+                return ApplyError.PermissionDenied;
+            } else if (err == ApplyError.OutOfMemory) {
+                return ApplyError.OutOfMemory;
             }
-            return BuildError.NixBuildFailed;
+            return ApplyError.NixBuildFailed;
         };
     } else {
         result = nixBuild(allocator, build_type, .{
@@ -784,12 +784,12 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
             .dry = dry_build,
         }) catch |err| {
             log.err("failed to build the system configuration", .{});
-            if (err == BuildError.PermissionDenied) {
-                return BuildError.PermissionDenied;
-            } else if (err == BuildError.OutOfMemory) {
-                return BuildError.OutOfMemory;
+            if (err == ApplyError.PermissionDenied) {
+                return ApplyError.PermissionDenied;
+            } else if (err == ApplyError.OutOfMemory) {
+                return ApplyError.OutOfMemory;
             }
-            return BuildError.NixBuildFailed;
+            return ApplyError.NixBuildFailed;
         };
     }
 
@@ -851,7 +851,7 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
     if (specialization) |spec| {
         if (!fileExistsAbsolute(stc)) {
             log.err("failed to find specialization {s}", .{spec});
-            return BuildError.UnknownSpecialization;
+            return ApplyError.UnknownSpecialization;
         }
     }
 
@@ -870,20 +870,20 @@ fn build(allocator: Allocator, args: BuildArgs) BuildError!void {
     try runSwitchToConfiguration(allocator, stc, stc_action, stc_options);
 }
 
-// Run build and provide the relevant exit code
-pub fn buildMain(allocator: Allocator, args: BuildArgs) u8 {
+// Run apply and provide the relevant exit code
+pub fn applyMain(allocator: Allocator, args: ApplyArgs) u8 {
     if (!fileExistsAbsolute(Constants.etc_nixos)) {
-        log.err("the build command is currently unsupported on non-NixOS systems", .{});
+        log.err("the apply command is currently unsupported on non-NixOS systems", .{});
         return 3;
     }
 
-    build(allocator, args) catch |err| {
+    apply(allocator, args) catch |err| {
         switch (err) {
-            BuildError.NixBuildFailed, BuildError.SetNixProfileFailed, BuildError.UpgradeChannelsFailed, BuildError.SwitchToConfigurationFailed => {
+            ApplyError.NixBuildFailed, ApplyError.SetNixProfileFailed, ApplyError.UpgradeChannelsFailed, ApplyError.SwitchToConfigurationFailed => {
                 return if (exit_status != 0) exit_status else 1;
             },
-            BuildError.PermissionDenied => return 13,
-            BuildError.ResourceCreationFailed => return 4,
+            ApplyError.PermissionDenied => return 13,
+            ApplyError.ResourceCreationFailed => return 4,
             Allocator.Error.OutOfMemory => {
                 log.err("out of memory, cannot continue", .{});
                 return 1;

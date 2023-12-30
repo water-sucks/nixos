@@ -21,9 +21,8 @@ const fileExistsAbsolute = utils.fileExistsAbsolute;
 const runCmd = utils.runCmd;
 
 // Reusing specialization and switch-to-configuration logic
-// from `nixos build`, because I'm lazy.
-const build = @import("../build.zig");
-const findSpecialization = build.findSpecialization;
+// from `nixos apply`, because I'm lazy.
+const findSpecialization = @import("../apply.zig").findSpecialization;
 
 pub const GenerationSwitchArgs = struct {
     verbose: bool = false,

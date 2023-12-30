@@ -3,13 +3,13 @@ const mem = std.mem;
 const Allocator = mem.Allocator;
 const ArgIterator = std.process.ArgIterator;
 
-const build = @import("build.zig");
+const apply = @import("apply.zig");
 const enter = @import("enter.zig");
 const generation = @import("generation.zig");
 const info = @import("info.zig");
 const init = @import("init.zig");
 
-const BuildArgs = build.BuildArgs;
+const ApplyArgs = apply.ApplyArgs;
 const EnterArgs = enter.EnterArgs;
 const GenerationArgs = generation.GenerationArgs;
 const InfoArgs = info.InfoArgs;
@@ -27,7 +27,7 @@ const MainArgs = struct {
     subcommand: Subcommand = undefined,
 
     const Subcommand = union(enum) {
-        build: BuildArgs,
+        apply: ApplyArgs,
         enter: EnterArgs,
         init: InitConfigArgs,
         info: InfoArgs,
@@ -41,7 +41,7 @@ const MainArgs = struct {
         \\    nixos <command> [command options]
         \\
         \\Commands:
-        \\    build              Build a NixOS configuration
+        \\    apply              Build/activate a NixOS configuration
         \\    enter              Chroot into a NixOS installation
         \\    generation         Manage NixOS generations
         \\    info               Show info about the currently running generation
@@ -71,8 +71,8 @@ const MainArgs = struct {
             return ArgParseError.HelpInvoked;
         }
 
-        if (mem.eql(u8, arg, "build")) {
-            result.subcommand = .{ .build = try BuildArgs.parseArgs(allocator, argv) };
+        if (mem.eql(u8, arg, "apply")) {
+            result.subcommand = .{ .apply = try ApplyArgs.parseArgs(allocator, argv) };
         } else if (mem.eql(u8, arg, "enter")) {
             result.subcommand = .{ .enter = try EnterArgs.parseArgs(allocator, argv) };
         } else if (mem.eql(u8, arg, "generation")) {
@@ -123,7 +123,7 @@ pub fn main() !u8 {
     };
 
     const status = switch (structured_args.subcommand) {
-        .build => |args| build.buildMain(allocator, args),
+        .apply => |args| apply.applyMain(allocator, args),
         .enter => |args| enter.enterMain(allocator, args),
         .generation => |args| generation.generationMain(allocator, args),
         .info => |args| info.infoMain(allocator, args),

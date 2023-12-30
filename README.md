@@ -9,7 +9,7 @@ become on the verge of unmaintainable. This tool has one goal: to create a modul
 NixOS CLI that mirrors or enhances the functionality of all current NixOS tooling in
 `nixpkgs`, adds on to it if needed, and eventually come to replace it entirely.
 
-- `nixos-rebuild` → `nixos build` + `nixos generation`
+- `nixos-rebuild` → `nixos apply` + `nixos generation`
 - `nixos-enter` → `nixos enter`
 - `nixos-generate-config` → `nixos init`
 - `nixos-version` → `nixos info`
@@ -41,7 +41,7 @@ the recommended way to use this program.
 
 ### Implemented Commands/Flags
 
-- ➖ `build`
+- ➖ `apply`
 - ❌ `container`
   - ❌ `list`
   - ❌ `create <name>`

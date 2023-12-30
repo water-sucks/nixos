@@ -20,9 +20,8 @@ const utils = @import("../utils.zig");
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 const runCmd = utils.runCmd;
 
-// Reusing specialization logic from `nixos build`, because I'm lazy.
-const build = @import("../build.zig");
-const findSpecialization = build.findSpecialization;
+// Reusing specialization logic from `nixos apply`, because I'm lazy.
+const findSpecialization = @import("../apply.zig").findSpecialization;
 
 pub const GenerationRollbackArgs = struct {
     verbose: bool = false,
