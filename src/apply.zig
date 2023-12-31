@@ -31,16 +31,16 @@ const fileExistsAbsolute = utils.fileExistsAbsolute;
 const runCmd = utils.runCmd;
 
 pub const ApplyArgs = struct {
-    // Activate the built configuration
-    activate: bool = false,
-    // Make the built generation the default for next boot
-    boot: bool = false,
     // Show what would be built or ran but do not actually run it
     dry: bool = false,
     // Build the NixOS system from the specified flake ref
     flake: ?[]const u8 = null,
     // (Re)install the bootloader on the device specified by the relevant configuration options
     install_bootloader: bool = false,
+    // Do not activate the built configuration
+    no_activate: bool = false,
+    // Do not create a boot entry for this generation
+    no_boot: bool = false,
     // Symlink the output to a location (default: ./result, none on system activation)
     output: ?[]const u8 = null,
     // Name of the system profile to use
@@ -51,9 +51,9 @@ pub const ApplyArgs = struct {
     upgrade_channels: bool = false,
     // Upgrade all of the root user's channels
     upgrade_all_channels: bool = false,
-    // Build a script that starts a NixOS virtual machine with the given configuration
+    // Build a script that starts a NixOS VM directly
     vm: bool = false,
-    // Same as --vm, but with a bootloader instead of booting into the kernel directly
+    //
     vm_with_bootloader: bool = false,
 
     /// All options passed through to `nix` invocations
@@ -68,17 +68,12 @@ pub const ApplyArgs = struct {
         .{ "dry", .{"output"} },
         // VM options can only be set by themselves, and not with boot or activate
         .{ "vm", .{ "vm_with_bootloader", "activate", "boot" } },
-    };
-
-    const required = .{
-        // Installing the bootloader requires an activation or boot entry generation
-        .{ "install_bootloader", .{ "activate", "boot" } },
-        // Specializations can only be used on activation
-        .{ "specialization", .{"activate"} },
+        // Specializations require `switch-to-configuration` to be ran with `switch` or `test`
+        .{ "specialization", .{"no_activate"} },
     };
 
     const usage =
-        \\Build and/or activate a NixOS system from a configuration.
+        \\Build and activate a NixOS system from a given configuration.
         \\
         \\Usage:
         \\
@@ -94,27 +89,21 @@ pub const ApplyArgs = struct {
     ) ++
         \\
         \\Options:
-        \\    -a, --activate                 Activate the built configuration
-        \\    -b, --boot                     Make the built generation the default for next boot
         \\    -d, --dry                      Show what would be built or ran but do not actually run it
         \\    -h, --help                     Show this help menu
-        \\        --install-bootloader       (Re)install the bootloader on the device specified by the
-        \\                                   relevant configuration options
-        \\    -o, --output <LOCATION>        Symlink the output to a location (default: ./result, none on
-        \\                                   system activation)
+        \\        --install-bootloader       (Re)install the bootloader on the configured device(s)
+        \\        --no-activate              Do not activate the built configuration
+        \\        --no-boot                  Do not create boot entry for this generation
+        \\    -o, --output <LOCATION>        Symlink the output to a location
         \\    -p, --profile-name <NAME>      Name of the system profile to use
-        \\    -s, --specialisation <NAME>    Activate the given specialisation (default: contents of
-        \\                                   /etc/NIXOS_SPECIALISATION if it exists)
-        \\        --switch                   Alias for --activate --boot
+        \\    -s, --specialisation <NAME>    Activate the given specialisation
     ++ utils.optionalArgString(!opts.flake,
         \\    -u, --upgrade                  Upgrade the root user's `nixos` channel
         \\        --upgrade-all              Upgrade all of the root user's channels
     ) ++
         \\    -v, --verbose                  Show verbose logging
-        \\        --vm                       Build a script that starts a NixOS virtual machine with the
-        \\                                   given configuration
-        \\        --vm-with-bootloader       Same as --vm, but with a bootloader instead of booting into
-        \\                                   the kernel directly
+        \\        --vm                       Build a script that starts a NixOS VM
+        \\        --vm-with-bootloader       Build a script that starts a NixOS VM through the configured bootloader
         \\
         \\This command also forwards Nix options passed here to all relevant Nix invocations.
         \\Check the Nix manual page for more details on what options are available.
@@ -136,26 +125,23 @@ pub const ApplyArgs = struct {
 
         var next_arg: ?[]const u8 = args.next();
         while (next_arg) |arg| {
-            if (argIs(arg, "--activate", "-a")) {
-                result.activate = true;
-            } else if (argIs(arg, "--boot", "-b")) {
-                result.boot = true;
-            } else if (argIs(arg, "--dry", "-d")) {
+            if (argIs(arg, "--dry", "-d")) {
                 result.dry = true;
             } else if (argIs(arg, "--help", "-h")) {
                 log.print(usage, .{});
                 return ArgParseError.HelpInvoked;
             } else if (argIs(arg, "--install-bootloader", null)) {
                 result.install_bootloader = true;
+            } else if (argIs(arg, "--no-activate", null)) {
+                result.no_activate = true;
+            } else if (argIs(arg, "--no-boot", null)) {
+                result.no_boot = true;
             } else if (argIs(arg, "--output", "-o")) {
                 const next = (try getNextArgs(args, arg, 1))[0];
                 result.output = next;
             } else if (argIs(arg, "--profile-name", "-p")) {
                 const next = (try getNextArgs(args, arg, 1))[0];
                 result.profile_name = next;
-            } else if (argIs(arg, "--switch", null)) {
-                result.activate = true;
-                result.boot = true;
             } else if (argIs(arg, "--specialisation", "-s")) {
                 const next = (try getNextArgs(args, arg, 1))[0];
                 result.specialization = next;
@@ -204,8 +190,10 @@ pub const ApplyArgs = struct {
             next_arg = args.next();
         }
 
-        try conflict(result, conflicts);
-        try require(result, required);
+        if (result.no_activate and result.specialization != null) {
+            argError("--install-bootloader requires activation, remove --no-activate and/or --no-boot", .{});
+            return ArgParseError.ConflictingOptions;
+        }
 
         return result;
     }
@@ -625,10 +613,10 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
         .VM
     else if (args.vm_with_bootloader)
         .VMWithBootloader
-    else if (args.activate or args.boot)
-        .SystemActivation
+    else if (args.no_activate and args.no_boot)
+        .System
     else
-        .System;
+        .SystemActivation;
 
     if (verbose) log.info("looking for configuration...", .{});
     // Find flake if unset, and parse it into its separate components
@@ -743,7 +731,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
 
     // Dry activation requires a real build, so --dry-run shouldn't be set
     // if --activate or --boot is set
-    const dry_build = args.dry and !(args.activate or args.boot);
+    const dry_build = args.dry and (build_type == .System);
 
     // Only use this temporary directory for builds to be activated with
     const tmp_result_dir = try fs.path.join(allocator, &.{ tmp_dir, "result" });
@@ -822,7 +810,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
     }
 
     // Set nix-env profile, if needed
-    if (args.boot or args.activate and !args.dry) {
+    if (!args.dry) {
         setNixEnvProfile(allocator, args.profile_name, result) catch |err| {
             log.err("failed to set system profile with nix-env", .{});
             return err;
@@ -855,13 +843,13 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
         }
     }
 
-    const stc_action = if (args.dry and args.activate)
+    const stc_action = if (args.dry and !args.no_activate)
         "dry-activate"
-    else if (args.activate and args.boot)
+    else if (!args.no_activate and !args.no_boot)
         "switch"
-    else if (args.boot)
+    else if (args.no_activate and !args.no_boot)
         "boot"
-    else if (args.activate)
+    else if (!args.no_activate and args.no_boot)
         "test"
     else
         unreachable;
