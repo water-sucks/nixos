@@ -16,6 +16,10 @@ pub fn build(b: *std.build.Builder) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const libnix = b.addModule("libnix", .{
+        .source_file = .{ .path = "src/nix/lib.zig" },
+    });
+
     const exe = b.addExecutable(.{
         .name = "nixos",
         .root_source_file = .{ .path = "src/main.zig" },
@@ -23,6 +27,7 @@ pub fn build(b: *std.build.Builder) void {
         .optimize = optimize,
     });
     b.installArtifact(exe);
+    exe.addModule("nix", libnix);
 
     const full_version = blk: {
         if (mem.endsWith(u8, version, "-dev")) {
