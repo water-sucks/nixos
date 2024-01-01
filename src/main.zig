@@ -28,6 +28,8 @@ const App = argparse.App;
 const ArgParseError = argparse.ArgParseError;
 const Command = argparse.Command;
 
+const nix = @import("nix");
+
 const MainArgs = struct {
     subcommand: Subcommand = undefined,
 
@@ -127,6 +129,9 @@ pub fn main() !u8 {
     var arena_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena_allocator.deinit();
     const allocator = arena_allocator.allocator();
+
+    try nix.util.init();
+    log.info("libnix version: {s}", .{nix.util.version()});
 
     var argv = try std.process.argsWithAllocator(allocator);
     defer argv.deinit();
