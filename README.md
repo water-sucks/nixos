@@ -65,7 +65,7 @@ the recommended way to use this program.
   - ✅ `list`
   - ✅ `switch <number>`
   - ✅ `rollback`
-  - ❓ `diff` (a la [nvd](https://gitlab.com/khumba/nvd))
+  - ➖ `diff` (a la [nvd](https://gitlab.com/khumba/nvd))
 
 ### Possible Future Commands
 

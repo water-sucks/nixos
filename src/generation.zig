@@ -16,9 +16,11 @@ const log = @import("log.zig");
 const utils = @import("utils.zig");
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 
+const generationDiff = @import("generation/diff.zig");
 const generationList = @import("generation/list.zig");
 const generationRollback = @import("generation/rollback.zig");
 const generationSwitch = @import("generation/switch.zig");
+const GenerationDiffArgs = generationDiff.GenerationDiffArgs;
 const GenerationListArgs = generationList.GenerationListArgs;
 const GenerationSwitchArgs = generationSwitch.GenerationSwitchArgs;
 const GenerationRollbackArgs = generationRollback.GenerationRollbackArgs;
@@ -32,6 +34,7 @@ pub const GenerationArgs = struct {
     subcommand: ?GenerationCommand = null,
 
     const GenerationCommand = union(enum) {
+        diff: GenerationDiffArgs,
         list: GenerationListArgs,
         rollback: GenerationRollbackArgs,
         @"switch": GenerationSwitchArgs,
@@ -44,9 +47,10 @@ pub const GenerationArgs = struct {
         \\    nixos generation [options] <command>
         \\
         \\Commands:
-        \\    list              List all NixOS generations in current profile
-        \\    rollback          Activate the previous generation
-        \\    switch <NUMBER>   Activate the generation with the given number
+        \\    diff <FROM>..<TO>    Show what packages were changed between two generations
+        \\    list                 List all NixOS generations in current profile
+        \\    rollback             Activate the previous generation
+        \\    switch <NUMBER>      Activate the generation with the given number
         \\
         \\Options:
         \\    -h, --help        Show this help menu
@@ -55,24 +59,6 @@ pub const GenerationArgs = struct {
         \\For more information about a subcommand, add --help after.
         \\
     ;
-
-    inline fn getSwitchArg(argv: *ArgIterator) !usize {
-        const arg = argv.next();
-        if (arg == null) {
-            argError("missing required argument <NUMBER>", .{});
-            return ArgParseError.MissingRequiredArgument;
-        }
-
-        const gen_number = std.fmt.parseInt(usize, arg.?, 10) catch |err| {
-            switch (err) {
-                error.InvalidCharacter => argError("'{s}' is not a number", .{arg.?}),
-                error.Overflow => argError("unable to parse number '{s}'", .{arg.?}),
-            }
-            return ArgParseError.InvalidArgument;
-        };
-
-        return gen_number;
-    }
 
     pub fn parseArgs(argv: *ArgIterator) !GenerationArgs {
         var result: GenerationArgs = GenerationArgs{};
@@ -84,6 +70,8 @@ pub const GenerationArgs = struct {
                 return ArgParseError.HelpInvoked;
             } else if (argIs(arg, "--profile", "-p")) {
                 result.profile = (try argparse.getNextArgs(argv, arg, 1))[0];
+            } else if (mem.eql(u8, arg, "diff")) {
+                result.subcommand = .{ .diff = try GenerationDiffArgs.parseArgs(argv) };
             } else if (mem.eql(u8, arg, "list")) {
                 result.subcommand = .{ .list = try GenerationListArgs.parseArgs(argv) };
             } else if (mem.eql(u8, arg, "rollback")) {
@@ -129,6 +117,7 @@ pub fn generationMain(allocator: Allocator, args: GenerationArgs) u8 {
     }
 
     return switch (args.subcommand.?) {
+        .diff => |sub_args| generationDiff.generationDiffMain(allocator, sub_args, args.profile),
         .list => |sub_args| generationList.generationListMain(allocator, args.profile, sub_args),
         .rollback => |sub_args| generationRollback.generationRollbackMain(allocator, sub_args, args.profile),
         .@"switch" => |sub_args| generationSwitch.generationSwitchMain(allocator, sub_args, args.profile),
