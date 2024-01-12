@@ -228,7 +228,7 @@ pub const BuildType = enum {
 };
 
 /// NixOS configuration location inside a flake
-const FlakeRef = struct {
+pub const FlakeRef = struct {
     /// Path to flake that contains NixOS configuration
     path: []const u8,
     /// Hostname of configuration to build
@@ -315,45 +315,6 @@ fn upgradeChannels(allocator: Allocator, all: bool) !void {
         exit_status = result.status;
         return ApplyError.UpgradeChannelsFailed;
     }
-}
-
-/// Make a temporary directory; this is basically just the `mktemp`
-/// command but without actually invoking the `mktemp` command.
-fn mkTmpDir(allocator: Allocator, name: []const u8) ![]const u8 {
-    var random = std.rand.DefaultPrng.init(@intCast(std.time.milliTimestamp()));
-    var rng = random.random();
-
-    var i: usize = 0;
-    var random_string: [8]u8 = undefined;
-    while (i < 8) : (i += 1) {
-        random_string[i] = rng.intRangeAtMost(u8, 'A', 'Z');
-    }
-
-    const tmpdir_location = os.getenv("TMPDIR") orelse "/tmp";
-    const dirname = try fmt.allocPrint(
-        allocator,
-        "{s}/{s}.{s}",
-        .{ tmpdir_location, name, random_string },
-    );
-    errdefer allocator.free(dirname);
-
-    // TODO: replace to make consistent with
-    fs.makeDirAbsolute(dirname) catch |err| {
-        switch (err) {
-            error.AccessDenied => {
-                log.err("unable to create temporary directory {s}: permission denied", .{dirname});
-                return ApplyError.PermissionDenied;
-            },
-            error.PathAlreadyExists => log.err("unable to create temporary directory {s}: path already exists", .{dirname}),
-            error.FileNotFound => log.err("unable to create temporary directory {s}: no such file or directory", .{dirname}),
-            error.NoSpaceLeft => log.err("unable to create temporary directory {s}: no space left on device", .{dirname}),
-            error.NotDir => log.err("{s} is not a directory", .{tmpdir_location}),
-            else => log.err("unexpected error creating temporary directory {s}: {s}", .{ dirname, @errorName(err) }),
-        }
-        return err;
-    };
-
-    return dirname;
 }
 
 /// Build a legacy-style NixOS configuration
@@ -701,9 +662,9 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
     if (!opts.flake and args.upgrade_channels) {
         upgradeChannels(allocator, args.upgrade_all_channels) catch |err| {
             log.err("upgrading channels failed", .{});
-            if (err == ApplyError.PermissionDenied) {
+            if (err == error.PermissionDenied) {
                 return ApplyError.PermissionDenied;
-            } else if (err == ApplyError.OutOfMemory) {
+            } else if (err == error.OutOfMemory) {
                 return ApplyError.OutOfMemory;
             }
             return ApplyError.UpgradeChannelsFailed;
@@ -711,18 +672,20 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
     }
 
     // Create temporary directory for artifacts
-    const tmp_dir = mkTmpDir(allocator, "nixos-apply") catch |err| {
-        if (err == ApplyError.PermissionDenied) {
+    const tmpdir_base = try fs.path.join(allocator, &.{ os.getenv("TMPDIR") orelse "/tmp", "nixos-apply" });
+    defer allocator.free(tmpdir_base);
+    const tmpdir = utils.mkTmpDir(allocator, tmpdir_base) catch |err| {
+        if (err == error.PermissionDenied) {
             return ApplyError.PermissionDenied;
-        } else if (err == ApplyError.OutOfMemory) {
+        } else if (err == error.OutOfMemory) {
             return ApplyError.OutOfMemory;
         }
         return ApplyError.ResourceCreationFailed;
     };
-    defer allocator.free(tmp_dir);
+    defer allocator.free(tmpdir);
     defer {
-        fs.deleteTreeAbsolute(tmp_dir) catch |err| {
-            log.warn("unable to remove temporary directory {s}: {s}", .{ tmp_dir, @errorName(err) });
+        fs.deleteTreeAbsolute(tmpdir) catch |err| {
+            log.warn("unable to remove temporary directory {s}: {s}", .{ tmpdir, @errorName(err) });
         };
     }
 
@@ -734,7 +697,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
     const dry_build = args.dry and (build_type == .System);
 
     // Only use this temporary directory for builds to be activated with
-    const tmp_result_dir = try fs.path.join(allocator, &.{ tmp_dir, "result" });
+    const tmp_result_dir = try fs.path.join(allocator, &.{ tmpdir, "result" });
     defer allocator.free(tmp_result_dir);
 
     // Location of the resulting NixOS generation
@@ -753,9 +716,9 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
             .dry = dry_build,
         }) catch |err| {
             log.err("failed to build the system configuration", .{});
-            if (err == ApplyError.PermissionDenied) {
+            if (err == error.PermissionDenied) {
                 return ApplyError.PermissionDenied;
-            } else if (err == ApplyError.OutOfMemory) {
+            } else if (err == error.OutOfMemory) {
                 return ApplyError.OutOfMemory;
             }
             return ApplyError.NixBuildFailed;
@@ -772,9 +735,9 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
             .dry = dry_build,
         }) catch |err| {
             log.err("failed to build the system configuration", .{});
-            if (err == ApplyError.PermissionDenied) {
+            if (err == error.PermissionDenied) {
                 return ApplyError.PermissionDenied;
-            } else if (err == ApplyError.OutOfMemory) {
+            } else if (err == error.OutOfMemory) {
                 return ApplyError.OutOfMemory;
             }
             return ApplyError.NixBuildFailed;

@@ -8,6 +8,8 @@ const io = std.io;
 const mem = std.mem;
 const os = std.os;
 
+const log = @import("./log.zig");
+
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
 const ChildProcess = std.ChildProcess;
@@ -48,6 +50,7 @@ pub fn runCmd(
         argv: []const []const u8,
         stdout_type: ChildProcess.StdIo = .Pipe,
         stderr_type: ChildProcess.StdIo = .Inherit,
+        stdin_type: ChildProcess.StdIo = .Ignore,
         env_map: ?*const EnvMap = null,
         max_output_bytes: usize = 50 * 1024,
     },
@@ -57,6 +60,7 @@ pub fn runCmd(
     child.stdin_behavior = .Ignore;
     child.stderr_behavior = args.stderr_type;
     child.stdout_behavior = args.stdout_type;
+    child.stdin_behavior = args.stdin_type;
 
     child.stderr = io.getStdErr();
     child.env_map = args.env_map;
@@ -192,4 +196,35 @@ pub fn concatStringsSep(allocator: Allocator, strings: []const []const u8, sep: 
     mem.copy(u8, result[buf_index..], strings[strings.len - 1]);
 
     return result;
+}
+
+/// Make a temporary directory; this is basically just the `mktemp`
+/// command but without actually invoking the `mktemp` command.
+pub fn mkTmpDir(allocator: Allocator, base: []const u8) ![]const u8 {
+    var random = std.rand.DefaultPrng.init(@intCast(std.time.milliTimestamp()));
+    var rng = random.random();
+
+    var i: usize = 1;
+    var random_string: [9]u8 = undefined;
+    random_string[0] = '.';
+    while (i < 9) : (i += 1) {
+        random_string[i] = rng.intRangeAtMost(u8, 'A', 'Z');
+    }
+
+    const dirname = try mem.concat(allocator, u8, &.{ base, &random_string });
+    errdefer allocator.free(dirname);
+
+    fs.makeDirAbsolute(dirname) catch |err| {
+        switch (err) {
+            error.AccessDenied => log.err("unable to create temporary directory {s}: permission denied", .{dirname}),
+            error.PathAlreadyExists => log.err("unable to create temporary directory {s}: path already exists", .{dirname}),
+            error.FileNotFound => log.err("unable to create temporary directory {s}: no such file or directory", .{dirname}),
+            error.NoSpaceLeft => log.err("unable to create temporary directory {s}: no space left on device", .{dirname}),
+            error.NotDir => log.err("{s} is not a directory", .{base}),
+            else => log.err("unexpected error creating temporary directory {s}: {s}", .{ dirname, @errorName(err) }),
+        }
+        return err;
+    };
+
+    return dirname;
 }

@@ -5,15 +5,17 @@ const ArgIterator = std.process.ArgIterator;
 
 const apply = @import("apply.zig");
 const enter = @import("enter.zig");
-const generation = @import("generation.zig");
 const info = @import("info.zig");
 const init = @import("init.zig");
+const install = @import("install.zig");
+const generation = @import("generation.zig");
 
 const ApplyArgs = apply.ApplyArgs;
 const EnterArgs = enter.EnterArgs;
-const GenerationArgs = generation.GenerationArgs;
 const InfoArgs = info.InfoArgs;
 const InitConfigArgs = init.InitConfigArgs;
+const InstallArgs = install.InstallArgs;
+const GenerationArgs = generation.GenerationArgs;
 
 const log = @import("log.zig");
 
@@ -31,6 +33,7 @@ const MainArgs = struct {
         enter: EnterArgs,
         init: InitConfigArgs,
         info: InfoArgs,
+        install: InstallArgs,
         generation: GenerationArgs,
     };
 
@@ -43,9 +46,10 @@ const MainArgs = struct {
         \\Commands:
         \\    apply              Build/activate a NixOS configuration
         \\    enter              Chroot into a NixOS installation
-        \\    generation         Manage NixOS generations
         \\    info               Show info about the currently running generation
         \\    init               Initialize a configuration.nix file
+        \\    install            Install a NixOS configuration and bootloader
+        \\    generation         Manage NixOS generations
         \\
         \\Options:
         \\    -h, --help    Show this help menu
@@ -75,12 +79,14 @@ const MainArgs = struct {
             result.subcommand = .{ .apply = try ApplyArgs.parseArgs(allocator, argv) };
         } else if (mem.eql(u8, arg, "enter")) {
             result.subcommand = .{ .enter = try EnterArgs.parseArgs(allocator, argv) };
-        } else if (mem.eql(u8, arg, "generation")) {
-            result.subcommand = .{ .generation = try GenerationArgs.parseArgs(argv) };
         } else if (mem.eql(u8, arg, "info")) {
             result.subcommand = .{ .info = try InfoArgs.parseArgs(argv) };
         } else if (mem.eql(u8, arg, "init")) {
             result.subcommand = .{ .init = try InitConfigArgs.parseArgs(argv) };
+        } else if (mem.eql(u8, arg, "install")) {
+            result.subcommand = .{ .install = try InstallArgs.parseArgs(allocator, argv) };
+        } else if (mem.eql(u8, arg, "generation")) {
+            result.subcommand = .{ .generation = try GenerationArgs.parseArgs(argv) };
         } else {
             if (argparse.isFlag(arg)) {
                 argError("unrecognised flag '{s}'", .{arg});
@@ -125,9 +131,10 @@ pub fn main() !u8 {
     const status = switch (structured_args.subcommand) {
         .apply => |args| apply.applyMain(allocator, args),
         .enter => |args| enter.enterMain(allocator, args),
-        .generation => |args| generation.generationMain(allocator, args),
         .info => |args| info.infoMain(allocator, args),
         .init => |args| init.initConfigMain(allocator, args),
+        .install => |args| install.installMain(allocator, args),
+        .generation => |args| generation.generationMain(allocator, args),
     };
 
     return status;

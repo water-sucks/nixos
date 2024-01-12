@@ -58,8 +58,8 @@ the recommended way to use this program.
 - ❌ `edit-config`
 - ✅ `info`
 - ✅ `init`
+- ✅ `install`
 - ❌ `manual`
-- ❌ `install`
 - ❌ `option`
 - ➖ `generation`
   - ✅ `list`
