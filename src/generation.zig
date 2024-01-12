@@ -44,7 +44,7 @@ pub const GenerationArgs = struct {
         \\Manage NixOS generations on this machine.
         \\
         \\Usage:
-        \\    nixos generation [options] <command>
+        \\    nixos generation [options] <COMMAND>
         \\
         \\Commands:
         \\    diff <FROM>..<TO>    Show what packages were changed between two generations

@@ -36,11 +36,13 @@ pub const GenerationSwitchArgs = struct {
         \\Usage:
         \\    nixos generation switch <NUMBER> [options]
         \\
+        \\Arguments:
+        \\    <NUMBER>:    Number of generation to switch to
+        \\
         \\Options:
         \\    -d, --dry               Show what would be activated, but do not activate
         \\    -h, --help              Show this help menu
-        \\    -s, --specialisation    Activate the given speialisation (default: contents
-        \\                            of /etc/NIXOS_SPECIALISATION if it exists)
+        \\    -s, --specialisation    Activate the given specialisation
         \\    -v, --verbose           Show verbose logging
         \\
     ;

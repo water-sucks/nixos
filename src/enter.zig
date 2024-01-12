@@ -57,10 +57,9 @@ pub const EnterArgs = struct {
         \\Options:
         \\    -c, --command    Command to execute in Bash
         \\    -h, --help       Show this help menu
-        \\    -r, --root       Path to the NixOS system root to enter (default: /mnt)
+        \\    -r, --root       Path to the NixOS system root to enter
         \\    -s, --silent     Suppress all system activation output
-        \\        --system     NixOS system configuration to activate (default:
-        \\                     /nix/var/nix/profiles/system)
+        \\        --system     NixOS system configuration to activate
         \\    -v, --verbose    Show verbose logging
         \\    --               Interpret the remaining args as the command to be invoked
         \\

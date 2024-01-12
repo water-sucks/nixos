@@ -61,11 +61,11 @@ pub const InstallArgs = struct {
         \\Usage:
         \\
     ++ (if (opts.flake)
-        \\    nixos install <flake-url>#<system-name> [options]
+        \\    nixos install <FLAKE-URL>#<SYSTEM-NAME> [options]
         \\
         \\Arguments:
-        \\    <flake-url>      Flake URL that contains NixOS system to build
-        \\    <system-name>    Name of NixOS system to build
+        \\    <FLAKE-URL>      Flake URL that contains NixOS system to build
+        \\    <SYSTEM-NAME>    Name of NixOS system to build
         \\
     else
         \\    nixos install [options]
@@ -73,13 +73,13 @@ pub const InstallArgs = struct {
     ) ++
         \\
         \\Options:
-        \\    -c, --channel <path>     Use this derivation as the `nixos` channel to copy
+        \\    -c, --channel <PATH>     Use this derivation as the `nixos` channel to copy
         \\    -h, --help               Show this help menu
         \\        --no-bootloader      Do not install bootloader on device
         \\        --no-channel-copy    Do not copy over the current system's NixOS channel
         \\        --no-root-passwd     Do not prompt for setting root password
-        \\    -r, --root <dir>         Treat this directory as the root for installation
-        \\    -s, --system <path>      Install system from specified system closure
+        \\    -r, --root <DIR>         Treat this directory as the root for installation
+        \\    -s, --system <PATH>      Install system from specified system closure
         \\    -v, --verbose            Show verbose logging
         \\
         \\This command also forwards some Nix options passed here to all relevant Nix
@@ -164,11 +164,11 @@ pub const InstallArgs = struct {
         if (opts.flake and result.flake != null) {
             const split = mem.indexOf(u8, result.flake.?, "#");
             if (split == null or split == result.flake.?.len - 1) {
-                argError("missing required argument <system-name>", .{});
+                argError("missing required argument <SYSTEM-NAME>", .{});
                 return ArgParseError.MissingRequiredArgument;
             }
         } else if (opts.flake) {
-            argError("missing required arguments <flake-url>#<system-name>", .{});
+            argError("missing required arguments <FLAKE-URL>#<SYSTEM-NAME>", .{});
             return ArgParseError.MissingRequiredArgument;
         }
 

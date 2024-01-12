@@ -78,10 +78,10 @@ pub const ApplyArgs = struct {
         \\Usage:
         \\
     ++ (if (opts.flake)
-        \\    nixos apply [flake-ref] [options]
+        \\    nixos apply [FLAKE-REF] [options]
         \\
         \\Arguments:
-        \\    [flake-ref]    Flake ref to build configuration from (default: $NIXOS_CONFIG)
+        \\    [FLAKE-REF]    Flake ref to build configuration from (default: $NIXOS_CONFIG)
         \\
     else
         \\    nixos apply [options]
