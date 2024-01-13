@@ -5,6 +5,7 @@ const ArgIterator = std.process.ArgIterator;
 
 const apply = @import("apply.zig");
 const enter = @import("enter.zig");
+const features = @import("features.zig");
 const info = @import("info.zig");
 const init = @import("init.zig");
 const install = @import("install.zig");
@@ -32,6 +33,7 @@ const MainArgs = struct {
         apply: ApplyArgs,
         enter: EnterArgs,
         generation: GenerationArgs,
+        features,
         info: InfoArgs,
         init: InitConfigArgs,
         install: InstallArgs,
@@ -88,6 +90,8 @@ const MainArgs = struct {
             result.subcommand = .{ .init = try InitConfigArgs.parseArgs(argv) };
         } else if (mem.eql(u8, arg, "install")) {
             result.subcommand = .{ .install = try InstallArgs.parseArgs(allocator, argv) };
+        } else if (mem.eql(u8, arg, "features")) {
+            result.subcommand = .features;
         } else {
             if (argparse.isFlag(arg)) {
                 argError("unrecognised flag '{s}'", .{arg});
@@ -132,6 +136,10 @@ pub fn main() !u8 {
     const status = switch (structured_args.subcommand) {
         .apply => |args| apply.applyMain(allocator, args),
         .enter => |args| enter.enterMain(allocator, args),
+        .features => {
+            features.printFeatures();
+            return 0;
+        },
         .generation => |args| generation.generationMain(allocator, args),
         .info => |args| info.infoMain(allocator, args),
         .init => |args| init.initConfigMain(allocator, args),

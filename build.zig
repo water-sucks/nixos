@@ -1,4 +1,16 @@
 const std = @import("std");
+const os = std.os;
+const mem = std.mem;
+
+const whitespace = &std.ascii.whitespace;
+
+/// While a `nixos` release is in development, this string should
+/// contain the version in development with the "-dev" suffix.
+/// When a release is tagged, the "-dev" suffix should be removed
+/// for the commit that gets tagged. Directly after the tagged commit,
+/// the version should be bumped and the "-dev" suffix added.
+/// Thanks to `riverwm` for this idea for version number management.
+const version = "0.1.0";
 
 pub fn build(b: *std.build.Builder) void {
     const target = b.standardTargetOptions(.{});
@@ -12,15 +24,44 @@ pub fn build(b: *std.build.Builder) void {
     });
     b.installArtifact(exe);
 
-    const shared_opts = b.addOptions();
+    const full_version = blk: {
+        if (mem.endsWith(u8, version, "-dev")) {
+            var ret: u8 = undefined;
+            const git_describe_output = b.execAllowFail(&.{ "git", "-C", b.build_root.path orelse ".", "describe", "--long" }, &ret, .Inherit) catch break :blk version;
+
+            var tokens = mem.split(u8, mem.trim(u8, git_describe_output, whitespace), "-");
+            _ = tokens.next();
+            const commit_count = tokens.next().?;
+            const short_hash = tokens.next().?;
+            std.debug.assert(tokens.next() == null);
+            std.debug.assert(short_hash[0] == 'g');
+
+            break :blk b.fmt(version ++ ".{s}+{s}", .{ commit_count, short_hash[1..] });
+        } else {
+            break :blk version;
+        }
+    };
+    const git_rev = blk: {
+        var ret: u8 = undefined;
+        const output = b.execAllowFail(&.{ "git", "rev-parse", "HEAD" }, &ret, .Inherit) catch blk2: {
+            // This is for Nix derivation builds, this must be passed in Nix-side.
+            const rev = os.getenv("_NIXOS_GIT_REV");
+            break :blk2 rev orelse "unknown";
+        };
+        break :blk mem.trim(u8, output, whitespace);
+    };
+
+    const options = b.addOptions();
     // Flake-specific features are enabled by default.
-    const flake = b.option(bool, "flake", "Enable flake-specific commands and options") orelse true;
+    const flake = b.option(bool, "flake", "Use flake-specific commands and options") orelse true;
     // Change the nixpkgs branch to initialize configurations with
     const nixpkgs_version = b.option([]const u8, "nixpkgs-version", "Nixpkgs branch name to initialize configurations with") orelse "release-23.11";
 
-    shared_opts.addOption(bool, "flake", flake);
-    shared_opts.addOption([]const u8, "nixpkgs_version", nixpkgs_version);
-    exe.addOptions("options", shared_opts);
+    options.addOption([]const u8, "version", full_version);
+    options.addOption(bool, "flake", flake);
+    options.addOption([]const u8, "nixpkgs_version", nixpkgs_version);
+    options.addOption([]const u8, "git_rev", git_rev);
+    exe.addOptions("options", options);
 
     const run = b.addRunArtifact(exe);
     run.step.dependOn(b.getInstallStep());
