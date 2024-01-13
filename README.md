@@ -13,6 +13,7 @@ NixOS CLI that mirrors or enhances the functionality of all current NixOS toolin
 - `nixos-enter` → `nixos enter`
 - `nixos-generate-config` → `nixos init`
 - `nixos-version` → `nixos info`
+- `nixos-install` → `nixos install`
 
 More to come in the future, see [TODO](#todo) for a list of commands that are
 planned to be implemented.
@@ -58,14 +59,14 @@ the recommended way to use this program.
 - ❌ `edit-config`
 - ✅ `info`
 - ✅ `init`
-- ✅ `install`
-- ❌ `manual`
-- ❌ `option`
+- ➖ `install`
 - ➖ `generation`
   - ✅ `list`
   - ✅ `switch <number>`
   - ✅ `rollback`
   - ➖ `diff` (a la [nvd](https://gitlab.com/khumba/nvd))
+- ❌ `manual`
+- ❌ `option`
 
 ### Possible Future Commands
 
