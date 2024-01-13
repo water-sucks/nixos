@@ -43,10 +43,9 @@ pub fn build(b: *std.build.Builder) void {
     };
     const git_rev = blk: {
         var ret: u8 = undefined;
-        const output = b.execAllowFail(&.{ "git", "rev-parse", "HEAD" }, &ret, .Inherit) catch blk2: {
+        const output = b.execAllowFail(&.{ "git", "rev-parse", "HEAD" }, &ret, .Inherit) catch {
             // This is for Nix derivation builds, this must be passed in Nix-side.
-            const rev = os.getenv("_NIXOS_GIT_REV");
-            break :blk2 rev orelse "unknown";
+            break :blk os.getenv("_NIXOS_GIT_REV") orelse "unknown";
         };
         break :blk mem.trim(u8, output, whitespace);
     };

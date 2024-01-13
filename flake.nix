@@ -54,6 +54,8 @@
             dontConfigure = true;
             dontInstall = true;
 
+            _NIXOS_GIT_REV = self.rev or "dirty";
+
             buildPhase = ''
               mkdir -p $out
               zig build install \
