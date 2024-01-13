@@ -15,6 +15,7 @@ pub const ArgParseError = error{
     InvalidSubcommand,
     MissingRequiredArgument,
     ConflictingOptions,
+    VersionInvoked,
 };
 
 /// Check if an argument is equal to a short or long version.

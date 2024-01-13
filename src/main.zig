@@ -1,4 +1,5 @@
 const std = @import("std");
+const opts = @import("options");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const ArgIterator = std.process.ArgIterator;
@@ -76,6 +77,8 @@ const MainArgs = struct {
         if (argparse.argIs(arg, "--help", "-h")) {
             log.print(usage, .{});
             return ArgParseError.HelpInvoked;
+        } else if (argparse.argIs(arg, "--version", "-v")) {
+            return ArgParseError.VersionInvoked;
         }
 
         if (mem.eql(u8, arg, "apply")) {
@@ -129,6 +132,11 @@ pub fn main() !u8 {
     const structured_args = MainArgs.parseArgs(allocator, &argv) catch |err| {
         switch (err) {
             ArgParseError.HelpInvoked => return 0,
+            ArgParseError.VersionInvoked => {
+                const stdout = std.io.getStdOut().writer();
+                stdout.print(opts.version ++ "\n", .{}) catch unreachable;
+                return 0;
+            },
             else => return 2,
         }
     };
