@@ -228,3 +228,25 @@ pub fn mkTmpDir(allocator: Allocator, base: []const u8) ![]const u8 {
 
     return dirname;
 }
+
+/// Check if a command is executable by looking it up
+/// in the PATH variable.
+pub fn isExecutable(command: []const u8) bool {
+    const path_var = os.getenv("PATH") orelse return false;
+
+    var buf: [os.PATH_MAX]u8 = undefined;
+
+    var dirnames = mem.tokenizeScalar(u8, path_var, ':');
+    while (dirnames.next()) |dirname| {
+        const real_dirname = os.realpath(dirname, &buf) catch continue;
+
+        var dir = fs.openDirAbsolute(real_dirname, .{}) catch continue;
+        defer dir.close();
+
+        dir.access(command, .{}) catch continue;
+
+        return true;
+    }
+
+    return false;
+}

@@ -7,10 +7,11 @@ const ArgIterator = std.process.ArgIterator;
 const apply = @import("apply.zig");
 const enter = @import("enter.zig");
 const features = @import("features.zig");
+const generation = @import("generation.zig");
 const info = @import("info.zig");
 const init = @import("init.zig");
 const install = @import("install.zig");
-const generation = @import("generation.zig");
+const manual = @import("manual.zig");
 
 const ApplyArgs = apply.ApplyArgs;
 const EnterArgs = enter.EnterArgs;
@@ -38,6 +39,7 @@ const MainArgs = struct {
         info: InfoArgs,
         init: InitConfigArgs,
         install: InstallArgs,
+        manual,
     };
 
     const usage =
@@ -53,6 +55,7 @@ const MainArgs = struct {
         \\    info          Show info about the currently running generation
         \\    init          Initialize a configuration.nix file
         \\    install       Install a NixOS configuration and bootloader
+        \\    manual        Open the NixOS manual in a browser
         \\
         \\Options:
         \\    -h, --help       Show this help menu
@@ -85,6 +88,8 @@ const MainArgs = struct {
             result.subcommand = .{ .apply = try ApplyArgs.parseArgs(allocator, argv) };
         } else if (mem.eql(u8, arg, "enter")) {
             result.subcommand = .{ .enter = try EnterArgs.parseArgs(allocator, argv) };
+        } else if (mem.eql(u8, arg, "features")) {
+            result.subcommand = .features;
         } else if (mem.eql(u8, arg, "generation")) {
             result.subcommand = .{ .generation = try GenerationArgs.parseArgs(argv) };
         } else if (mem.eql(u8, arg, "info")) {
@@ -93,8 +98,8 @@ const MainArgs = struct {
             result.subcommand = .{ .init = try InitConfigArgs.parseArgs(argv) };
         } else if (mem.eql(u8, arg, "install")) {
             result.subcommand = .{ .install = try InstallArgs.parseArgs(allocator, argv) };
-        } else if (mem.eql(u8, arg, "features")) {
-            result.subcommand = .features;
+        } else if (mem.eql(u8, arg, "manual")) {
+            result.subcommand = .manual;
         } else {
             if (argparse.isFlag(arg)) {
                 argError("unrecognised flag '{s}'", .{arg});
@@ -152,6 +157,7 @@ pub fn main() !u8 {
         .info => |args| info.infoMain(allocator, args),
         .init => |args| init.initConfigMain(allocator, args),
         .install => |args| install.installMain(allocator, args),
+        .manual => return manual.manualMain(allocator),
     };
 
     return status;
