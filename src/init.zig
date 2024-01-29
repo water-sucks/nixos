@@ -1322,14 +1322,24 @@ fn generateHwConfignNix(allocator: Allocator, config: InitConfigConfiguration, a
             const options = try nixStringList(allocator, filesystem.options, " ");
             defer allocator.free(options);
 
-            str.* = try fmt.allocPrint(allocator,
-                \\  fileSystems."{s}" = {{
-                \\    device = "{s}";
-                \\    fsType = "{s}";
-                \\    options = [{s}];
-                \\  }};
-                \\
-            , .{ filesystem.mountpoint, filesystem.device, filesystem.fsType, options });
+            if (options.len > 0) {
+                str.* = try fmt.allocPrint(allocator,
+                    \\  fileSystems."{s}" = {{
+                    \\    device = "{s}";
+                    \\    fsType = "{s}";
+                    \\    options = [{s}];
+                    \\  }};
+                    \\
+                , .{ filesystem.mountpoint, filesystem.device, filesystem.fsType, options });
+            } else {
+                str.* = try fmt.allocPrint(allocator,
+                    \\  fileSystems."{s}" = {{
+                    \\    device = "{s}";
+                    \\    fsType = "{s}";
+                    \\  }};
+                    \\
+                , .{ filesystem.mountpoint, filesystem.device, filesystem.fsType });
+            }
         }
         filesystems_str = try concatStringsSep(allocator, fs_strings, "\n");
     } else {
