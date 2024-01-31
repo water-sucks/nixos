@@ -130,8 +130,15 @@ pub fn main() !u8 {
     defer arena_allocator.deinit();
     const allocator = arena_allocator.allocator();
 
-    try nix.util.init();
-    log.info("libnix version: {s}", .{nix.util.version()});
+    const nix_context = nix.util.NixContext.init() catch {
+        log.err("out of memory, cannot continue", .{});
+        return 1;
+    };
+    defer nix_context.deinit();
+
+    nix.util.init(nix_context) catch unreachable;
+    nix.store.init(nix_context) catch unreachable;
+    nix.expr.init(nix_context) catch unreachable;
 
     var argv = try std.process.argsWithAllocator(allocator);
     defer argv.deinit();
