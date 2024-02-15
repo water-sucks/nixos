@@ -135,7 +135,7 @@ fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackArgs, profil
     }
 
     const profile_dirname = if (mem.eql(u8, profile_name, "system"))
-        try fmt.allocPrint(allocator, Constants.nix_profiles, .{})
+        try fmt.allocPrint(allocator, Constants.nix_profiles ++ "/system", .{})
     else
         try fs.path.join(allocator, &.{ Constants.nix_system_profiles, profile_name });
     defer allocator.free(profile_dirname);
