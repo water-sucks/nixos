@@ -2,6 +2,7 @@ const std = @import("std");
 const fmt = std.fmt;
 const fs = std.fs;
 const mem = std.mem;
+const os = std.os;
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
 const ArgIterator = std.process.ArgIterator;
@@ -74,6 +75,7 @@ pub const GenerationRollbackArgs = struct {
 };
 
 const GenerationRollbackError = error{
+    PermissionDenied,
     SetNixProfileFailed,
     SwitchToConfigurationFailed,
 } || Allocator.Error;
@@ -125,6 +127,13 @@ fn runSwitchToConfiguration(
 fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackArgs, profile_name: []const u8) !void {
     verbose = args.verbose;
 
+    if (os.linux.geteuid() != 0) {
+        utils.execAsRoot(allocator) catch |err| {
+            log.err("unable to re-exec this command as root: {s}", .{@errorName(err)});
+            return GenerationRollbackError.PermissionDenied;
+        };
+    }
+
     const profile_dirname = if (mem.eql(u8, profile_name, "system"))
         try fmt.allocPrint(allocator, Constants.nix_profiles, .{})
     else
@@ -167,6 +176,7 @@ pub fn generationRollbackMain(allocator: Allocator, args: GenerationRollbackArgs
 
     rollbackGeneration(allocator, args, profile_name) catch |err| {
         switch (err) {
+            GenerationRollbackError.PermissionDenied => return 13,
             GenerationRollbackError.SetNixProfileFailed, GenerationRollbackError.SwitchToConfigurationFailed => {
                 return if (exit_status != 0) exit_status else 1;
             },

@@ -2,6 +2,7 @@ const std = @import("std");
 const fmt = std.fmt;
 const fs = std.fs;
 const mem = std.mem;
+const os = std.os;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const ArgIterator = std.process.ArgIterator;
@@ -151,6 +152,13 @@ pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchArgs, profil
     const generation = args.gen_number.?;
     verbose = args.verbose;
 
+    if (os.linux.geteuid() != 0) {
+        utils.execAsRoot(allocator) catch |err| {
+            log.err("unable to re-exec this command as root: {s}", .{@errorName(err)});
+            return GenerationSwitchError.PermissionDenied;
+        };
+    }
+
     // Generate profile directory name
     const base_profile_dirname = if (mem.eql(u8, profile_name, "system"))
         Constants.nix_profiles
@@ -199,9 +207,9 @@ pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchArgs, profil
     log.info("activating generation {s}...", .{generation});
 
     // Switch generation profile
-    setNixEnvProfile(allocator, current_profile_dirname, generation, args.dry) catch |err| {
+    setNixEnvProfile(allocator, current_profile_dirname, generation, args.dry) catch {
         log.err("failed to set system profile with nix-env", .{});
-        return err;
+        return GenerationSwitchError.SetNixProfileFailed;
     };
 
     // Switch to configuration
