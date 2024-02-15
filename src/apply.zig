@@ -568,7 +568,12 @@ fn runSwitchToConfiguration(
 }
 
 fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
-    // TODO: check if user running is root?
+    if (os.linux.geteuid() != 0) {
+        utils.execAsRoot(allocator) catch |err| {
+            log.err("unable to re-exec this command as root: {s}", .{@errorName(err)});
+            return ApplyError.PermissionDenied;
+        };
+    }
 
     const build_type: BuildType = if (args.vm)
         .VM

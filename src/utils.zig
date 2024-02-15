@@ -7,6 +7,7 @@ const fs = std.fs;
 const io = std.io;
 const mem = std.mem;
 const os = std.os;
+const process = std.process;
 
 const log = @import("./log.zig");
 
@@ -249,4 +250,29 @@ pub fn isExecutable(command: []const u8) bool {
     }
 
     return false;
+}
+
+/// Re-execute command as root using sudo, if it is found.
+/// Does not return.
+pub fn execAsRoot(allocator: Allocator) !noreturn {
+    var argv = ArrayList([]const u8).init(allocator);
+    defer argv.deinit();
+
+    const original_args = try process.argsAlloc(allocator);
+    defer process.argsFree(allocator, original_args);
+
+    try argv.append("sudo");
+    try argv.appendSlice(original_args);
+
+    var err = process.execve(allocator, argv.items, null);
+    switch (err) {
+        error.AccessDenied, error.InvalidExe, error.SystemResources => return err,
+        else => {},
+    }
+
+    // Also try with doas, just in case.
+    argv.items[0] = "doas";
+
+    err = process.execve(allocator, argv.items, null);
+    return err;
 }
