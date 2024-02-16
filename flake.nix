@@ -62,6 +62,7 @@
                 --cache-dir $(pwd)/zig-cache \
                 --global-cache-dir $(pwd)/.cache \
                 -Dcpu=baseline \
+                -Doptimize=ReleaseSafe \
                 -Dflake=${lib.boolToString flake} \
                 --prefix $out
             '';
