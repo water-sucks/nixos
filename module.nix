@@ -17,6 +17,12 @@ in {
       default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
       description = "Package to use for nixos-cli";
     };
+
+    specialisation = lib.mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = "Specialization to activate by default";
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -55,5 +61,9 @@ in {
     security.sudo.extraConfig = ''
       Defaults env_keep += "NIXOS_CONFIG"
     '';
+
+    environment.etc."NIXOS_SPECIALISATION" = lib.mkIf (cfg.specialisation != null) {
+      text = cfg.specialisation;
+    };
   };
 }

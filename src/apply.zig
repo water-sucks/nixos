@@ -28,6 +28,7 @@ const log = @import("log.zig");
 
 const utils = @import("utils.zig");
 const fileExistsAbsolute = utils.fileExistsAbsolute;
+const readFile = utils.readFile;
 const runCmd = utils.runCmd;
 
 pub const ApplyArgs = struct {
@@ -53,7 +54,7 @@ pub const ApplyArgs = struct {
     upgrade_all_channels: bool = false,
     // Build a script that starts a NixOS VM directly
     vm: bool = false,
-    //
+    // Build a script that starts a NixOS VM through the configured bootloader
     vm_with_bootloader: bool = false,
 
     /// All options passed through to `nix` invocations
@@ -502,38 +503,17 @@ fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []c
 }
 
 // Find specialization name by looking at /etc/NIXOS_SPECIALISATION
+// in the current generation's directory. Caller owns returned memory.
 pub fn findSpecialization(allocator: Allocator) !?[]const u8 {
-    const file = fs.openFileAbsolute(Constants.nixos_specialization, .{ .mode = .read_only }) catch |err| {
+    const specialization_file_path = Constants.current_system ++ Constants.nixos_specialization;
+
+    const specialization: ?[]const u8 = readFile(allocator, specialization_file_path) catch |err| blk: {
         switch (err) {
-            error.AccessDenied => log.warn("unable to read {s}: permission denied", .{Constants.nixos_specialization}),
-            error.FileNotFound => {
-                // Probably going to be a common error, because not many people use specializations
-                if (verbose) log.warn("unable to read {s}: no such file or directory", .{Constants.nixos_specialization});
-                return null;
-            },
-            error.DeviceBusy => log.warn("unable to open {s}: device busy", .{Constants.nixos_specialization}),
-            // error.NotFile => log.warn("{s} is not a file", .{specialization_file}),
-            error.SymLinkLoop => log.warn("encountered symlink loop while opening {s}", .{Constants.nixos_specialization}),
-            else => log.warn("unexpected error reading {s}: {s}", .{ Constants.nixos_specialization, @errorName(err) }),
+            error.FileNotFound => break :blk null,
+            else => log.warn("unexpected error reading {s}: {s}", .{ specialization_file_path, @errorName(err) }),
         }
         return err;
     };
-    defer file.close();
-
-    var buf_reader = std.io.bufferedReader(file.reader());
-    var in_stream = buf_reader.reader();
-
-    const specialization = in_stream.readUntilDelimiterOrEofAlloc(allocator, '\n', std.math.maxInt(usize)) catch |err| {
-        switch (err) {
-            error.IsDir => log.warn("{s} is not a file", .{Constants.nixos_specialization}),
-            else => log.warn("unable to read {s}: {s}", .{ Constants.nixos_specialization, @errorName(err) }),
-        }
-        return null;
-    };
-
-    if (specialization != null and specialization.?.len == 0) {
-        return null;
-    }
 
     return specialization;
 }
