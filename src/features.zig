@@ -20,7 +20,8 @@ pub fn printFeatures() void {
 
     print(stdout, "nixos {s}\n", .{opts.version});
     print(stdout, "git rev: {s}", .{opts.git_rev});
-    print(stdout, "zig version: {}\n", .{builtin.zig_version});
+    print(stdout, "zig version: {}", .{builtin.zig_version});
+    print(stdout, "optimize mode: {s}\n", .{@tagName(builtin.mode)});
     print(stdout, "Enabled Features", .{});
     print(stdout, "----------------", .{});
     // TODO: should I print decls in an inline for loop? If so, how?
