@@ -47,6 +47,7 @@
         package = {
           zig,
           pkg-config,
+          autoPatchelfHook,
           nix,
           flake ? true,
         }:
@@ -55,9 +56,9 @@
             version = "0.5.0";
             src = gitignoreSource ./.;
 
-            nativeBuildInputs = [zig pkg-config];
+            nativeBuildInputs = [zig pkg-config autoPatchelfHook];
 
-            buildInputs = [nix];
+            buildInputs = [nix.dev];
 
             dontConfigure = true;
             dontInstall = true;
