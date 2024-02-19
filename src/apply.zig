@@ -548,13 +548,6 @@ fn runSwitchToConfiguration(
 }
 
 fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
-    if (os.linux.geteuid() != 0) {
-        utils.execAsRoot(allocator) catch |err| {
-            log.err("unable to re-exec this command as root: {s}", .{@errorName(err)});
-            return ApplyError.PermissionDenied;
-        };
-    }
-
     const build_type: BuildType = if (args.vm)
         .VM
     else if (args.vm_with_bootloader)
@@ -563,6 +556,13 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
         .System
     else
         .SystemActivation;
+
+    if (os.linux.geteuid() != 0 and build_type == .SystemActivation) {
+        utils.execAsRoot(allocator) catch |err| {
+            log.err("unable to re-exec this command as root: {s}", .{@errorName(err)});
+            return ApplyError.PermissionDenied;
+        };
+    }
 
     if (verbose) log.info("looking for configuration...", .{});
     // Find flake if unset, and parse it into its separate components
