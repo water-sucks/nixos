@@ -31,7 +31,7 @@ pub const Config = struct {
         config_location: []const u8 = "/etc/nixos",
     } = .{},
     enter: struct {
-        mount_resolv_config: bool = true,
+        mount_resolv_conf: bool = true,
     } = .{},
     init: struct {
         enable_xserver: bool = false,
