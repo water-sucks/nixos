@@ -4,6 +4,7 @@ const std = @import("std");
 const opts = @import("options");
 const fmt = std.fmt;
 const fs = std.fs;
+const json = std.json;
 const mem = std.mem;
 const meta = std.meta;
 const os = std.os;
@@ -21,6 +22,9 @@ const argError = argparse.argError;
 const getNextArgs = argparse.getNextArgs;
 const conflict = argparse.conflict;
 const require = argparse.require;
+
+const config = @import("config.zig");
+const Config = config.Config;
 
 const Constants = @import("constants.zig");
 
@@ -502,20 +506,25 @@ fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []c
     }
 }
 
-// Find specialization name by looking at /etc/NIXOS_SPECIALISATION
-// in the current generation's directory. Caller owns returned memory.
+// Find specialization name by looking at nixos-cli settings in
+// current generation's directory. Caller does not own returned
+// memory.
 pub fn findSpecialization(allocator: Allocator) !?[]const u8 {
-    const specialization_file_path = Constants.current_system ++ Constants.nixos_specialization;
-
-    const specialization: ?[]const u8 = readFile(allocator, specialization_file_path) catch |err| blk: {
+    const config_location = Constants.current_system ++ "/etc/nixos-cli/config.json";
+    const config_str = readFile(allocator, config_location) catch |err| {
         switch (err) {
-            error.FileNotFound => break :blk null,
-            else => log.warn("unexpected error reading {s}: {s}", .{ specialization_file_path, @errorName(err) }),
+            error.FileNotFound => log.warn("no settings file, unable to find specialisation to activate", .{}),
+            else => log.warn("unable to access new settings to find specialisation to activate: {s}", .{@errorName(err)}),
         }
         return err;
     };
+    defer allocator.free(config_str);
+    const parsed_config = json.parseFromSlice(Config, allocator, config_str, .{ .ignore_unknown_fields = true }) catch |err| {
+        log.warn("error parsing new settings: {s}", .{@errorName(err)});
+        return err;
+    };
 
-    return specialization;
+    return parsed_config.value.apply.specialisation;
 }
 
 /// Run the switch-to-configuration.pl script
@@ -634,8 +643,8 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
                 }
             }
 
-            if (configuration) |config| {
-                if (verbose) log.info("found legacy configuration at {s}", .{config});
+            if (configuration) |conf| {
+                if (verbose) log.info("found legacy configuration at {s}", .{conf});
             } else {
                 log.err("no configuration found, expected 'nixos-config' attribute to exist in NIX_PATH", .{});
                 return ApplyError.ConfigurationNotFound;

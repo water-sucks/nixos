@@ -133,7 +133,7 @@ pub fn main() !u8 {
     const allocator = arena_allocator.allocator();
 
     config.parseConfig(allocator) catch |err| {
-        log.err("error parsing configuration: {s}", .{@errorName(err)});
+        log.err("error parsing settings: {s}", .{@errorName(err)});
         return 2;
     };
     defer config.deinit();
