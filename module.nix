@@ -18,28 +18,31 @@ in {
       description = "Package to use for nixos-cli";
     };
 
-    specialisation = lib.mkOption {
-      type = types.nullOr types.str;
-      default = null;
-      description = "Specialization to activate by default";
+    config = lib.mkOption {
+      type = jsonFormat.type;
+      default = {};
+      description = "Configuration for nixos-cli, in JSON format";
+      apply = prev: let
+        # Inherit this from the old nixos-generate-config attrs. Easy to deal with, for now.
+        desktopConfig = lib.concatStringsSep "\n" config.system.nixos-generate-config.desktopConfiguration;
+      in
+        lib.recursiveUpdate {
+          init = {
+            xserver_enabled = config.services.xserver.enable;
+            desktop_config = desktopConfig;
+            extra_attrs = [];
+            extra_config = "";
+          };
+        }
+        prev;
     };
   };
 
   config = lib.mkIf cfg.enable {
     environment.systemPackages = [cfg.package];
 
-    # Configuration for `nixos init`
-    environment.etc."nixos-cli/init-config.json".source = let
-      # Inherit this from the old nixos-generate-config attrs. Easy to deal with, for now.
-      desktopConfig = lib.concatStringsSep "\n" config.system.nixos-generate-config.desktopConfiguration;
-    in
-      jsonFormat.generate "nixos-init-config.json" {
-        hostPlatform = pkgs.stdenv.hostPlatform.system;
-        xserverEnabled = config.services.xserver.enable;
-        inherit desktopConfig;
-        extraAttrs = [];
-        extraConfig = "";
-      };
+    environment.etc."nixos-cli/config.json".source =
+      jsonFormat.generate "nixos-cli-config.json" cfg.config;
 
     # Hijack system builder commands to insert a `nixos-version.json` file at the root.
     system.systemBuilderCommands = let
@@ -61,9 +64,5 @@ in {
     security.sudo.extraConfig = ''
       Defaults env_keep += "NIXOS_CONFIG"
     '';
-
-    environment.etc."NIXOS_SPECIALISATION" = lib.mkIf (cfg.specialisation != null) {
-      text = cfg.specialisation;
-    };
   };
 }
