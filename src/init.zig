@@ -822,6 +822,8 @@ fn nixStringList(allocator: Allocator, items: []const []const u8, sep: []const u
 /// Caller owns returned memory.
 // TODO: cleanup allocs properly
 fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: NixState, virt_type: VirtualizationType) ![]const u8 {
+    const c = config.getConfig();
+
     var imports = ArrayList([]const u8).init(allocator);
     defer imports.deinit();
 
@@ -839,6 +841,9 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: Ni
 
     var attrs = ArrayList(KVPair).init(allocator);
     defer attrs.deinit();
+    if (c.init.extra_attrs) |extra_attrs| {
+        try attrs.appendSlice(extra_attrs);
+    }
 
     const array_refs = ArrayRefs{
         .imports = &imports,
@@ -1231,6 +1236,7 @@ fn generateConfigNix(allocator: Allocator, virt_type: VirtualizationType) ![]con
         bootloader_config,
         xserver_config,
         c.desktop_config orelse "",
+        c.extra_config orelse "",
     });
 }
 
