@@ -16,6 +16,15 @@ const ArrayList = std.ArrayList;
 const ChildProcess = std.ChildProcess;
 const EnvMap = std.process.EnvMap;
 
+/// Print to a writer, ignoring errors.
+pub fn print(out: anytype, comptime format: []const u8, args: anytype) void {
+    out.print(format, args) catch return;
+}
+/// Print to a writer with a newline, ignoring errors.
+pub fn println(out: anytype, comptime format: []const u8, args: anytype) void {
+    out.print(format ++ "\n", args) catch return;
+}
+
 /// Result from a command; output of commands meant for
 /// the user will always be on stderr, and the stdout will
 /// always be captured into a string.

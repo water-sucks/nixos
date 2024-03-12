@@ -60,7 +60,7 @@ pub fn parseConfig(allocator: Allocator) !void {
         return err;
     };
     defer allocator.free(config_str);
-    config_value = try json.parseFromSlice(Config, allocator, config_str, .{ .ignore_unknown_fields = true });
+    config_value = try json.parseFromSlice(Config, allocator, config_str, .{ .ignore_unknown_fields = true, .allocate = .alloc_always });
 }
 
 pub fn deinit() void {

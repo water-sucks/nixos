@@ -5,28 +5,26 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const opts = @import("options");
-
-const config = @import("config.zig");
-
 const io = std.io;
 const mem = std.mem;
 
-const Allocator = mem.Allocator;
+const config = @import("config.zig");
 
-fn print(out: anytype, comptime fmt: []const u8, args: anytype) void {
-    out.print(fmt ++ "\n", args) catch return;
-}
+const utils = @import("utils.zig");
+const println = utils.println;
+
+const Allocator = mem.Allocator;
 
 pub fn printFeatures() void {
     const stdout = io.getStdOut().writer();
 
-    print(stdout, "nixos {s}\n", .{opts.version});
-    print(stdout, "git rev: {s}", .{opts.git_rev});
-    print(stdout, "zig version: {}", .{builtin.zig_version});
-    print(stdout, "optimize mode: {s}\n", .{@tagName(builtin.mode)});
-    print(stdout, "Enabled Features", .{});
-    print(stdout, "----------------", .{});
+    println(stdout, "nixos {s}\n", .{opts.version});
+    println(stdout, "git rev: {s}", .{opts.git_rev});
+    println(stdout, "zig version: {}", .{builtin.zig_version});
+    println(stdout, "optimize mode: {s}\n", .{@tagName(builtin.mode)});
+    println(stdout, "Enabled Features", .{});
+    println(stdout, "----------------", .{});
     // TODO: should I print decls in an inline for loop? If so, how?
-    print(stdout, "flake           :: {}", .{opts.flake});
-    print(stdout, "nixpkgs_version :: {s}", .{opts.nixpkgs_version});
+    println(stdout, "flake           :: {}", .{opts.flake});
+    println(stdout, "nixpkgs_version :: {s}", .{opts.nixpkgs_version});
 }

@@ -4,6 +4,7 @@ const mem = std.mem;
 const Allocator = mem.Allocator;
 const ArgIterator = std.process.ArgIterator;
 
+const alias = @import("alias.zig");
 const apply = @import("apply.zig");
 const enter = @import("enter.zig");
 const features = @import("features.zig");
@@ -36,6 +37,7 @@ const MainArgs = struct {
     subcommand: Subcommand = undefined,
 
     const Subcommand = union(enum) {
+        alias,
         apply: ApplyArgs,
         enter: EnterArgs,
         generation: GenerationArgs,
@@ -53,9 +55,11 @@ const MainArgs = struct {
         \\    nixos <COMMAND>
         \\
         \\Commands:
+        \\    alias         List configured aliases
         \\    apply         Build/activate a NixOS configuration
         \\    enter         Chroot into a NixOS installation
         \\    generation    Manage NixOS generations
+        \\    features      Show information about features for debugging
         \\    info          Show info about the currently running generation
         \\    init          Initialize a configuration.nix file
         \\    install       Install a NixOS configuration and bootloader
@@ -88,7 +92,9 @@ const MainArgs = struct {
             return ArgParseError.VersionInvoked;
         }
 
-        if (mem.eql(u8, arg, "apply")) {
+        if (mem.eql(u8, arg, "alias")) {
+            result.subcommand = .alias;
+        } else if (mem.eql(u8, arg, "apply")) {
             result.subcommand = .{ .apply = try ApplyArgs.parseArgs(allocator, argv) };
         } else if (mem.eql(u8, arg, "enter")) {
             result.subcommand = .{ .enter = try EnterArgs.parseArgs(allocator, argv) };
@@ -167,6 +173,10 @@ pub fn main() !u8 {
     };
 
     const status = switch (structured_args.subcommand) {
+        .alias => {
+            alias.printAliases();
+            return 0;
+        },
         .apply => |args| apply.applyMain(allocator, args),
         .enter => |args| enter.enterMain(allocator, args),
         .features => {
@@ -177,7 +187,7 @@ pub fn main() !u8 {
         .info => |args| info.infoMain(allocator, args),
         .init => |args| init.initConfigMain(allocator, args),
         .install => |args| install.installMain(allocator, args),
-        .manual => return manual.manualMain(allocator),
+        .manual => manual.manualMain(allocator),
     };
 
     return status;
