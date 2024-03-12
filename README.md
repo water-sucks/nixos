@@ -39,6 +39,13 @@ the recommended way to use this program.
 }
 ```
 
+## Configuration
+
+This can be configured using the NixOS module (the preferred way), which
+generates a file at `/etc/nixos-cli/config.json`. I would prefer using TOML at
+some point, but for right now JSON is the file format I can get up and running
+with the fastest. This is an example config:
+
 ## TODO
 
 ### Implemented Commands/Flags

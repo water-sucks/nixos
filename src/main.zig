@@ -20,6 +20,8 @@ const InfoArgs = info.InfoArgs;
 const InitConfigArgs = init.InitConfigArgs;
 const InstallArgs = install.InstallArgs;
 
+const config = @import("config.zig");
+
 const log = @import("log.zig");
 
 const argparse = @import("argparse.zig");
@@ -129,6 +131,12 @@ pub fn main() !u8 {
     var arena_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena_allocator.deinit();
     const allocator = arena_allocator.allocator();
+
+    config.parseConfig(allocator) catch |err| {
+        log.err("error parsing configuration: {s}", .{@errorName(err)});
+        return 2;
+    };
+    defer config.deinit();
 
     const nix_context = nix.util.NixContext.init() catch {
         log.err("out of memory, cannot continue", .{});

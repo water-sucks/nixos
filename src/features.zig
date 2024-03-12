@@ -6,6 +6,8 @@ const std = @import("std");
 const builtin = @import("builtin");
 const opts = @import("options");
 
+const config = @import("config.zig");
+
 const io = std.io;
 const mem = std.mem;
 

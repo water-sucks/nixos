@@ -104,7 +104,6 @@ const InitConfigError = error{
 // $CONFIG_LOCATION/init-config.json. This is hardcoded
 // for now to /etc/nixos-cli/init-config.json.
 const InitConfigConfiguration = struct {
-    hostPlatform: ?[]const u8 = null,
     xserverEnabled: bool = false,
     desktopConfig: ?[]const u8 = null,
     extraAttrs: ?[]KVPair = null,
