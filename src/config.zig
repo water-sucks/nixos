@@ -19,7 +19,7 @@ pub const Alias = struct {
     resolve: []const u8,
 };
 
-const KVPair = struct {
+pub const KVPair = struct {
     name: []const u8,
     value: []const u8,
 };
