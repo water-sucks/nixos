@@ -21,6 +21,8 @@ const argError = argparse.argError;
 const getNextArgs = argparse.getNextArgs;
 const ArgParseError = argparse.ArgParseError;
 
+const config = @import("config.zig");
+
 const Constants = @import("constants.zig");
 
 const log = @import("log.zig");
@@ -326,6 +328,8 @@ fn startChroot(allocator: Allocator, root: []const u8, args: []const []const u8)
 }
 
 fn enter(allocator: Allocator, args: EnterArgs) EnterError!void {
+    const c = config.getConfig();
+
     // Just for cleanliness's sake in other functions
     if (args.verbose) {
         verbose = true;
@@ -369,7 +373,8 @@ fn enter(allocator: Allocator, args: EnterArgs) EnterError!void {
     try bindMount(allocator, mountpoint, "/proc");
 
     // Bind mount resolv.conf from current system to root if it exists
-    if (fileExistsAbsolute(Constants.resolv_conf)) {
+    // and the corresponding option is enabled
+    if (c.enter.mount_resolv_conf and fileExistsAbsolute(Constants.resolv_conf)) {
         if (verbose) log.info("bind-mounting {s} for Internet access", .{Constants.resolv_conf});
         const resolv_conf = getResolvConfLocation(allocator, mountpoint) catch |err| {
             log.err("failed to determine where to mount resolv.conf: {s}", .{@errorName(err)});
