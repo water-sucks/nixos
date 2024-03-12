@@ -19,6 +19,7 @@ const GenerationInfo = @import("../generation.zig").GenerationInfo;
 const log = @import("../log.zig");
 
 const utils = @import("../utils.zig");
+const print = utils.print;
 const concatStringsSep = utils.concatStringsSep;
 const stringLessThan = utils.stringLessThan;
 
@@ -288,11 +289,6 @@ fn todateiso8601(allocator: Allocator, timestamp: i128) ![]const u8 {
     const day = daysSinceEpoch + 1;
 
     return fmt.allocPrint(allocator, "{d:0>4}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}Z", .{ year, month, day, hour, minute, second });
-}
-
-// Helper to print without handling errors
-fn print(stdout: anytype, comptime format: []const u8, args: anytype) void {
-    stdout.print(format, args) catch return;
 }
 
 fn listGenerations(allocator: Allocator, profile_name: []const u8, args: GenerationListArgs) GenerationListError!void {
