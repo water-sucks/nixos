@@ -20,6 +20,9 @@ const argError = argparse.argError;
 const getNextArgs = argparse.getNextArgs;
 const ArgParseError = argparse.ArgParseError;
 
+const config = @import("config.zig");
+const KVPair = config.KVPair;
+
 const Constants = @import("constants.zig");
 
 const log = @import("log.zig");
@@ -100,57 +103,9 @@ const InitConfigError = error{
     ResourceAccessFailed,
 } || Allocator.Error;
 
-// Configuration for init command, read from
-// $CONFIG_LOCATION/init-config.json. This is hardcoded
-// for now to /etc/nixos-cli/init-config.json.
-const InitConfigConfiguration = struct {
-    xserverEnabled: bool = false,
-    desktopConfig: ?[]const u8 = null,
-    extraAttrs: ?[]KVPair = null,
-    extraConfig: ?[]const u8 = null,
-};
-
-const KVPair = struct {
-    name: []const u8,
-    value: []const u8,
-};
-
 // Return string with double quotes around it. Caller owns returned memory.
 fn quote(allocator: Allocator, string: []const u8) ![]u8 {
     return fmt.allocPrint(allocator, "\"{s}\"", .{string});
-}
-
-// Read command configuration. Caller owns returned memory.
-fn getCommandConfig(allocator: Allocator) !json.Parsed(InitConfigConfiguration) {
-    var path_buf: [os.PATH_MAX]u8 = undefined;
-    const config_filename = try os.readlink(Constants.config_location ++ "/init-config.json", &path_buf);
-
-    const config_file = fs.openFileAbsolute(config_filename, .{}) catch |err| {
-        switch (err) {
-            error.AccessDenied => log.warn("unable to open {s}: permission denied", .{config_filename}),
-            error.FileNotFound => log.warn("unable to open {s}: no such file or directory", .{config_filename}),
-            error.DeviceBusy => log.warn("unable to open {s}: device busy", .{config_filename}),
-            error.SymLinkLoop => log.warn("encountered symlink loop while opening {s}", .{config_filename}),
-            else => log.warn("unexpected error opening {s}: {s}", .{ config_filename, @errorName(err) }),
-        }
-        return InitConfigError.ResourceAccessFailed;
-    };
-    defer config_file.close();
-
-    const config_string = config_file.readToEndAlloc(allocator, math.maxInt(usize)) catch |err| {
-        if (err == error.OutOfMemory) {
-            return InitConfigError.OutOfMemory;
-        }
-        log.warn("error reading {s}: {s}", .{ config_filename, @errorName(err) });
-        return InitConfigError.ResourceAccessFailed;
-    };
-
-    const parsed_config = std.json.parseFromSlice(InitConfigConfiguration, allocator, config_string, .{ .allocate = .alloc_always, .ignore_unknown_fields = true }) catch |err| {
-        log.warn("unable to parse configuration: {s}", .{@errorName(err)});
-        return InitConfigError.ResourceAccessFailed;
-    };
-
-    return parsed_config;
 }
 
 const hw_config_template = @embedFile("./resources/hw_config_template.txt");
@@ -866,8 +821,7 @@ fn nixStringList(allocator: Allocator, items: []const []const u8, sep: []const u
 /// Generate hardware-configuration.nix text.
 /// Caller owns returned memory.
 // TODO: cleanup allocs properly
-fn generateHwConfigNix(allocator: Allocator, config: InitConfigConfiguration, args: InitConfigArgs, nix_state: NixState, virt_type: VirtualizationType) ![]const u8 {
-    _ = config;
+fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: NixState, virt_type: VirtualizationType) ![]const u8 {
     var imports = ArrayList([]const u8).init(allocator);
     defer imports.deinit();
 
@@ -1212,7 +1166,9 @@ fn generateHwConfigNix(allocator: Allocator, config: InitConfigConfiguration, ar
 
 /// Generate configuration.nix text.
 /// Caller owns returned memory.
-fn generateConfigNix(allocator: Allocator, config: InitConfigConfiguration, virt_type: VirtualizationType) ![]const u8 {
+fn generateConfigNix(allocator: Allocator, virt_type: VirtualizationType) ![]const u8 {
+    const c = config.getConfig().init;
+
     var bootloader_config: []const u8 = undefined;
     const is_efi = blk: {
         const efi_dirname = "/sys/firmware/efi/efivars";
@@ -1261,7 +1217,7 @@ fn generateConfigNix(allocator: Allocator, config: InitConfigConfiguration, virt
         ;
     }
 
-    const xserver_config = if (config.xserverEnabled)
+    const xserver_config = if (c.enable_xserver)
         \\  # Enable the X11 windowing system.
         \\  services.xserver.enable = true;
         \\
@@ -1274,26 +1230,11 @@ fn generateConfigNix(allocator: Allocator, config: InitConfigConfiguration, virt
     return fmt.allocPrint(allocator, config_template, .{
         bootloader_config,
         xserver_config,
-        config.desktopConfig orelse "",
+        c.desktop_config orelse "",
     });
 }
 
 fn initConfig(allocator: Allocator, args: InitConfigArgs) !void {
-    const parsedConfig = getCommandConfig(allocator) catch |err| blk: {
-        if (err == error.OutOfMemory) {
-            return InitConfigError.OutOfMemory;
-        }
-        break :blk null;
-    };
-    defer {
-        if (parsedConfig) |parsed| parsed.deinit();
-    }
-
-    const config = if (parsedConfig) |parsed|
-        parsed.value
-    else
-        InitConfigConfiguration{};
-
     // This is needed by both configuration.nix and
     // hardware-configuration.nix, so it's generated outside.
     const virt_type = determineVirtualizationType(allocator);
@@ -1316,7 +1257,7 @@ fn initConfig(allocator: Allocator, args: InitConfigArgs) !void {
     };
 
     // Generate hardware-configuration.nix.
-    const hw_config = try generateHwConfigNix(allocator, config, args, nix_state, virt_type);
+    const hw_config = try generateHwConfigNix(allocator, args, nix_state, virt_type);
     defer allocator.free(hw_config);
 
     if (args.show_hw_config) {
@@ -1329,7 +1270,7 @@ fn initConfig(allocator: Allocator, args: InitConfigArgs) !void {
     }
 
     // Generate configuration.nix
-    const config_str = try generateConfigNix(allocator, config, virt_type);
+    const config_str = try generateConfigNix(allocator, virt_type);
     defer allocator.free(config_str);
 
     // Write configurations to disk.
