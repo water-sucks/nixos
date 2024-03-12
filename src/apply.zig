@@ -50,7 +50,7 @@ pub const ApplyArgs = struct {
     output: ?[]const u8 = null,
     // Name of the system profile to use
     profile_name: ?[]const u8 = null,
-    // Activate the given specialisation (default: contents of /etc/NIXOS_SPECIALISATION)
+    // Activate the given specialisation
     specialization: ?[]const u8 = null,
     // Upgrade the root user's 'nixos' channel
     upgrade_channels: bool = false,
@@ -557,6 +557,8 @@ fn runSwitchToConfiguration(
 }
 
 fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
+    const c = config.getConfig();
+
     const build_type: BuildType = if (args.vm)
         .VM
     else if (args.vm_with_bootloader)
@@ -577,7 +579,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
     // Find flake if unset, and parse it into its separate components
     var flake_ref: ?FlakeRef = null;
 
-    if (opts.flake) {
+    if (opts.flake) flake_config: {
         if (args.flake) |flake| {
             // Parse flake arg if explicitly specified as a positional argument.
             flake_ref = getFlakeRef(flake) catch {
@@ -585,43 +587,45 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
                 return ApplyError.UnknownHostname;
             };
 
-            if (flake_ref == null) {
+            if (flake_ref) |ref| {
+                if (verbose) log.info("found flake configuration {s}#{s}", .{ ref.path, ref.hostname });
+            } else {
                 log.err("hostname not provided in flake argument, cannot find configuration", .{});
                 return ApplyError.ConfigurationNotFound;
             }
-        } else {
-            // Check for existence of flake.nix in the NIXOS_CONFIG
-            // or /etc/nixos directory, and use that if found
-            const nixos_config = os.getenv("NIXOS_CONFIG") orelse "/etc/nixos";
 
-            const nixos_config_is_flake = blk: {
-                const filename = try fs.path.join(allocator, &.{ nixos_config, "flake.nix" });
-                defer allocator.free(filename);
-                break :blk fileExistsAbsolute(filename);
+            break :flake_config;
+        }
+
+        // Check for existence of flake.nix in the NIXOS_CONFIG
+        // or location specified in settings for `apply.config_location`
+        const nixos_config = os.getenv("NIXOS_CONFIG") orelse c.apply.config_location;
+
+        const nixos_config_is_flake = blk: {
+            const filename = try fs.path.join(allocator, &.{ nixos_config, "flake.nix" });
+            defer allocator.free(filename);
+            break :blk fileExistsAbsolute(filename);
+        };
+
+        if (nixos_config_is_flake) {
+            const dir = try fmt.allocPrint(allocator, "{s}#", .{nixos_config});
+
+            flake_ref = getFlakeRef(dir) catch |err| {
+                log.err("unable to determine hostname: {s}", .{@errorName(err)});
+                return ApplyError.UnknownHostname;
             };
+        } else {
+            log.err("configuration at {s} is not a flake", .{nixos_config});
+            return ApplyError.ConfigurationNotFound;
+        }
 
-            if (nixos_config_is_flake) {
-                const dir = try fmt.allocPrint(allocator, "{s}#", .{nixos_config});
-
-                flake_ref = getFlakeRef(dir) catch |err| {
-                    log.err("unable to determine hostname: {s}", .{@errorName(err)});
-                    return ApplyError.UnknownHostname;
-                };
-            }
-
-            if (flake_ref) |flake| {
-                if (verbose) log.info("found flake configuration {s}#{s}", .{ flake.path, flake.hostname });
-            } else {
-                log.err("unable to find configuration, expected NIXOS_CONFIG to be set to location of flake", .{});
-                return ApplyError.ConfigurationNotFound;
-            }
+        if (flake_ref) |flake| {
+            if (verbose) log.info("found flake configuration {s}#{s}", .{ flake.path, flake.hostname });
         }
     } else {
         // Verify legacy configuration exists, if needed (no need to store location,
         // because it is implicitly used by `nix-build "<nixpkgs/nixos>"`)
-        const nixos_config = os.getenv("NIXOS_CONFIG");
-
-        if (nixos_config) |dir| {
+        if (os.getenv("NIXOS_CONFIG")) |dir| {
             const filename = try fs.path.join(allocator, &.{ dir, "default.nix" });
             defer allocator.free(filename);
             if (!fileExistsAbsolute(filename)) {
