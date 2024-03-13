@@ -1,8 +1,11 @@
 const std = @import("std");
 const opts = @import("options");
 const mem = std.mem;
+const process = std.process;
+const os = std.os;
 const Allocator = mem.Allocator;
 const ArgIterator = std.process.ArgIterator;
+const ArrayList = std.ArrayList;
 
 const alias = @import("alias.zig");
 const apply = @import("apply.zig");
@@ -22,6 +25,7 @@ const InitConfigArgs = init.InitConfigArgs;
 const InstallArgs = install.InstallArgs;
 
 const config = @import("config.zig");
+const Alias = config.Alias;
 
 const log = @import("log.zig");
 
@@ -37,7 +41,8 @@ const MainArgs = struct {
     subcommand: Subcommand = undefined,
 
     const Subcommand = union(enum) {
-        alias,
+        aliases,
+        alias: Alias,
         apply: ApplyArgs,
         enter: EnterArgs,
         generation: GenerationArgs,
@@ -93,7 +98,7 @@ const MainArgs = struct {
         }
 
         if (mem.eql(u8, arg, "alias")) {
-            result.subcommand = .alias;
+            result.subcommand = .aliases;
         } else if (mem.eql(u8, arg, "apply")) {
             result.subcommand = .{ .apply = try ApplyArgs.parseArgs(allocator, argv) };
         } else if (mem.eql(u8, arg, "enter")) {
@@ -114,7 +119,22 @@ const MainArgs = struct {
             if (argparse.isFlag(arg)) {
                 argError("unrecognised flag '{s}'", .{arg});
                 return ArgParseError.InvalidArgument;
-            } else {
+            }
+
+            var is_alias = blk: {
+                const c = config.getConfig();
+                if (c.aliases) |aliases| {
+                    for (aliases) |kv| {
+                        if (mem.eql(u8, arg, kv.alias)) {
+                            result.subcommand = .{ .alias = kv };
+                            break :blk true;
+                        }
+                    }
+                }
+                break :blk false;
+            };
+
+            if (!is_alias) {
                 argError("unknown subcommand '{s}'", .{arg});
                 return ArgParseError.InvalidSubcommand;
             }
@@ -138,10 +158,7 @@ pub fn main() !u8 {
     defer arena_allocator.deinit();
     const allocator = arena_allocator.allocator();
 
-    config.parseConfig(allocator) catch |err| {
-        log.err("error parsing settings: {s}", .{@errorName(err)});
-        return 2;
-    };
+    config.parseConfig(allocator) catch return 2;
     defer config.deinit();
 
     const nix_context = nix.util.NixContext.init() catch {
@@ -173,8 +190,15 @@ pub fn main() !u8 {
     };
 
     const status = switch (structured_args.subcommand) {
-        .alias => {
+        .aliases => {
             alias.printAliases();
+            return 0;
+        },
+        .alias => |al| {
+            execAlias(allocator, al) catch |err| {
+                log.err("error executing alias command: {s}", .{@errorName(err)});
+                return 1;
+            };
             return 0;
         },
         .apply => |args| apply.applyMain(allocator, args),
@@ -191,4 +215,20 @@ pub fn main() !u8 {
     };
 
     return status;
+}
+
+fn execAlias(allocator: Allocator, al: Alias) !void {
+    const original_args = try process.argsAlloc(allocator);
+    defer process.argsFree(allocator, original_args);
+
+    var new_args = ArrayList([]const u8).init(allocator);
+    defer new_args.deinit();
+
+    try new_args.append(original_args[0]);
+    try new_args.appendSlice(al.resolve);
+    if (original_args.len > 3) {
+        try new_args.appendSlice(original_args[2..]);
+    }
+
+    return process.execve(allocator, new_args.items, null);
 }

@@ -16,7 +16,7 @@ pub const Alias = struct {
     /// Name of alias on command line; must not contain spaces
     alias: []const u8,
     /// What to resolve alias to on command line
-    resolve: []const u8,
+    resolve: []const []const u8,
 };
 
 pub const KVPair = struct {
@@ -41,6 +41,10 @@ pub const Config = struct {
     } = .{},
 };
 
+pub const ParseConfigError = error{
+    InvalidValue,
+};
+
 var config_value: ?ParsedJson(Config) = null;
 
 pub fn getConfig() Config {
@@ -51,16 +55,43 @@ pub fn parseConfig(allocator: Allocator) !void {
     const config_location = Constants.config_location ++ "/config.json";
     const config_str = readFile(allocator, config_location) catch |err| {
         switch (err) {
-            error.FileNotFound => {
-                // Use default config if config is not found.
-                return;
-            },
+            error.FileNotFound => return,
             else => log.err("error opening config: {s}", .{@errorName(err)}),
         }
         return err;
     };
     defer allocator.free(config_str);
-    config_value = try json.parseFromSlice(Config, allocator, config_str, .{ .ignore_unknown_fields = true, .allocate = .alloc_always });
+
+    const parsed = json.parseFromSlice(Config, allocator, config_str, .{
+        .ignore_unknown_fields = true,
+        .allocate = .alloc_always,
+    }) catch |err| {
+        log.err("unable to parse settings: {s}", .{@errorName(err)});
+        return err;
+    };
+    errdefer deinit();
+    const config = parsed.value;
+
+    // Validation
+    if (config.aliases) |aliases| {
+        for (aliases) |kv| {
+            if (kv.alias.len == 0) {
+                configError("alias name cannot be empty", .{});
+                return ParseConfigError.InvalidValue;
+            } else if (kv.resolve.len == 0) {
+                configError("alias value cannot be empty", .{});
+                return ParseConfigError.InvalidValue;
+            } else if (mem.startsWith(u8, kv.alias, "-")) {
+                configError("alias '{s}' cannot start with a '-'", .{kv.alias});
+                return ParseConfigError.InvalidValue;
+            } else if (mem.indexOfAny(u8, kv.alias, &std.ascii.whitespace) != null) {
+                configError("alias '{s}' cannot have whitespace", .{kv.alias});
+                return ParseConfigError.InvalidValue;
+            }
+        }
+    }
+
+    config_value = parsed;
 }
 
 pub fn deinit() void {
@@ -68,4 +99,10 @@ pub fn deinit() void {
         value.deinit();
         config_value = null;
     }
+}
+
+fn configError(comptime fmt: []const u8, args: anytype) void {
+    log.print("error: invalid setting: ", .{});
+    log.print(fmt ++ "\n", args);
+    log.print("\nFor more information, run `nixos --help`.\n", .{});
 }

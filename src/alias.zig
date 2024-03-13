@@ -22,7 +22,7 @@ pub fn printAliases() void {
     // Let's align the alias column to the max length.alias =
     // I freaking love alignment.
     var max_column_len = blk: {
-        var max_len = aliases[1].alias.len;
+        var max_len = aliases[0].alias.len;
         for (aliases) |alias| {
             max_len = @max(alias.alias.len, max_len);
         }
@@ -36,6 +36,15 @@ pub fn printAliases() void {
             print(stdout, " ", .{});
             k -= 1;
         }
-        println(stdout, " :: {s}", .{alias.resolve});
+        print(stdout, " :: ", .{});
+        const resolved = alias.resolve;
+        if (resolved.len == 1) {
+            println(stdout, "{s}", .{resolved[0]});
+        } else if (resolved.len > 1) {
+            for (resolved[0..(resolved.len - 1)]) |arg| {
+                print(stdout, "{s} ", .{arg});
+            }
+            println(stdout, "{s}", .{resolved[resolved.len - 1]});
+        }
     }
 }
