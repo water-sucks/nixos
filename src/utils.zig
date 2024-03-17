@@ -158,6 +158,33 @@ fn collectStdoutPosix(
     }
 }
 
+/// NixOS configuration location inside a flake
+pub const FlakeRef = struct {
+    /// URI of flake that contains NixOS configuration
+    uri: []const u8,
+    /// Name of system configuration to build
+    system: []const u8,
+
+    const Self = @This();
+
+    /// Create a FlakeRef from a `flake#hostname` string.
+    pub fn fromSlice(slice: []const u8) Self {
+        const index = mem.indexOf(u8, slice, "#");
+
+        if (index) |i| {
+            return Self{
+                .uri = slice[0..i],
+                .system = slice[(i + 1)..],
+            };
+        }
+
+        return Self{
+            .uri = slice,
+            .system = "",
+        };
+    }
+};
+
 /// Check if a file exists by opening and closing it.
 pub fn fileExistsAbsolute(filename: []const u8) bool {
     var file = fs.openFileAbsolute(filename, .{}) catch return false;
