@@ -26,6 +26,7 @@ const Constants = @import("constants.zig");
 const log = @import("log.zig");
 
 const utils = @import("utils.zig");
+const FlakeRef = utils.FlakeRef;
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 const mkTmpDir = utils.mkTmpDir;
 const runCmd = utils.runCmd;
@@ -61,10 +62,10 @@ pub const InstallArgs = struct {
         \\Usage:
         \\
     ++ (if (opts.flake)
-        \\    nixos install <FLAKE-URL>#<SYSTEM-NAME> [options]
+        \\    nixos install <FLAKE-URI>#<SYSTEM-NAME> [options]
         \\
         \\Arguments:
-        \\    <FLAKE-URL>      Flake URL that contains NixOS system to build
+        \\    <FLAKE-URI>      Flake URI that contains NixOS system to build
         \\    <SYSTEM-NAME>    Name of NixOS system to build
         \\
     else
@@ -168,7 +169,7 @@ pub const InstallArgs = struct {
                 return ArgParseError.MissingRequiredArgument;
             }
         } else if (opts.flake) {
-            argError("missing required arguments <FLAKE-URL>#<SYSTEM-NAME>", .{});
+            argError("missing required arguments <FLAKE-URI>#<SYSTEM-NAME>", .{});
             return ArgParseError.MissingRequiredArgument;
         }
 
@@ -212,68 +213,6 @@ const Options = struct {
     flake_options: []const []const u8,
     lock_options: []const []const u8,
 };
-
-/// Incomplete struct for nix flake metadata in order to
-/// retrieve URL
-const NixFlakeMetadata = struct {
-    url: []const u8,
-};
-
-fn resolveFlakePath(allocator: Allocator, path: []const u8, options: Options) ![]const u8 {
-    var argv = ArrayList([]const u8).init(allocator);
-    defer argv.deinit();
-
-    // nix ${enable_flake_flags} flake metadata --json [${build_options}] [${flake_options}] [${lock_options}] -- "$path"
-
-    try argv.append("nix");
-    try argv.appendSlice(enable_flake_flags);
-    try argv.appendSlice(&.{ "flake", "metadata", "--json" });
-    try argv.appendSlice(options.build_options);
-    try argv.appendSlice(options.flake_options);
-    try argv.appendSlice(options.lock_options);
-    try argv.appendSlice(&.{ "--", path });
-
-    if (verbose) log.cmd(argv.items);
-
-    const result = try runCmd(.{
-        .allocator = allocator,
-        .argv = argv.items,
-    });
-
-    if (result.status != 0) {
-        exit_status = result.status;
-        return InstallError.ConfigurationNotFound;
-    }
-
-    const stdout = result.stdout.?;
-
-    const json_result = try std.json.parseFromSlice(NixFlakeMetadata, allocator, stdout, .{ .ignore_unknown_fields = true });
-    defer json_result.deinit();
-
-    return try allocator.dupe(u8, json_result.value.url);
-}
-
-/// NixOS configuration location inside a flake
-pub const FlakeRef = struct {
-    /// URL of flake that contains NixOS configuration
-    url: []const u8,
-    /// Name of system configuration to build
-    system: []const u8,
-};
-
-/// Create a FlakeRef from a `flake#hostname` string.
-fn getFlakeRef(allocator: Allocator, arg: []const u8, options: Options) !FlakeRef {
-    const index = mem.indexOf(u8, arg, "#").?;
-
-    const url = arg[0..index];
-    const system = arg[(index + 1)..];
-
-    const resolved_url = resolveFlakePath(allocator, url, options) catch return InstallError.ConfigurationNotFound;
-    return FlakeRef{
-        .url = resolved_url,
-        .system = system,
-    };
-}
 
 // If any dir has an owner bit set below 5, this will error
 // out with the name of the incorrect directory.
@@ -411,7 +350,7 @@ fn nixBuildFlake(
     options: Options,
     env_map: *std.process.EnvMap,
 ) !void {
-    const target = try fmt.allocPrint(allocator, "{s}#nixosConfigurations.{s}.config.system.build.toplevel", .{ flake_ref.url, flake_ref.system });
+    const target = try fmt.allocPrint(allocator, "{s}#nixosConfigurations.{s}.config.system.build.toplevel", .{ flake_ref.uri, flake_ref.system });
     defer allocator.free(target);
 
     var argv = ArrayList([]const u8).init(allocator);
@@ -623,8 +562,7 @@ fn install(allocator: Allocator, args: InstallArgs) InstallError!void {
 
     // Find configuration and build it
     if (opts.flake) {
-        const ref = try getFlakeRef(allocator, args.flake.?, options);
-        defer allocator.free(ref.url);
+        const ref = FlakeRef.fromSlice(args.flake.?);
 
         if (!args.no_copy_channel) {
             copyChannel(allocator, mountpoint, args.channel, args.build_options.items) catch |err| {
@@ -634,7 +572,7 @@ fn install(allocator: Allocator, args: InstallArgs) InstallError!void {
         }
 
         if (args.system == null) {
-            log.info("building the flake in {s}", .{ref.url});
+            log.info("building the flake in {s}", .{ref.uri});
             nixBuildFlake(allocator, ref, mountpoint, out_link, options, &env_map) catch |err| {
                 log.err("failed to build the system configuration", .{});
                 if (err == error.OutOfMemory) {

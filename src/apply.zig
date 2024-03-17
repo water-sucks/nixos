@@ -31,6 +31,7 @@ const Constants = @import("constants.zig");
 const log = @import("log.zig");
 
 const utils = @import("utils.zig");
+const FlakeRef = utils.FlakeRef;
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 const readFile = utils.readFile;
 const runCmd = utils.runCmd;
@@ -232,36 +233,8 @@ pub const BuildType = enum {
     VMWithBootloader,
 };
 
-/// NixOS configuration location inside a flake
-pub const FlakeRef = struct {
-    /// Path to flake that contains NixOS configuration
-    path: []const u8,
-    /// Hostname of configuration to build
-    hostname: []const u8,
-};
-
 // Yes, I'm really this lazy. I don't want to use an allocator for this.
 var hostname_buffer: [os.HOST_NAME_MAX]u8 = undefined;
-
-/// Create a FlakeRef from a `flake#hostname` string. The hostname
-/// can be inferred, but the `#` is mandatory.
-fn getFlakeRef(arg: []const u8) !?FlakeRef {
-    const index = mem.indexOf(u8, arg, "#") orelse return null;
-
-    var path = arg[0..index];
-    var hostname: []const u8 = undefined;
-
-    if (index == (arg.len - 1)) {
-        hostname = try os.gethostname(&hostname_buffer);
-    } else {
-        hostname = arg[(index + 1)..];
-    }
-
-    return FlakeRef{
-        .path = path,
-        .hostname = hostname,
-    };
-}
 
 // Global exit status indicator for runCmd, so
 // that the correct exit code from a failed command
@@ -396,7 +369,7 @@ fn nixBuildFlake(
     const attribute = try fmt.allocPrint(
         allocator,
         "{s}#nixosConfigurations.{s}.config.system.build.{s}",
-        .{ flake_ref.path, flake_ref.hostname, attr_to_build },
+        .{ flake_ref.uri, flake_ref.system, attr_to_build },
     );
     defer allocator.free(attribute);
 
@@ -577,22 +550,21 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
 
     if (verbose) log.info("looking for configuration...", .{});
     // Find flake if unset, and parse it into its separate components
-    var flake_ref: ?FlakeRef = null;
+    var flake_ref: FlakeRef = undefined;
 
     if (opts.flake) flake_config: {
         if (args.flake) |flake| {
             // Parse flake arg if explicitly specified as a positional argument.
-            flake_ref = getFlakeRef(flake) catch {
-                log.err("unable to determine hostname", .{});
-                return ApplyError.UnknownHostname;
-            };
-
-            if (flake_ref) |ref| {
-                if (verbose) log.info("found flake configuration {s}#{s}", .{ ref.path, ref.hostname });
-            } else {
-                log.err("hostname not provided in flake argument, cannot find configuration", .{});
-                return ApplyError.ConfigurationNotFound;
+            // flake_ref = getFlakeRef(flake)
+            flake_ref = FlakeRef.fromSlice(flake);
+            if (flake_ref.system.len == 0) {
+                flake_ref.system = os.gethostname(&hostname_buffer) catch {
+                    log.err("unable to determine hostname", .{});
+                    return ApplyError.UnknownHostname;
+                };
             }
+
+            if (verbose) log.info("found flake configuration {s}#{s}", .{ flake_ref.uri, flake_ref.system });
 
             break :flake_config;
         }
@@ -610,18 +582,19 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
         if (nixos_config_is_flake) {
             const dir = try fmt.allocPrint(allocator, "{s}#", .{nixos_config});
 
-            flake_ref = getFlakeRef(dir) catch |err| {
-                log.err("unable to determine hostname: {s}", .{@errorName(err)});
-                return ApplyError.UnknownHostname;
-            };
+            flake_ref = FlakeRef.fromSlice(dir);
+            if (flake_ref.system.len == 0) {
+                flake_ref.system = os.gethostname(&hostname_buffer) catch {
+                    log.err("unable to determine hostname", .{});
+                    return ApplyError.UnknownHostname;
+                };
+            }
         } else {
             log.err("configuration at {s} is not a flake", .{nixos_config});
             return ApplyError.ConfigurationNotFound;
         }
 
-        if (flake_ref) |flake| {
-            if (verbose) log.info("found flake configuration {s}#{s}", .{ flake.path, flake.hostname });
-        }
+        if (verbose) log.info("found flake configuration {s}#{s}", .{ flake_ref.uri, flake_ref.system });
     } else {
         // Verify legacy configuration exists, if needed (no need to store location,
         // because it is implicitly used by `nix-build "<nixpkgs/nixos>"`)
@@ -702,7 +675,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
     var result: []const u8 = undefined;
 
     if (opts.flake) {
-        result = nixBuildFlake(allocator, build_type, flake_ref.?, .{
+        result = nixBuildFlake(allocator, build_type, flake_ref, .{
             .build_options = args.build_options.items,
             .flake_options = args.flake_options.items,
             .result_dir = if (args.output) |output|
