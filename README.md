@@ -44,7 +44,7 @@ the recommended way to use this program.
 This can be configured using the NixOS module (the preferred way), which
 generates a file at `/etc/nixos-cli/config.json`. I would prefer using TOML at
 some point, but for right now JSON is the file format I can get up and running
-with the fastest. This is an example config:
+with the fastest.
 
 ## TODO
 
@@ -74,7 +74,7 @@ with the fastest. This is an example config:
   - ➖ `diff` (a la [nvd](https://gitlab.com/khumba/nvd))
 - ✅ `manual`
 - ❌ `option`
-- ❌ `repl`
+- ✅ `repl`
 
 ### Possible Future Commands
 

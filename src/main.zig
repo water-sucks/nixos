@@ -16,6 +16,7 @@ const info = @import("info.zig");
 const init = @import("init.zig");
 const install = @import("install.zig");
 const manual = @import("manual.zig");
+const repl = @import("repl.zig");
 
 const ApplyArgs = apply.ApplyArgs;
 const EnterArgs = enter.EnterArgs;
@@ -23,6 +24,7 @@ const GenerationArgs = generation.GenerationArgs;
 const InfoArgs = info.InfoArgs;
 const InitConfigArgs = init.InitConfigArgs;
 const InstallArgs = install.InstallArgs;
+const ReplArgs = repl.ReplArgs;
 
 const config = @import("config.zig");
 const Alias = config.Alias;
@@ -51,6 +53,7 @@ const MainArgs = struct {
         init: InitConfigArgs,
         install: InstallArgs,
         manual,
+        repl: ReplArgs,
     };
 
     const usage =
@@ -69,6 +72,7 @@ const MainArgs = struct {
         \\    init          Initialize a configuration.nix file
         \\    install       Install a NixOS configuration and bootloader
         \\    manual        Open the NixOS manual in a browser
+        \\    repl          Start a Nix REPL with system configuration loaded
         \\
         \\Options:
         \\    -h, --help       Show this help menu
@@ -115,6 +119,8 @@ const MainArgs = struct {
             result.subcommand = .{ .install = try InstallArgs.parseArgs(allocator, argv) };
         } else if (mem.eql(u8, arg, "manual")) {
             result.subcommand = .manual;
+        } else if (mem.eql(u8, arg, "repl")) {
+            result.subcommand = .{ .repl = try ReplArgs.parseArgs(allocator, argv) };
         } else {
             if (argparse.isFlag(arg)) {
                 argError("unrecognised flag '{s}'", .{arg});
@@ -212,6 +218,7 @@ pub fn main() !u8 {
         .init => |args| init.initConfigMain(allocator, args),
         .install => |args| install.installMain(allocator, args),
         .manual => manual.manualMain(allocator),
+        .repl => |args| repl.replMain(allocator, args),
     };
 
     return status;
