@@ -16,8 +16,9 @@ pub fn build(b: *std.build.Builder) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const libnix = b.addModule("libnix", .{
-        .source_file = .{ .path = "src/nix/lib.zig" },
+    const zignix_package = b.dependency("zignix", .{
+        .target = target,
+        .optimize = optimize,
     });
 
     const exe = b.addExecutable(.{
@@ -27,7 +28,7 @@ pub fn build(b: *std.build.Builder) void {
         .optimize = optimize,
     });
     b.installArtifact(exe);
-    exe.addModule("nix", libnix);
+    exe.addModule("nix", zignix_package.module("zignix"));
 
     const full_version = blk: {
         if (mem.endsWith(u8, version, "-dev")) {
@@ -69,6 +70,7 @@ pub fn build(b: *std.build.Builder) void {
 
     // Link to the Nix C API directly.
     exe.linkLibC();
+    exe.linkLibrary(zignix_package.artifact("zignix"));
     exe.linkSystemLibrary("nixexprc");
     exe.linkSystemLibrary("nixstorec");
     exe.linkSystemLibrary("nixutilc");

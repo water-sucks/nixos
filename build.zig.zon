@@ -1,0 +1,15 @@
+.{
+    .name = "nixos",
+    .version = "0.6.0",
+    .minimum_zig_version = "0.11.0",
+    .paths = .{"."},
+    .dependencies = .{
+        // Make sure this flake input is in sync with the Zig-fetched package
+        // by updating the corresponding dependency inside build.zig.zon and
+        // running zon2nix after.
+        .zignix = .{
+            .url = "https://github.com/water-sucks/zignix/archive/043e2044345ecfd1f5b542480ad5493244fc0fd5.tar.gz",
+            .hash = "1220c74725fb0e865571956dd6004f1e70ef4eb801907155d8411b0bf06b82e510d1",
+        },
+    },
+}

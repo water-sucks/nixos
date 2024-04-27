@@ -6,8 +6,12 @@
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
-    # Use unstable Nix C bindings
-    nix.url = "github:tweag/nix/nix-c-bindings";
+    # Make sure this flake input is in sync with the Zig-fetched package
+    # by updating the corresponding dependency inside build.zig.zon and
+    # running zon2nix after. Otherwise, the symbols exported by Nix may
+    # not be guaranteed to be the same as the ones in the upstream Nix
+    # bindings package.
+    zignix.url = "github:water-sucks/zignix";
 
     zig-overlay.url = "github:mitchellh/zig-overlay";
 
@@ -40,11 +44,12 @@
         ...
       }: let
         zigPackage = inputs.zig-overlay.packages.${system}."0.11.0";
-        nixPackage = inputs.nix.packages.${system}.nix;
+        nixPackage = inputs.zignix.inputs.nix.packages.${system}.nix;
 
         inherit (inputs.gitignore.lib) gitignoreSource;
 
         package = {
+          callPackage,
           zig,
           pkg-config,
           autoPatchelfHook,
@@ -53,8 +58,13 @@
         }:
           pkgs.stdenv.mkDerivation {
             pname = "nixos";
-            version = "0.5.0";
+            version = "0.6.0";
             src = gitignoreSource ./.;
+
+            postPatch = ''
+              mkdir -p .cache
+              ln -s ${callPackage ./deps.nix {}} .cache/p
+            '';
 
             nativeBuildInputs = [zig pkg-config autoPatchelfHook];
 
@@ -98,6 +108,7 @@
           packages = [
             pkgs.alejandra
             pkgs.zls
+            pkgs.zon2nix
           ];
           nativeBuildInputs = [
             zigPackage

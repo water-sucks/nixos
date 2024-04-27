@@ -856,13 +856,12 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: Ni
     // Determine `nixpkgs.hostPlatform` using the current system.
     // Initializing a config is inherently impure, so no problems here.
     const nix_context = nix.util.NixContext.init() catch return InitConfigError.OutOfMemory;
-    const nix_value = nix_state.createValue(nix_context) catch return InitConfigError.OutOfMemory;
-    nix_state.evalFromString(allocator, nix_context, "builtins.currentSystem", "", nix_value) catch {
+    const nix_value = nix_state.evalFromString(nix_context, "builtins.currentSystem", "") catch {
         const err_msg = nix_context.errorMessage(nix_context) catch @panic("unable to read error context");
         log.print("{s}\n", .{err_msg.?});
+        return InitConfigError.ResourceAccessFailed;
     };
-    const host_system = nix_value.string(allocator, nix_context) catch unreachable;
-    defer allocator.free(host_system);
+    const host_system = nix_value.string(nix_context) catch unreachable;
 
     try attrs.append(KVPair{
         .name = "nixpkgs.hostPlatform",
@@ -1255,7 +1254,7 @@ fn initConfig(allocator: Allocator, args: InitConfigArgs) !void {
         log.print("{s}\n", .{err_msg.?});
         return InitConfigError.ResourceAccessFailed;
     };
-    defer nix_store.unref();
+    defer nix_store.deinit();
     const nix_state = nix.expr.EvalState.init(nix_context, nix_store) catch {
         const err_msg = nix_context.errorMessage(nix_context) catch @panic("fatal: unable to read error context");
         log.print("{s}\n", .{err_msg.?});
