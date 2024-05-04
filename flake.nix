@@ -43,7 +43,7 @@
         system,
         ...
       }: let
-        zigPackage = inputs.zig-overlay.packages.${system}."0.11.0";
+        zigPackage = inputs.zig-overlay.packages.${system}."0.12.0";
         nixPackage = inputs.zignix.inputs.nix.packages.${system}.nix;
 
         inherit (inputs.gitignore.lib) gitignoreSource;
@@ -107,7 +107,6 @@
           name = "nixos-shell";
           packages = [
             pkgs.alejandra
-            pkgs.zls
             pkgs.zon2nix
           ];
           nativeBuildInputs = [

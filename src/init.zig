@@ -7,8 +7,8 @@ const io = std.io;
 const json = std.json;
 const mem = std.mem;
 const math = std.math;
-const os = std.os;
-const linux = os.linux;
+const posix = std.posix;
+const linux = std.os.linux;
 const Allocator = mem.Allocator;
 const ArgIterator = std.process.ArgIterator;
 const ArrayList = std.ArrayList;
@@ -149,12 +149,12 @@ fn getCpuInfo(allocator: Allocator) !CPUInfo {
 
 // Find module name of given PCI device path. Caller owns returned memory.
 fn findModuleName(allocator: Allocator, path: []const u8) !?[]u8 {
-    var module_buf: [os.PATH_MAX]u8 = undefined;
+    var module_buf: [posix.PATH_MAX]u8 = undefined;
     const module_filename = try fs.path.join(allocator, &.{ path, "driver/module" });
     defer allocator.free(module_filename);
 
     if (fileExistsAbsolute(module_filename)) {
-        const link = try os.readlink(module_filename, &module_buf);
+        const link = try posix.readlink(module_filename, &module_buf);
         const module = fs.path.basename(link);
         return try allocator.dupe(u8, module);
     }
@@ -385,7 +385,7 @@ fn findStableDevPath(allocator: Allocator, device: []const u8) ![]const u8 {
         return try allocator.dupe(u8, device);
     }
 
-    const device_name = os.toPosixPath(device) catch return InitConfigError.OutOfMemory;
+    const device_name = posix.toPosixPath(device) catch return InitConfigError.OutOfMemory;
     var dev_stat: linux.Stat = undefined;
     var errno: usize = linux.stat(&device_name, &dev_stat);
     if (errno > 0) {
@@ -394,7 +394,7 @@ fn findStableDevPath(allocator: Allocator, device: []const u8) ![]const u8 {
 
     // Find if device is in `by-uuid` dir
     const by_uuid_dirname = "/dev/disk/by-uuid";
-    var by_uuid_dir = fs.openIterableDirAbsolute(by_uuid_dirname, .{}) catch |err| {
+    var by_uuid_dir = fs.openDirAbsolute(by_uuid_dirname, .{ .iterate = true }) catch |err| {
         log.warn("unable to open {s}: {s}", .{ by_uuid_dirname, @errorName(err) });
         return try allocator.dupe(u8, device);
     };
@@ -420,7 +420,7 @@ fn findStableDevPath(allocator: Allocator, device: []const u8) ![]const u8 {
 
     // Find if device is in `/dev/mapper` (usually a LUKS device)
     const mapper_dirname = "/dev/mapper";
-    var mapper_dir = fs.openIterableDirAbsolute(mapper_dirname, .{}) catch |err| {
+    var mapper_dir = fs.openDirAbsolute(mapper_dirname, .{ .iterate = true }) catch |err| {
         log.warn("unable to open {s}: {s}", .{ mapper_dirname, @errorName(err) });
         return try allocator.dupe(u8, device);
     };
@@ -446,7 +446,7 @@ fn findStableDevPath(allocator: Allocator, device: []const u8) ![]const u8 {
 
     // Find if device is in `/dev/disk/by-label`. Not preferred, as these can change.
     const by_label_dirname = "/dev/disk/by-label";
-    var by_label_dir = fs.openIterableDirAbsolute(by_label_dirname, .{}) catch |err| {
+    var by_label_dir = fs.openDirAbsolute(by_label_dirname, .{ .iterate = true }) catch |err| {
         log.warn("unable to open {s}: {s}", .{ by_label_dirname, @errorName(err) });
         return try allocator.dupe(u8, device);
     };
@@ -572,7 +572,7 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
 
         // Check if mountpoint is directory
         const is_dir = blk: {
-            const dirname = try os.toPosixPath(mountpoint_absolute);
+            const dirname = try posix.toPosixPath(mountpoint_absolute);
             var stat_buf: linux.Stat = undefined;
             const errno = linux.stat(&dirname, &stat_buf);
             if (errno > 0) {
@@ -717,7 +717,7 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
             const slave_device_dirname = try fmt.allocPrint(allocator, "/sys/class/block/{s}/slaves", .{device_name});
             defer allocator.free(slave_device_dirname);
 
-            var slave_device_dir = fs.openIterableDirAbsolute(slave_device_dirname, .{}) catch |err| blk: {
+            var slave_device_dir = fs.openDirAbsolute(slave_device_dirname, .{ .iterate = true }) catch |err| blk: {
                 log.warn("unable to open {s}: {s}", .{ slave_device_dirname, @errorName(err) });
                 break :blk null;
             };
@@ -806,14 +806,14 @@ fn nixStringList(allocator: Allocator, items: []const []const u8, sep: []const u
         const value = try quote(allocator, str);
         defer allocator.free(value);
 
-        mem.copy(u8, result[buf_index..], value);
+        mem.copyForwards(u8, result[buf_index..], value);
         buf_index += value.len;
-        mem.copy(u8, result[buf_index..], sep);
+        mem.copyForwards(u8, result[buf_index..], sep);
         buf_index += sep.len;
     }
     const value = try quote(allocator, temp[temp.len - 1]);
     defer allocator.free(value);
-    mem.copy(u8, result[buf_index..], value);
+    mem.copyForwards(u8, result[buf_index..], value);
 
     return result;
 }
@@ -861,7 +861,9 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: Ni
         log.print("{s}\n", .{err_msg.?});
         return InitConfigError.ResourceAccessFailed;
     };
-    const host_system = nix_value.string(nix_context) catch unreachable;
+
+    const host_system = nix_value.string(allocator, nix_context) catch unreachable;
+    defer allocator.free(host_system);
 
     try attrs.append(KVPair{
         .name = "nixpkgs.hostPlatform",
@@ -882,7 +884,7 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: Ni
 
     // Find all needed kernel modules and packages corresponding to connected PCI devices
     const pci_dirname = "/sys/bus/pci/devices";
-    var pci_dir = fs.openIterableDirAbsolute(pci_dirname, .{}) catch |err| blk: {
+    var pci_dir = fs.openDirAbsolute(pci_dirname, .{ .iterate = true }) catch |err| blk: {
         log.err("unable to open {s}: {s}", .{ pci_dirname, @errorName(err) });
         break :blk null;
     };
@@ -898,7 +900,7 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: Ni
 
     // Find all needed kernel modules and packages corresponding to connected USB devices
     const usb_dirname = "/sys/bus/usb/devices";
-    var usb_dir = fs.openIterableDirAbsolute(usb_dirname, .{}) catch |err| blk: {
+    var usb_dir = fs.openDirAbsolute(usb_dirname, .{ .iterate = true }) catch |err| blk: {
         log.warn("unable to open {s}: {s}", .{ usb_dirname, @errorName(err) });
         break :blk null;
     };
@@ -914,7 +916,7 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: Ni
 
     // Find all needed kernel modules corresponding to connected block devices
     const block_dirname = "/sys/class/block";
-    var block_dir = fs.openIterableDirAbsolute(block_dirname, .{}) catch |err| blk: {
+    var block_dir = fs.openDirAbsolute(block_dirname, .{ .iterate = true }) catch |err| blk: {
         log.warn("unable to open {s}: {s}", .{ block_dirname, @errorName(err) });
         break :blk null;
     };
@@ -933,7 +935,7 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: Ni
 
     // Find all needed kernel modules corresponding to connected MMC devices
     const mmc_host_dirname = "/sys/class/mmc_host";
-    var mmc_host_dir = fs.openIterableDirAbsolute(mmc_host_dirname, .{}) catch |err| blk: {
+    var mmc_host_dir = fs.openDirAbsolute(mmc_host_dirname, .{ .iterate = true }) catch |err| blk: {
         log.warn("unable to open {s}: {s}", .{ mmc_host_dirname, @errorName(err) });
         break :blk null;
     };
@@ -951,7 +953,7 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: Ni
     }
 
     // Detect bcachefs
-    var dev_dir = fs.openIterableDirAbsolute("/dev", .{}) catch |err| blk: {
+    const dev_dir = fs.openDirAbsolute("/dev", .{ .iterate = true }) catch |err| blk: {
         log.warn("unable to open /dev: {s}", .{@errorName(err)});
         break :blk null;
     };
@@ -1020,8 +1022,8 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: Ni
         allocator.free(swap_devices);
     }
 
-    var absolute_buf: [os.PATH_MAX]u8 = undefined;
-    const absolute_root = os.realpath(args.root orelse "/", &absolute_buf) catch |err| {
+    var absolute_buf: [posix.PATH_MAX]u8 = undefined;
+    const absolute_root = posix.realpath(args.root orelse "/", &absolute_buf) catch |err| {
         log.err("unable to find realpath of root: {s}", .{@errorName(err)});
         return InitConfigError.ResourceAccessFailed;
     };
@@ -1044,7 +1046,7 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: Ni
     }
 
     const net_dirname = "/sys/class/net";
-    var net_dir = fs.openIterableDirAbsolute(net_dirname, .{}) catch |err| blk: {
+    var net_dir = fs.openDirAbsolute(net_dirname, .{ .iterate = true }) catch |err| blk: {
         log.warn("unable to open {s}: {s}", .{ net_dirname, @errorName(err) });
         break :blk null;
     };
@@ -1073,7 +1075,7 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: Ni
 
     var swap_devices_str: []const u8 = undefined;
     if (swap_devices.len > 0) {
-        var swap_device_strings = try allocator.alloc([]const u8, swap_devices.len);
+        const swap_device_strings = try allocator.alloc([]const u8, swap_devices.len);
         defer allocator.free(swap_device_strings);
 
         var i: usize = 0;
@@ -1102,16 +1104,8 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: Ni
 
     var filesystems_str: []const u8 = undefined;
     if (filesystems.len > 0) {
-        var fs_strings = try allocator.alloc([]const u8, filesystems.len);
+        const fs_strings = try allocator.alloc([]const u8, filesystems.len);
         defer allocator.free(fs_strings);
-
-        var i: usize = 0;
-        defer {
-            var j = i;
-            while (j != 0) : (j -= 1) {
-                allocator.free(fs_strings[j - 1]);
-            }
-        }
 
         for (filesystems, fs_strings) |filesystem, *str| {
             const options = try nixStringList(allocator, filesystem.options, " ");
@@ -1146,7 +1140,7 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: Ni
     defer allocator.free(networking_attrs_str);
 
     const extra_attrs_str = blk: {
-        var strings = try allocator.alloc([]const u8, attrs.items.len);
+        const strings = try allocator.alloc([]const u8, attrs.items.len);
         defer allocator.free(strings);
         for (attrs.items, strings) |attr, *str| {
             str.* = try fmt.allocPrint(allocator, "  {s} = {s};", .{ attr.name, attr.value });

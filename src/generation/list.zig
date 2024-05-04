@@ -4,7 +4,7 @@ const fmt = std.fmt;
 const fs = std.fs;
 const io = std.io;
 const mem = std.mem;
-const os = std.os;
+const posix = std.posix;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const ArgIterator = std.process.ArgIterator;
@@ -91,7 +91,7 @@ pub const Generation = struct {
     // Caller owns returned memory, free with .deinit(allocator).
     pub fn getGenerationInfo(allocator: Allocator, path: fs.Dir, gen_number: usize) !Self {
         // Read NixOS version from nixos-version file for configuration rev
-        var nixos_version_contents = blk: {
+        const nixos_version_contents = blk: {
             const file = path.openFile("nixos-version.json", .{}) catch break :blk null;
             defer file.close();
 
@@ -150,7 +150,7 @@ pub const Generation = struct {
 
         // This version directory should exist, but on the off chance it doesn't,
         // don't take chances.
-        var kernel_dir = std.fs.openIterableDirAbsolute(kernel_modules_dir, .{}) catch |err| {
+        var kernel_dir = std.fs.openDirAbsolute(kernel_modules_dir, .{ .iterate = true }) catch |err| {
             switch (err) {
                 error.AccessDenied => {
                     log.err("unable to open {s}: permission denied", .{kernel_modules_dir});
@@ -185,7 +185,7 @@ pub const Generation = struct {
         }
 
         // Find specialisations in NixOS generation
-        if (path.openIterableDir("specialisation", .{})) |*dir| {
+        if (path.openDir("specialisation", .{ .iterate = true })) |*dir| {
             // HACK: why is @constCast needed to close the directory?
             defer @constCast(dir).close();
             iter = dir.iterate();
@@ -292,7 +292,7 @@ fn todateiso8601(allocator: Allocator, timestamp: i128) ![]const u8 {
 }
 
 fn listGenerations(allocator: Allocator, profile_name: []const u8, args: GenerationListArgs) GenerationListError!void {
-    var profile_dirname = if (mem.eql(u8, profile_name, "system"))
+    const profile_dirname = if (mem.eql(u8, profile_name, "system"))
         "/nix/var/nix/profiles"
     else
         "/nix/var/nix/profiles/system-profiles";
@@ -305,7 +305,7 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
         }
     }
 
-    var generations_dir = fs.openIterableDirAbsolute(profile_dirname, .{}) catch |err| {
+    var generations_dir = fs.openDirAbsolute(profile_dirname, .{ .iterate = true }) catch |err| {
         switch (err) {
             error.AccessDenied => {
                 log.err("unable to open {s}: permission denied", .{profile_dirname});
@@ -321,13 +321,13 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
         return GenerationListError.ResourceAccessFailed;
     };
 
-    var path_buf: [os.PATH_MAX]u8 = undefined;
+    var path_buf: [posix.PATH_MAX]u8 = undefined;
 
     const current_generation_dirname = try fs.path.join(allocator, &.{ profile_dirname, profile_name });
     defer allocator.free(current_generation_dirname);
 
     // Check if generation is the current generation
-    const link_name = os.readlink(current_generation_dirname, &path_buf) catch |err| {
+    const link_name = posix.readlink(current_generation_dirname, &path_buf) catch |err| {
         log.err("unable to readlink {s}: {s}", .{ current_generation_dirname, @errorName(err) });
         return GenerationListError.ResourceAccessFailed;
     };
@@ -401,17 +401,17 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
 
     var max_row_len = comptime blk: {
         var tmp: []const usize = &[_]usize{};
-        inline for (headers) |header| {
+        for (headers) |header| {
             tmp = tmp ++ [_]usize{header.len};
         }
         var new: [tmp.len]usize = undefined;
-        std.mem.copy(usize, &new, tmp);
+        std.mem.copyForwards(usize, &new, tmp);
         break :blk new;
     };
 
     var i: usize = 0;
 
-    var generation_numbers = try allocator.alloc([]const u8, generations.items.len);
+    const generation_numbers = try allocator.alloc([]const u8, generations.items.len);
     defer {
         var j: usize = 0;
         while (j < i) : (j += 1) {
@@ -419,7 +419,7 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
         }
         allocator.free(generation_numbers);
     }
-    var specialization_lists = try allocator.alloc([]const u8, generations.items.len);
+    const specialization_lists = try allocator.alloc([]const u8, generations.items.len);
     defer {
         var j: usize = 0;
         while (j < i) : (j += 1) {

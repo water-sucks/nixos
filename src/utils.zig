@@ -6,7 +6,7 @@ const fmt = std.fmt;
 const fs = std.fs;
 const io = std.io;
 const mem = std.mem;
-const os = std.os;
+const posix = std.posix;
 const process = std.process;
 
 const log = @import("./log.zig");
@@ -33,7 +33,7 @@ pub const ExecResult = struct {
     stdout: ?[]const u8, // Trimmed stdout output of the command
 };
 
-pub const ExecError = os.GetCwdError || os.ReadError || ChildProcess.SpawnError || os.PollError || error{
+pub const ExecError = posix.GetCwdError || posix.ReadError || ChildProcess.SpawnError || posix.PollError || error{
     StdoutStreamTooLong,
     StderrStreamTooLong,
 };
@@ -93,7 +93,7 @@ pub fn runCmd(
         stdout = mem.trim(u8, stdout.?, "\n");
     }
 
-    var result = ExecResult{
+    const result = ExecResult{
         .stdout = stdout,
         .status = switch (term) {
             .Exited => |status| status,
@@ -114,8 +114,8 @@ fn collectStdoutPosix(
     stdout: *std.ArrayList(u8),
     max_output_bytes: usize,
 ) !void {
-    var poll_fds = [_]os.pollfd{
-        .{ .fd = child.stdout.?.handle, .events = os.POLL.IN, .revents = undefined },
+    var poll_fds = [_]posix.pollfd{
+        .{ .fd = child.stdout.?.handle, .events = posix.POLL.IN, .revents = undefined },
     };
 
     var dead_fds: usize = 0;
@@ -124,10 +124,10 @@ fn collectStdoutPosix(
     // of space an ArrayList will allocate grows exponentially.
     const bump_amt = 512;
 
-    const err_mask = os.POLL.ERR | os.POLL.NVAL | os.POLL.HUP;
+    const err_mask = posix.POLL.ERR | posix.POLL.NVAL | posix.POLL.HUP;
 
     while (dead_fds < poll_fds.len) {
-        const events = try os.poll(&poll_fds, std.math.maxInt(i32));
+        const events = try posix.poll(&poll_fds, std.math.maxInt(i32));
         if (events == 0) continue;
 
         var remove_stdout = false;
@@ -135,13 +135,13 @@ fn collectStdoutPosix(
         // conditions.
         // It's still possible to read after a POLL.HUP is received, always
         // check if there's some data waiting to be read first.
-        if (poll_fds[0].revents & os.POLL.IN != 0) {
+        if (poll_fds[0].revents & posix.POLL.IN != 0) {
             // stdout is ready.
             const new_capacity = @min(stdout.items.len + bump_amt, max_output_bytes);
             try stdout.ensureTotalCapacity(new_capacity);
             const buf = stdout.unusedCapacitySlice();
             if (buf.len == 0) return error.StdoutStreamTooLong;
-            const nread = try os.read(poll_fds[0].fd, buf);
+            const nread = try posix.read(poll_fds[0].fd, buf);
             stdout.items.len += nread;
 
             // Remove the fd when the EOF condition is met.
@@ -225,12 +225,12 @@ pub fn concatStringsSep(allocator: Allocator, strings: []const []const u8, sep: 
     var buf_index: usize = 0;
     var result: []u8 = try allocator.alloc(u8, total_len);
     for (strings[0..(strings.len - 1)]) |string| {
-        mem.copy(u8, result[buf_index..], string);
+        mem.copyForwards(u8, result[buf_index..], string);
         buf_index += string.len;
-        mem.copy(u8, result[buf_index..], sep);
+        mem.copyForwards(u8, result[buf_index..], sep);
         buf_index += sep.len;
     }
-    mem.copy(u8, result[buf_index..], strings[strings.len - 1]);
+    mem.copyForwards(u8, result[buf_index..], strings[strings.len - 1]);
 
     return result;
 }
@@ -269,13 +269,13 @@ pub fn mkTmpDir(allocator: Allocator, base: []const u8) ![]const u8 {
 /// Check if a command is executable by looking it up
 /// in the PATH variable.
 pub fn isExecutable(command: []const u8) bool {
-    const path_var = os.getenv("PATH") orelse return false;
+    const path_var = posix.getenv("PATH") orelse return false;
 
-    var buf: [os.PATH_MAX]u8 = undefined;
+    var buf: [posix.PATH_MAX]u8 = undefined;
 
     var dirnames = mem.tokenizeScalar(u8, path_var, ':');
     while (dirnames.next()) |dirname| {
-        const real_dirname = os.realpath(dirname, &buf) catch continue;
+        const real_dirname = posix.realpath(dirname, &buf) catch continue;
 
         var dir = fs.openDirAbsolute(real_dirname, .{}) catch continue;
         defer dir.close();

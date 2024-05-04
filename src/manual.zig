@@ -2,7 +2,7 @@
 
 const std = @import("std");
 const mem = std.mem;
-const os = std.os;
+const posix = std.posix;
 const Allocator = mem.Allocator;
 
 const Constants = @import("constants.zig");
@@ -32,7 +32,7 @@ fn openManual(allocator: Allocator) !void {
         break :blk local_doc_file;
     };
 
-    var browsers = mem.tokenizeScalar(u8, os.getenv("BROWSERS") orelse "", ':');
+    var browsers = mem.tokenizeScalar(u8, posix.getenv("BROWSERS") orelse "", ':');
     while (browsers.next()) |b| {
         if (isExecutable(b)) {
             browser = b;

@@ -7,11 +7,13 @@ const fs = std.fs;
 const json = std.json;
 const mem = std.mem;
 const meta = std.meta;
-const os = std.os;
+const posix = std.posix;
+const process = std.process;
+const linux = std.os.linux;
 
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
-const ArgIterator = std.process.ArgIterator;
+const ArgIterator = process.ArgIterator;
 const ComptimeStringMap = std.ComptimeStringMap;
 
 const argparse = @import("argparse.zig");
@@ -224,7 +226,7 @@ pub const ApplyError = error{
     UnknownHostname,
     UnknownSpecialization,
     UpgradeChannelsFailed,
-} || Allocator.Error;
+} || process.GetEnvMapError || Allocator.Error;
 
 pub const BuildType = enum {
     System,
@@ -234,7 +236,7 @@ pub const BuildType = enum {
 };
 
 // Yes, I'm really this lazy. I don't want to use an allocator for this.
-var hostname_buffer: [os.HOST_NAME_MAX]u8 = undefined;
+var hostname_buffer: [posix.HOST_NAME_MAX]u8 = undefined;
 
 // Global exit status indicator for runCmd, so
 // that the correct exit code from a failed command
@@ -252,7 +254,7 @@ fn upgradeChannels(allocator: Allocator, all: bool) !void {
     if (!all) {
         try argv.append("nixos");
 
-        var dir = fs.openIterableDirAbsolute(channel_directory, .{}) catch |err| {
+        var dir = fs.openDirAbsolute(channel_directory, .{ .iterate = true }) catch |err| {
             switch (err) {
                 error.AccessDenied => {
                     log.err("unable to open {s}: permission denied", .{channel_directory});
@@ -395,7 +397,7 @@ fn nixBuildFlake(
 
     if (verbose) log.cmd(argv.items);
 
-    var result = runCmd(.{
+    const result = runCmd(.{
         .allocator = allocator,
         .argv = argv.items,
     }) catch return ApplyError.NixBuildFailed;
@@ -413,8 +415,8 @@ fn nixBuildFlake(
     // avoiding that option here to support Nix versions without it.
     // Reading the symlink suffices.
     const result_dir = options.result_dir orelse "./result";
-    var path_buf: [os.PATH_MAX]u8 = undefined;
-    const path = os.readlink(result_dir, &path_buf) catch |err| {
+    var path_buf: [posix.PATH_MAX]u8 = undefined;
+    const path = posix.readlink(result_dir, &path_buf) catch |err| {
         switch (err) {
             error.AccessDenied => {
                 log.err("unable to readlink {s}: permission denied", .{result_dir});
@@ -442,7 +444,7 @@ fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []c
             // Create profile name directory if needed; this is grossly stupid
             // and requires root execution of `nixos`, because yeah.
             // How do I fix this?
-            os.mkdir(Constants.nix_system_profiles, 0o755) catch |err| blk: {
+            posix.mkdir(Constants.nix_system_profiles, 0o755) catch |err| blk: {
                 switch (err) {
                     error.AccessDenied => {
                         log.err("unable to create system profile directory {s}: permission denied", .{Constants.nix_system_profiles});
@@ -507,7 +509,7 @@ fn runSwitchToConfiguration(
     command: []const u8,
     options: struct { install_bootloader: bool = false },
 ) !void {
-    var env_map = try std.process.getEnvMap(allocator);
+    var env_map = try process.getEnvMap(allocator);
     defer env_map.deinit();
     if (options.install_bootloader) {
         try env_map.put("NIXOS_INSTALL_BOOTLOADER", "1");
@@ -541,7 +543,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
     else
         .SystemActivation;
 
-    if (os.linux.geteuid() != 0 and build_type == .SystemActivation) {
+    if (linux.geteuid() != 0 and build_type == .SystemActivation) {
         utils.execAsRoot(allocator) catch |err| {
             log.err("unable to re-exec this command as root: {s}", .{@errorName(err)});
             return ApplyError.PermissionDenied;
@@ -557,7 +559,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
             // Parse flake arg if explicitly specified as a positional argument.
             flake_ref = FlakeRef.fromSlice(flake);
             if (flake_ref.system.len == 0) {
-                flake_ref.system = os.gethostname(&hostname_buffer) catch {
+                flake_ref.system = posix.gethostname(&hostname_buffer) catch {
                     log.err("unable to determine hostname", .{});
                     return ApplyError.UnknownHostname;
                 };
@@ -570,7 +572,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
 
         // Check for existence of flake.nix in the NIXOS_CONFIG
         // or location specified in settings for `apply.config_location`
-        const nixos_config = os.getenv("NIXOS_CONFIG") orelse c.apply.config_location;
+        const nixos_config = posix.getenv("NIXOS_CONFIG") orelse c.apply.config_location;
 
         const nixos_config_is_flake = blk: {
             const filename = try fs.path.join(allocator, &.{ nixos_config, "flake.nix" });
@@ -583,7 +585,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
 
             flake_ref = FlakeRef.fromSlice(dir);
             if (flake_ref.system.len == 0) {
-                flake_ref.system = os.gethostname(&hostname_buffer) catch {
+                flake_ref.system = posix.gethostname(&hostname_buffer) catch {
                     log.err("unable to determine hostname", .{});
                     return ApplyError.UnknownHostname;
                 };
@@ -597,7 +599,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
     } else {
         // Verify legacy configuration exists, if needed (no need to store location,
         // because it is implicitly used by `nix-build "<nixpkgs/nixos>"`)
-        if (os.getenv("NIXOS_CONFIG")) |dir| {
+        if (posix.getenv("NIXOS_CONFIG")) |dir| {
             const filename = try fs.path.join(allocator, &.{ dir, "default.nix" });
             defer allocator.free(filename);
             if (!fileExistsAbsolute(filename)) {
@@ -607,7 +609,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
                 if (verbose) log.info("found legacy configuration at {s}", .{filename});
             }
         } else {
-            const nix_path = os.getenv("NIX_PATH") orelse "";
+            const nix_path = posix.getenv("NIX_PATH") orelse "";
             var paths = mem.tokenize(u8, nix_path, ":");
 
             var configuration: ?[]const u8 = null;
@@ -642,7 +644,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
     }
 
     // Create temporary directory for artifacts
-    const tmpdir_base = try fs.path.join(allocator, &.{ os.getenv("TMPDIR") orelse "/tmp", "nixos-apply" });
+    const tmpdir_base = try fs.path.join(allocator, &.{ posix.getenv("TMPDIR") orelse "/tmp", "nixos-apply" });
     defer allocator.free(tmpdir_base);
     const tmpdir = utils.mkTmpDir(allocator, tmpdir_base) catch |err| {
         if (err == error.PermissionDenied) {
@@ -720,7 +722,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
         const dirname = try fs.path.join(allocator, &.{ result, "bin" });
         defer allocator.free(dirname);
 
-        var dir = fs.openIterableDirAbsolute(dirname, .{}) catch @panic("unable to open /bin in result dir");
+        var dir = fs.openDirAbsolute(dirname, .{ .iterate = true }) catch @panic("unable to open /bin in result dir");
         defer dir.close();
 
         var filename: ?[]const u8 = null;

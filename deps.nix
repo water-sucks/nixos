@@ -4,10 +4,10 @@
 
 linkFarm "zig-packages" [
   {
-    name = "1220c74725fb0e865571956dd6004f1e70ef4eb801907155d8411b0bf06b82e510d1";
+    name = "12209ebe56e52b20466a2b2d763b6195134d82544ad4decb630eb7c1e2403aff482c";
     path = fetchzip {
-      url = "https://github.com/water-sucks/zignix/archive/043e2044345ecfd1f5b542480ad5493244fc0fd5.tar.gz";
-      hash = "sha256-0rdVejVe7Ypz+1vHXwrUPY1p8F1JygHJ9ORpmAXjTDM=";
+      url = "https://github.com/water-sucks/zignix/archive/31c699f40892ea0ffb144bd8513ae75755a8f0bf.tar.gz";
+      hash = "sha256-Io9ZWYb+SamNzjeUWAHuBxhJZXu4TksNjMnKUAOFSHI=";
     };
   }
 ]

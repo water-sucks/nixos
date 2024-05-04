@@ -2,7 +2,7 @@ const std = @import("std");
 const opts = @import("options");
 const mem = std.mem;
 const process = std.process;
-const os = std.os;
+const posix = std.posix;
 const Allocator = mem.Allocator;
 const ArgIterator = std.process.ArgIterator;
 const ArrayList = std.ArrayList;
@@ -127,7 +127,7 @@ const MainArgs = struct {
                 return ArgParseError.InvalidArgument;
             }
 
-            var is_alias = blk: {
+            const is_alias = blk: {
                 const c = config.getConfig();
                 if (c.aliases) |aliases| {
                     for (aliases) |kv| {

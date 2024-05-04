@@ -7,8 +7,8 @@ const fmt = std.fmt;
 const fs = std.fs;
 const mem = std.mem;
 const meta = std.meta;
-const os = std.os;
-const linux = os.linux;
+const posix = std.posix;
+const linux = std.os.linux;
 const process = std.process;
 
 const Allocator = mem.Allocator;
@@ -126,13 +126,13 @@ const EnterError = error{
     PermissionDenied,
     UnshareError,
     UnsupportedOs,
-} || Allocator.Error;
+} || process.GetEnvMapError || Allocator.Error;
 
 var verbose: bool = false;
 var exit_status: u8 = 0;
 
 inline fn checkMountError(dir: []const u8, errno: usize) !void {
-    switch (os.errno(errno)) {
+    switch (posix.errno(errno)) {
         // unhandled: EFAULT, EINVAL, EMFILE, ENODEV, ENOTBLK, ENXIO
         .SUCCESS => {
             if (verbose) log.info("mounted {s} successfully", .{dir});
@@ -148,7 +148,7 @@ inline fn checkMountError(dir: []const u8, errno: usize) !void {
         .NOENT => log.err("mounting {s} failed: no such file or directory", .{dir}),
         .NOMEM => return EnterError.OutOfMemory,
         .NOTDIR => log.err("mounting {s} failed: not a directory", .{dir}),
-        else => log.err("unhandled mount error while mounting {s}: {d}\n", .{ dir, os.errno(errno) }),
+        else => log.err("unhandled mount error while mounting {s}: {d}\n", .{ dir, posix.errno(errno) }),
     }
     return EnterError.MountFailed;
 }
@@ -162,7 +162,7 @@ fn unshare(allocator: Allocator) !void {
     try argv.appendSlice(&.{ "unshare", "--fork", "--mount", "--uts", "--mount-proc", "--pid" });
 
     // Map root user if not running as root
-    if (os.linux.geteuid() != 0) {
+    if (linux.geteuid() != 0) {
         try argv.append("-r");
     }
 
@@ -200,7 +200,7 @@ fn bindMount(allocator: Allocator, mountpoint: []const u8, dir: []const u8) !voi
     const dirname = try fs.path.joinZ(allocator, &.{ mountpoint, dir });
     defer allocator.free(dirname);
 
-    os.mkdir(dirname, 0o755) catch |err| {
+    posix.mkdir(dirname, 0o755) catch |err| {
         switch (err) {
             error.PathAlreadyExists => {
                 // This warning is kind of annoying because those directories
@@ -214,7 +214,7 @@ fn bindMount(allocator: Allocator, mountpoint: []const u8, dir: []const u8) !voi
         }
     };
 
-    const root_dirname = os.toPosixPath(dir) catch return EnterError.OutOfMemory;
+    const root_dirname = posix.toPosixPath(dir) catch return EnterError.OutOfMemory;
     const errno = linux.mount(&root_dirname, dirname.ptr, "", linux.MS.BIND | linux.MS.REC, 0);
     try checkMountError(&root_dirname, errno);
 }
@@ -228,9 +228,9 @@ fn getResolvConfLocation(allocator: Allocator, mountpoint: []const u8) ![:0]cons
     var created: bool = false;
 
     var trc_handle: std.fs.File = blk: {
-        var file = fs.openFileAbsolute(target_resolv_conf, .{}) catch |err| {
+        const file = fs.openFileAbsolute(target_resolv_conf, .{}) catch |err| {
             if (err == error.FileNotFound) {
-                var new_file = try fs.createFileAbsolute(target_resolv_conf, .{});
+                const new_file = try fs.createFileAbsolute(target_resolv_conf, .{});
                 created = true;
                 break :blk new_file;
             } else {
@@ -247,8 +247,8 @@ fn getResolvConfLocation(allocator: Allocator, mountpoint: []const u8) ![:0]cons
 
     const is_symlink = (try trc_handle.metadata()).kind() == .sym_link;
     if (is_symlink) {
-        var path_buf: [os.PATH_MAX]u8 = undefined;
-        const real_location = try os.realpath(target_resolv_conf, &path_buf);
+        var path_buf: [posix.PATH_MAX]u8 = undefined;
+        const real_location = try posix.realpath(target_resolv_conf, &path_buf);
 
         var path_builder = ArrayList([]const u8).init(allocator);
         defer path_builder.deinit();
@@ -336,7 +336,7 @@ fn enter(allocator: Allocator, args: EnterArgs) EnterError!void {
     }
 
     // Re-exec current process in private namespace with unshare
-    const is_reexec = (os.getenv(NIXOS_REEXEC) orelse "").len != 0;
+    const is_reexec = (posix.getenv(NIXOS_REEXEC) orelse "").len != 0;
     if (!is_reexec) {
         unshare(allocator) catch |err| {
             if (err == EnterError.OutOfMemory) {

@@ -38,7 +38,7 @@ pub const GenerationDiffArgs = struct {
     pub fn parseArgs(argv: *ArgIterator) !GenerationDiffArgs {
         var result: GenerationDiffArgs = GenerationDiffArgs{};
 
-        var before = argv.next() orelse {
+        const before = argv.next() orelse {
             argError("missing required argument <BEFORE>", .{});
             return ArgParseError.MissingRequiredArgument;
         };
@@ -47,7 +47,7 @@ pub const GenerationDiffArgs = struct {
             return ArgParseError.InvalidArgument;
         };
 
-        var next = argv.next() orelse {
+        const next = argv.next() orelse {
             argError("missing required argument <AFTER>", .{});
             return ArgParseError.MissingRequiredArgument;
         };

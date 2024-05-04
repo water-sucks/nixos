@@ -7,12 +7,13 @@ const fmt = std.fmt;
 const fs = std.fs;
 const mem = std.mem;
 const meta = std.meta;
-const os = std.os;
-const linux = os.linux;
+const posix = std.posix;
+const process = std.process;
+const linux = std.os.linux;
 
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
-const ArgIterator = std.process.ArgIterator;
+const ArgIterator = process.ArgIterator;
 
 const argparse = @import("argparse.zig");
 const ArgParseError = argparse.ArgParseError;
@@ -197,7 +198,7 @@ pub const InstallError = error{
     ResourceCreationFailed,
     SetNixProfileFailed,
     SetRootPasswordFailed,
-} || Allocator.Error;
+} || process.GetEnvMapError || Allocator.Error;
 
 const enable_flake_flags = &.{ "--extra-experimental-features", "nix-command flakes" };
 
@@ -219,15 +220,15 @@ const Options = struct {
 fn isValidMountpoint(path: []const u8) !void {
     // Check if mountpoint is directory
     var stat_buf: linux.Stat = undefined;
-    var errno = linux.stat(&(try os.toPosixPath(path)), &stat_buf);
+    var errno = linux.stat(&(try posix.toPosixPath(path)), &stat_buf);
     if (errno > 0) {
-        const err = linux.getErrno(errno);
+        const err = posix.errno(errno);
         switch (err) {
             .NOTDIR,
             .NOENT,
             => log.err("mountpoint {s} is not a directory", .{path}),
             .ACCES => log.err("unable to access {s}: permission denied", .{path}),
-            else => log.err("unable to stat {s}: {}", .{ path, linux.getErrno(errno) }),
+            else => log.err("unable to stat {s}: {}", .{ path, err }),
         }
         return InstallError.InvalidMountpoint;
     }
@@ -242,9 +243,9 @@ fn isValidMountpoint(path: []const u8) !void {
     var components = mem.tokenizeScalar(u8, path, '/');
     while (components.next()) |_| {
         const dirname = path[0..components.index];
-        errno = linux.stat(&(try os.toPosixPath(dirname)), &stat_buf);
+        errno = linux.stat(&(try posix.toPosixPath(dirname)), &stat_buf);
         if (errno > 0) {
-            log.err("unable to stat {s}: {}", .{ dirname, linux.getErrno(errno) });
+            log.err("unable to stat {s}: {}", .{ dirname, errno });
         }
         if (stat_buf.mode & linux.S.IRWXO < 5) {
             const incorrect_mode = stat_buf.mode & (linux.S.IRWXU | linux.S.IRWXG | linux.S.IRWXO);
@@ -261,7 +262,7 @@ fn copyChannel(allocator: Allocator, mountpoint: []const u8, channel_dir: ?[]con
     const mountpoint_channel_dir = try fs.path.join(allocator, &.{ mountpoint, channel_directory });
     defer allocator.free(mountpoint_channel_dir);
 
-    var channel_path = if (channel_dir) |dir| try allocator.dupe(u8, dir) else blk: {
+    const channel_path = if (channel_dir) |dir| try allocator.dupe(u8, dir) else blk: {
         const argv: []const []const u8 = &.{
             "nix-env",
             "-p",
@@ -318,7 +319,7 @@ fn copyChannel(allocator: Allocator, mountpoint: []const u8, channel_dir: ?[]con
         return InstallError.CopyChannelFailed;
     }
 
-    var defexpr_dir = mountpoint_dir.makeOpenPathIterable("root/.nix-defexpr", .{}) catch |err| {
+    var defexpr_dir = mountpoint_dir.makeOpenPath("root/.nix-defexpr", .{ .iterate = true }) catch |err| {
         log.err("unable to create .nix-defexpr while copying channel: {s}", .{@errorName(err)});
         return InstallError.CopyChannelFailed;
     };
@@ -332,12 +333,12 @@ fn copyChannel(allocator: Allocator, mountpoint: []const u8, channel_dir: ?[]con
     const defexpr_channels_linkname = try fs.path.join(allocator, &.{ mountpoint, "/root/.nix-defexpr/channels" });
     defer allocator.free(defexpr_channels_linkname);
 
-    defexpr_dir.dir.deleteTree("channels") catch |err| {
+    defexpr_dir.deleteTree("channels") catch |err| {
         log.err("unable to remove existing /root/.nix-defexpr/channels: {s}", .{@errorName(err)});
         return InstallError.CopyChannelFailed;
     };
 
-    os.symlink(channel_directory, defexpr_channels_linkname) catch |err| {
+    posix.symlink(channel_directory, defexpr_channels_linkname) catch |err| {
         log.err("unable to symlink channels directory to .nix-defexpr: {s}", .{@errorName(err)});
     };
 }
@@ -348,7 +349,7 @@ fn nixBuildFlake(
     mountpoint: []const u8,
     out_link: []const u8,
     options: Options,
-    env_map: *std.process.EnvMap,
+    env_map: *process.EnvMap,
 ) !void {
     const target = try fmt.allocPrint(allocator, "{s}#nixosConfigurations.{s}.config.system.build.toplevel", .{ flake_ref.uri, flake_ref.system });
     defer allocator.free(target);
@@ -385,7 +386,7 @@ fn nixBuild(
     mountpoint: []const u8,
     out_link: []const u8,
     options: Options,
-    env_map: *std.process.EnvMap,
+    env_map: *process.EnvMap,
 ) !void {
     const nixos_config_argstr = try fmt.allocPrint(allocator, "nixos-config={s}", .{config});
     defer allocator.free(nixos_config_argstr);
@@ -461,7 +462,7 @@ fn installBootloader(allocator: Allocator, root: []const u8) !void {
     const mtab_location = try fs.path.join(allocator, &.{ root, "/etc/mtab" });
     defer allocator.free(mtab_location);
 
-    os.symlink("/proc/mounts", mtab_location) catch |err| {
+    posix.symlink("/proc/mounts", mtab_location) catch |err| {
         if (err != error.PathAlreadyExists) {
             log.err("unable to symlink /proc/mounts to {s}: {s}; this is required for bootloader installation.", .{
                 mtab_location, @errorName(err),
@@ -470,8 +471,9 @@ fn installBootloader(allocator: Allocator, root: []const u8) !void {
         }
     };
 
+    var orig_args = process.args();
     const argv: []const []const u8 = &.{
-        mem.span(os.argv[0]),
+        orig_args.next().?,
         "enter",
         "--root",
         root,
@@ -481,7 +483,7 @@ fn installBootloader(allocator: Allocator, root: []const u8) !void {
 
     if (verbose) log.cmd(argv);
 
-    var env_map = try std.process.getEnvMap(allocator);
+    var env_map = try process.getEnvMap(allocator);
     defer env_map.deinit();
     try env_map.put("NIXOS_INSTALL_BOOTLOADER", "1");
 
@@ -499,8 +501,9 @@ fn installBootloader(allocator: Allocator, root: []const u8) !void {
 }
 
 fn setRootPassword(allocator: Allocator, mountpoint: []const u8) !void {
+    var orig_args = process.args();
     const argv: []const []const u8 = &.{
-        mem.span(os.argv[0]),
+        orig_args.next().?,
         "enter",
         "--root",
         mountpoint,
@@ -527,8 +530,8 @@ fn install(allocator: Allocator, args: InstallArgs) InstallError!void {
         .lock_options = args.lock_options.items,
     };
 
-    var realpath_buf: [os.PATH_MAX]u8 = undefined;
-    const mountpoint = os.realpath(args.root orelse "/mnt", &realpath_buf) catch |err| {
+    var realpath_buf: [posix.PATH_MAX]u8 = undefined;
+    const mountpoint = posix.realpath(args.root orelse "/mnt", &realpath_buf) catch |err| {
         log.err("unable to determine realpath of {s}: {s}", .{ args.root orelse "/mnt", @errorName(err) });
         return InstallError.ConfigurationNotFound;
     };
@@ -551,7 +554,7 @@ fn install(allocator: Allocator, args: InstallArgs) InstallError!void {
     };
 
     // Use this temporary directory for Nix-built artifacts
-    var env_map = try std.process.getEnvMap(allocator);
+    var env_map = try process.getEnvMap(allocator);
     if (env_map.get("TMPDIR") == null) {
         try env_map.put("TMPDIR", tmpdir);
     }
@@ -582,7 +585,7 @@ fn install(allocator: Allocator, args: InstallArgs) InstallError!void {
             };
         }
     } else {
-        const nixos_config_var = os.getenv("NIXOS_CONFIG");
+        const nixos_config_var = posix.getenv("NIXOS_CONFIG");
         if (nixos_config_var) |config| {
             if (!mem.startsWith(u8, config, "/")) {
                 log.err("NIXOS_CONFIG is not an absolute path", .{});
@@ -615,8 +618,8 @@ fn install(allocator: Allocator, args: InstallArgs) InstallError!void {
         }
     }
 
-    var link_buf: [os.PATH_MAX]u8 = undefined;
-    const system = args.system orelse os.readlink(out_link, &link_buf) catch |err| {
+    var link_buf: [posix.PATH_MAX]u8 = undefined;
+    const system = args.system orelse posix.readlink(out_link, &link_buf) catch |err| {
         log.err("unable to readlink {s}: {s}", .{ out_link, @errorName(err) });
         return InstallError.ResourceCreationFailed;
     };

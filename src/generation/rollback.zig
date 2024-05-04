@@ -2,7 +2,8 @@ const std = @import("std");
 const fmt = std.fmt;
 const fs = std.fs;
 const mem = std.mem;
-const os = std.os;
+const posix = std.posix;
+const linux = std.os.linux;
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
 const ArgIterator = std.process.ArgIterator;
@@ -93,7 +94,7 @@ pub fn setNixEnvProfile(allocator: Allocator, profile_dirname: []const u8, dry: 
 
     if (dry) return;
 
-    var result = runCmd(.{
+    const result = runCmd(.{
         .allocator = allocator,
         .argv = argv.items,
     }) catch return GenerationRollbackError.SetNixProfileFailed;
@@ -127,7 +128,7 @@ fn runSwitchToConfiguration(
 fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackArgs, profile_name: []const u8) !void {
     verbose = args.verbose;
 
-    if (os.linux.geteuid() != 0) {
+    if (linux.geteuid() != 0) {
         utils.execAsRoot(allocator) catch |err| {
             log.err("unable to re-exec this command as root: {s}", .{@errorName(err)});
             return GenerationRollbackError.PermissionDenied;

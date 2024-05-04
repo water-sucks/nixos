@@ -1,5 +1,5 @@
 const std = @import("std");
-const os = std.os;
+const posix = std.posix;
 const mem = std.mem;
 
 const whitespace = &std.ascii.whitespace;
@@ -12,7 +12,7 @@ const whitespace = &std.ascii.whitespace;
 /// Thanks to `riverwm` for this idea for version number management.
 const version = "0.6.0-dev";
 
-pub fn build(b: *std.build.Builder) void {
+pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -23,19 +23,26 @@ pub fn build(b: *std.build.Builder) void {
 
     const exe = b.addExecutable(.{
         .name = "nixos",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
     b.installArtifact(exe);
-    exe.addModule("nix", zignix_package.module("zignix"));
+    exe.root_module.addImport("nix", zignix_package.module("zignix"));
 
     const full_version = blk: {
         if (mem.endsWith(u8, version, "-dev")) {
-            var ret: u8 = undefined;
-            const git_describe_output = b.execAllowFail(&.{ "git", "-C", b.build_root.path orelse ".", "describe", "--long" }, &ret, .Inherit) catch break :blk version;
+            const git_describe_output = std.ChildProcess.run(.{
+                .allocator = b.allocator,
+                .argv = &.{ "git", "-C", b.build_root.path orelse ".", "describe", "--long" },
+            }) catch break :blk version;
 
-            var tokens = mem.split(u8, mem.trim(u8, git_describe_output, whitespace), "-");
+            switch (git_describe_output.term) {
+                .Exited => |status| if (status != 0) break :blk version,
+                else => break :blk version,
+            }
+
+            var tokens = mem.split(u8, mem.trim(u8, git_describe_output.stdout, whitespace), "-");
             _ = tokens.next();
             const commit_count = tokens.next().?;
             const short_hash = tokens.next().?;
@@ -47,13 +54,20 @@ pub fn build(b: *std.build.Builder) void {
             break :blk version;
         }
     };
+
     const git_rev = blk: {
-        var ret: u8 = undefined;
-        const output = b.execAllowFail(&.{ "git", "rev-parse", "HEAD" }, &ret, .Inherit) catch {
-            // This is for Nix derivation builds, this must be passed in Nix-side.
-            break :blk os.getenv("_NIXOS_GIT_REV") orelse "unknown";
-        };
-        break :blk mem.trim(u8, output, whitespace);
+        const nixos_rev_var = posix.getenv("_NIXOS_GIT_REV") orelse "unknown";
+        const git_rev_parse_output = std.ChildProcess.run(.{
+            .allocator = b.allocator,
+            .argv = &.{ "git", "rev-parse", "HEAD" },
+        }) catch break :blk nixos_rev_var;
+
+        switch (git_rev_parse_output.term) {
+            .Exited => |status| if (status != 0) break :blk nixos_rev_var,
+            else => break :blk nixos_rev_var,
+        }
+
+        break :blk mem.trim(u8, git_rev_parse_output.stdout, whitespace);
     };
 
     const options = b.addOptions();
@@ -66,7 +80,7 @@ pub fn build(b: *std.build.Builder) void {
     options.addOption(bool, "flake", flake);
     options.addOption([]const u8, "nixpkgs_version", nixpkgs_version);
     options.addOption([]const u8, "git_rev", git_rev);
-    exe.addOptions("options", options);
+    exe.root_module.addOptions("options", options);
 
     // Link to the Nix C API directly.
     exe.linkLibC();

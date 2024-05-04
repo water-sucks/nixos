@@ -21,7 +21,7 @@ pub fn printAliases() void {
 
     // Let's align the alias column to the max length.alias =
     // I freaking love alignment.
-    var max_column_len = blk: {
+    const max_column_len = blk: {
         var max_len = aliases[0].alias.len;
         for (aliases) |alias| {
             max_len = @max(alias.alias.len, max_len);

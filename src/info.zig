@@ -51,8 +51,7 @@ pub const InfoArgs = struct {
 
         // TODO: should this ignore conflicting args,
         // or take the first argument and run with it?
-        var next_arg: ?[]const u8 = args.next();
-        if (next_arg) |arg| {
+        if (args.next()) |arg| {
             if (argIs(arg, "--config-rev", "-c")) {
                 result.config_rev = true;
             } else if (argIs(arg, "--json", "-j")) {

@@ -7,7 +7,7 @@ const opts = @import("options");
 const fmt = std.fmt;
 const fs = std.fs;
 const mem = std.mem;
-const os = std.os;
+const posix = std.posix;
 const process = std.process;
 const ArrayList = std.ArrayList;
 const Allocator = mem.Allocator;
@@ -92,11 +92,11 @@ pub const ReplArgs = struct {
 
 pub const ReplError = error{ ConfigurationNotFound, ReplExecError } || Allocator.Error;
 
-var hostname_buffer: [os.HOST_NAME_MAX]u8 = undefined;
+var hostname_buffer: [posix.HOST_NAME_MAX]u8 = undefined;
 
 fn findFlakeRef(allocator: Allocator) !FlakeRef {
     var flake_ref: FlakeRef = undefined;
-    const nixos_config = os.getenv("NIXOS_CONFIG") orelse {
+    const nixos_config = posix.getenv("NIXOS_CONFIG") orelse {
         log.err("NIXOS_CONFIG is unset, unable to find configuration", .{});
         return ReplError.ConfigurationNotFound;
     };
@@ -115,7 +115,7 @@ fn findFlakeRef(allocator: Allocator) !FlakeRef {
 
     flake_ref = FlakeRef.fromSlice(nixos_config);
     if (flake_ref.system.len == 0) {
-        flake_ref.system = os.gethostname(&hostname_buffer) catch {
+        flake_ref.system = posix.gethostname(&hostname_buffer) catch {
             log.err("unable to determine hostname", .{});
             return ReplError.ConfigurationNotFound;
         };
@@ -152,7 +152,7 @@ fn execFlakeRepl(allocator: Allocator, ref: FlakeRef, includes: []const []const 
 // Verify legacy configuration exists, if needed (no need to store location,
 // because it is implicitly used by Nix REPL expression)
 fn legacyConfigExists(allocator: Allocator) !void {
-    if (os.getenv("NIXOS_CONFIG")) |dir| {
+    if (posix.getenv("NIXOS_CONFIG")) |dir| {
         const filename = try fs.path.join(allocator, &.{ dir, "default.nix" });
         defer allocator.free(filename);
         if (!fileExistsAbsolute(filename)) {
@@ -160,7 +160,7 @@ fn legacyConfigExists(allocator: Allocator) !void {
             return ReplError.ConfigurationNotFound;
         }
     } else {
-        const nix_path = os.getenv("NIX_PATH") orelse "";
+        const nix_path = posix.getenv("NIX_PATH") orelse "";
         var paths = mem.tokenize(u8, nix_path, ":");
 
         var configuration: ?[]const u8 = null;
@@ -215,7 +215,7 @@ fn repl(allocator: Allocator, args: ReplArgs) ReplError!void {
         execFlakeRepl(allocator, flake_ref, args.includes.items) catch return ReplError.ReplExecError;
     } else {
         try legacyConfigExists(allocator);
-        execLegacyRepl(allocator, args.includes.items, os.getenv("NIXOS_CONFIG") != null) catch return ReplError.ReplExecError;
+        execLegacyRepl(allocator, args.includes.items, posix.getenv("NIXOS_CONFIG") != null) catch return ReplError.ReplExecError;
     }
 }
 
