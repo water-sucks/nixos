@@ -58,7 +58,7 @@
         }:
           pkgs.stdenv.mkDerivation {
             pname = "nixos";
-            version = "0.7.0";
+            version = "0.7.0-dev";
             src = gitignoreSource ./.;
 
             postPatch = ''

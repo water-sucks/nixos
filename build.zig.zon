@@ -1,6 +1,6 @@
 .{
     .name = "nixos",
-    .version = "0.7.0",
+    .version = "0.7.0-dev",
     .minimum_zig_version = "0.12.0",
     .paths = .{"."},
     .dependencies = .{
