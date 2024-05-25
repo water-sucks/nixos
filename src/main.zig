@@ -233,7 +233,7 @@ fn execAlias(allocator: Allocator, al: Alias) !void {
 
     try new_args.append(original_args[0]);
     try new_args.appendSlice(al.resolve);
-    if (original_args.len > 3) {
+    if (original_args.len > 2) {
         try new_args.appendSlice(original_args[2..]);
     }
 
