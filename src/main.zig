@@ -164,7 +164,7 @@ pub fn main() !u8 {
     defer arena_allocator.deinit();
     const allocator = arena_allocator.allocator();
 
-    config.parseConfig(allocator) catch return 2;
+    config.parseConfig(allocator) catch {};
     defer config.deinit();
 
     const nix_context = nix.util.NixContext.init() catch {
