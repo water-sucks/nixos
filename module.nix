@@ -30,7 +30,6 @@ in {
           init = {
             xserver_enabled = config.services.xserver.enable;
             desktop_config = desktopConfig;
-            extra_attrs = [];
             extra_config = "";
           };
         }
