@@ -1,0 +1,63 @@
+From 30cefd232379f0c539c0e39d32a484399af0b480 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=C3=81lan=20Cr=C3=ADstoffer?= <acristoffers@startmail.com>
+Date: Thu, 23 Nov 2023 11:41:00 +0100
+Subject: [PATCH 1/2] fix: do not reuse the buffer in the inner loop
+
+This fixes the error where the ZLS new zon file is not properly parsed.
+---
+ src/parse.zig |  3 ++-
+ 2 files changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/src/parse.zig b/src/parse.zig
+index fda3b6e..892dec6 100644
+--- a/src/parse.zig
++++ b/src/parse.zig
+@@ -39,7 +39,8 @@ pub fn parse(alloc: Allocator, deps: *StringHashMap(Dependency), file: File) !vo
+             var has_url = false;
+             var has_hash = false;
+ 
+-            const dep_init = ast.fullStructInit(&buf, dep_idx) orelse {
++            var buf2: [2]Index = undefined;
++            const dep_init = ast.fullStructInit(&buf2, dep_idx) orelse {
+                 return error.parseError;
+             };
+ 
+
+From de23dfb87a02a8f283e2869f3becb2b0bfc6fe46 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=C3=81lan=20Cr=C3=ADstoffer?= <acristoffers@startmail.com>
+Date: Sat, 25 Nov 2023 12:53:35 +0100
+Subject: [PATCH 2/2] fix: new zon format allows .path instead of url/hash
+
+---
+ src/parse.zig | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/parse.zig b/src/parse.zig
+index 892dec6..09f7c0d 100644
+--- a/src/parse.zig
++++ b/src/parse.zig
+@@ -38,6 +38,7 @@ pub fn parse(alloc: Allocator, deps: *StringHashMap(Dependency), file: File) !vo
+             var hash: []const u8 = undefined;
+             var has_url = false;
+             var has_hash = false;
++            var has_path = false;
+ 
+             var buf2: [2]Index = undefined;
+             const dep_init = ast.fullStructInit(&buf2, dep_idx) orelse {
+@@ -53,12 +54,14 @@ pub fn parse(alloc: Allocator, deps: *StringHashMap(Dependency), file: File) !vo
+                 } else if (mem.eql(u8, name, "hash")) {
+                     hash = try parseString(alloc, ast, dep_field_idx);
+                     has_hash = true;
++                } else if (mem.eql(u8, name, "path")) {
++                    has_path = true;
+                 }
+             }
+ 
+             if (has_url and has_hash) {
+                 _ = try deps.getOrPutValue(hash, dep);
+-            } else {
++            } else if (!has_path) {
+                 return error.parseError;
+             }
+         }
+
