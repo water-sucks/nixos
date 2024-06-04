@@ -2,11 +2,12 @@ const std = @import("std");
 const mem = std.mem;
 const json = std.json;
 const Allocator = mem.Allocator;
-const ParsedJson = json.Parsed;
 
 const Constants = @import("constants.zig");
 
 const log = @import("log.zig");
+
+const toml = @import("toml");
 
 const utils = @import("utils.zig");
 const fileExistsAbsolute = utils.fileExistsAbsolute;
@@ -45,14 +46,15 @@ pub const ParseConfigError = error{
     InvalidValue,
 };
 
-var config_value: ?ParsedJson(Config) = null;
+var config_value: ?toml.Parsed(Config) = null;
 
 pub fn getConfig() Config {
     return if (config_value) |parsed| parsed.value else Config{};
 }
 
 pub fn parseConfig(allocator: Allocator) !void {
-    const config_location = Constants.config_location ++ "/config.json";
+    const config_location = Constants.config_location ++ "/config.toml";
+
     const config_str = readFile(allocator, config_location) catch |err| {
         switch (err) {
             error.FileNotFound => return,
@@ -62,10 +64,10 @@ pub fn parseConfig(allocator: Allocator) !void {
     };
     defer allocator.free(config_str);
 
-    const parsed = json.parseFromSlice(Config, allocator, config_str, .{
-        .ignore_unknown_fields = true,
-        .allocate = .alloc_always,
-    }) catch |err| {
+    var parser = toml.Parser(Config).init(allocator);
+    defer parser.deinit();
+
+    const parsed = parser.parseString(config_str) catch |err| {
         log.err("unable to parse settings: {s}", .{@errorName(err)});
         return err;
     };
