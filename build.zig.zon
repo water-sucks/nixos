@@ -11,5 +11,9 @@
             .url = "https://github.com/water-sucks/zignix/archive/31c699f40892ea0ffb144bd8513ae75755a8f0bf.tar.gz",
             .hash = "12209ebe56e52b20466a2b2d763b6195134d82544ad4decb630eb7c1e2403aff482c",
         },
+        .@"zig-toml" = .{
+            .url = "https://github.com/sam701/zig-toml/archive/d55987673c6f41931fdd6986892c3a8d7e9595a2.tar.gz",
+            .hash = "1220a982de60b7b9671df3855bd4301560476ce82c601b5c234015bbc163153db9d8",
+        },
     },
 }
