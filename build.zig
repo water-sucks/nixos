@@ -20,6 +20,10 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    const toml_package = b.dependency("zig-toml", .{
+        .target = target,
+        .optimize = optimize,
+    });
 
     const exe = b.addExecutable(.{
         .name = "nixos",
@@ -29,6 +33,7 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(exe);
     exe.root_module.addImport("nix", zignix_package.module("zignix"));
+    exe.root_module.addImport("toml", toml_package.module("zig-toml"));
 
     const full_version = blk: {
         if (mem.endsWith(u8, version, "-dev")) {

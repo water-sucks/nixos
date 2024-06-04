@@ -10,4 +10,11 @@ linkFarm "zig-packages" [
       hash = "sha256-Io9ZWYb+SamNzjeUWAHuBxhJZXu4TksNjMnKUAOFSHI=";
     };
   }
+  {
+    name = "1220a982de60b7b9671df3855bd4301560476ce82c601b5c234015bbc163153db9d8";
+    path = fetchzip {
+      url = "https://github.com/sam701/zig-toml/archive/d55987673c6f41931fdd6986892c3a8d7e9595a2.tar.gz";
+      hash = "sha256-gG1B2JZV1Q1RvwU+GIAV8x711LgWbY7+y4JFqqcRZZg=";
+    };
+  }
 ]
