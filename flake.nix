@@ -103,23 +103,27 @@
           nixosLegacy = nixos.override {flake = false;};
         };
 
-        devShells.default = pkgs.mkShell {
-          name = "nixos-shell";
-          packages = [
-            pkgs.alejandra
-            pkgs.zon2nix
-          ];
-          nativeBuildInputs = [
-            zigPackage
-            pkgs.pkg-config
-          ];
-          buildInputs = [
-            nixPackage.dev
-          ];
+        devShells.default = let
+          zon2nix = pkgs.zon2nix.overrideAttrs (o: {
+            patches = [./zon2nix.patch];
+          });
+        in
+          pkgs.mkShell {
+            name = "nixos-shell";
+            packages = [
+              pkgs.alejandra
+              zon2nix
+            ];
+            nativeBuildInputs = [
+              zigPackage
+              pkgs.pkg-config
+            ];
+            buildInputs = [
+              nixPackage.dev
+            ];
 
-          ZIG_DOCS = "${zigPackage}/doc/langref.html";
-          ZIG_STD_DOCS = "${zigPackage}/doc/std/index.html";
-        };
+            ZIG_DOCS = "${zigPackage}/doc/langref.html";
+          };
       };
 
       flake = {
