@@ -37,6 +37,7 @@ const FlakeRef = utils.FlakeRef;
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 const readFile = utils.readFile;
 const runCmd = utils.runCmd;
+const isExectuable = utils.isExecutable;
 
 pub const ApplyArgs = struct {
     // Show what would be built or ran but do not actually run it
@@ -59,6 +60,8 @@ pub const ApplyArgs = struct {
     upgrade_channels: bool = false,
     // Upgrade all of the root user's channels
     upgrade_all_channels: bool = false,
+    // Use nix-output-monitor for building
+    use_nom: bool = false,
     // Build a script that starts a NixOS VM directly
     vm: bool = false,
     // Build a script that starts a NixOS VM through the configured bootloader
@@ -109,6 +112,7 @@ pub const ApplyArgs = struct {
         \\    -u, --upgrade                  Upgrade the root user's `nixos` channel
         \\        --upgrade-all              Upgrade all of the root user's channels
     ) ++
+        \\        --use-nom                  Use `nix-output-monitor` for building
         \\    -v, --verbose                  Show verbose logging
         \\        --vm                       Build a script that starts a NixOS VM
         \\        --vm-with-bootloader       Build a script that starts a NixOS VM through the configured bootloader
@@ -158,6 +162,8 @@ pub const ApplyArgs = struct {
             } else if (argIs(arg, "--upgrade-all", null) and !opts.flake) {
                 result.upgrade_channels = true;
                 result.upgrade_all_channels = true;
+            } else if (argIs(arg, "--use-nom", null)) {
+                result.use_nom = true;
             } else if (argIn(arg, &.{ "--verbose", "-v", "-vv", "-vvv", "-vvvv", "-vvvvv" })) {
                 verbose = true;
                 try result.build_options.append(arg);
@@ -305,6 +311,7 @@ fn nixBuild(
         build_options: []const []const u8,
         result_dir: ?[]const u8 = null,
         dry: bool = false,
+        use_nom: bool = false,
     },
 ) ![]const u8 {
     const attribute = switch (build_type) {
@@ -316,8 +323,10 @@ fn nixBuild(
     var argv = ArrayList([]const u8).init(allocator);
     defer argv.deinit();
 
-    // nix-build -A ${attribute} [-k] [--out-link <dir>] [${build_options}]
-    try argv.appendSlice(&.{ "nix-build", "<nixpkgs/nixos>", "-A", attribute });
+    const nix_command = if (options.use_nom) "nom-build" else "nix-build";
+
+    // ${nix_command} -A ${attribute} [-k] [--out-link <dir>] [${build_options}]
+    try argv.appendSlice(&.{ nix_command, "<nixpkgs/nixos>", "-A", attribute });
 
     // Mimic `nixos-rebuild` behavior of using -k option
     // for all commands except for switch and boot
@@ -358,6 +367,7 @@ fn nixBuildFlake(
         flake_options: []const []const u8,
         result_dir: ?[]const u8 = null,
         dry: bool = false,
+        use_nom: bool = false,
     },
 ) ![]const u8 {
     const attr_to_build = switch (build_type) {
@@ -376,8 +386,10 @@ fn nixBuildFlake(
     var argv = ArrayList([]const u8).init(allocator);
     defer argv.deinit();
 
-    // nix build ${attribute} [--out-link <dir>] [${build_options}] [${flake_options}]
-    try argv.append("nix");
+    const nix_command = if (options.use_nom) "nom" else "nix";
+
+    // ${nix_command} build ${attribute} [--out-link <dir>] [${build_options}] [${flake_options}]
+    try argv.append(nix_command);
     try argv.appendSlice(&.{ "build", attribute });
 
     if (options.result_dir) |dir| {
@@ -672,6 +684,16 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
     // Location of the resulting NixOS generation
     var result: []const u8 = undefined;
 
+    var use_nom = args.use_nom or c.apply.use_nom;
+    const nom_found = isExectuable("nom");
+    if (args.use_nom and !nom_found) {
+        log.err("--use-nom was specified, but `nom` is not executable", .{});
+        return ApplyError.NixBuildFailed;
+    } else if (c.apply.use_nom and !nom_found) {
+        log.warn("apply.use_nom is specified in config, but `nom` is not executable", .{});
+        log.warn("falling back to `nix` command for building", .{});
+        use_nom = false;
+    }
     if (opts.flake) {
         result = nixBuildFlake(allocator, build_type, flake_ref, .{
             .build_options = args.build_options.items,
@@ -683,6 +705,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
             else
                 null,
             .dry = dry_build,
+            .use_nom = use_nom,
         }) catch |err| {
             log.err("failed to build the system configuration", .{});
             if (err == error.PermissionDenied) {
@@ -702,6 +725,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
             else
                 null,
             .dry = dry_build,
+            .use_nom = use_nom,
         }) catch |err| {
             log.err("failed to build the system configuration", .{});
             if (err == error.PermissionDenied) {

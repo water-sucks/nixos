@@ -63,6 +63,7 @@ The default configuration with all available options and examples is as follows:
 [apply]
 specialisation = "" # Name of specialisation to use by default
 config_location = "/etc/nixos" # Where to look for configuration by default
+use_nom = false # Use `nix-output-monitor` as an alternative `nix build` front-end
 
 # Configuration for the `enter` subcommand.
 [enter]

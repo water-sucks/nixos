@@ -30,6 +30,7 @@ pub const Config = struct {
     apply: struct {
         specialisation: ?[]const u8 = null,
         config_location: []const u8 = "/etc/nixos",
+        use_nom: bool = false,
     } = .{},
     enter: struct {
         mount_resolv_conf: bool = true,
