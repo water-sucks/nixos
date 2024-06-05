@@ -348,8 +348,6 @@ fn nixBuild(
     return result.stdout.?;
 }
 
-const enable_flake_flags = &.{ "--extra-experimental-features", "nix-command flakes" };
-
 /// Build a NixOS configuration located in a flake
 fn nixBuildFlake(
     allocator: Allocator,
@@ -378,9 +376,8 @@ fn nixBuildFlake(
     var argv = ArrayList([]const u8).init(allocator);
     defer argv.deinit();
 
-    // nix ${enable_flake_flags} build ${attribute} [--out-link <dir>] [${build_options}] [${flake_options}]
+    // nix build ${attribute} [--out-link <dir>] [${build_options}] [${flake_options}]
     try argv.append("nix");
-    try argv.appendSlice(enable_flake_flags);
     try argv.appendSlice(&.{ "build", attribute });
 
     if (options.result_dir) |dir| {
@@ -485,7 +482,7 @@ fn setNixEnvProfile(allocator: Allocator, profile: ?[]const u8, config_path: []c
 // current generation's directory. Caller does not own returned
 // memory.
 pub fn findSpecialization(allocator: Allocator) !?[]const u8 {
-    const config_location = Constants.current_system ++ "/etc/nixos-cli/config.json";
+    const config_location = Constants.current_system ++ "/etc/nixos-cli/config.toml";
     const config_str = readFile(allocator, config_location) catch |err| {
         switch (err) {
             error.FileNotFound => log.warn("no settings file, unable to find specialisation to activate", .{}),
