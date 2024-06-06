@@ -7,22 +7,14 @@
     flake-parts.url = "github:hercules-ci/flake-parts";
 
     # Make sure this flake input is in sync with the Zig-fetched package
-    # by updating the corresponding dependency inside build.zig.zon and
-    # running zon2nix after. Otherwise, the symbols exported by Nix may
-    # not be guaranteed to be the same as the ones in the upstream Nix
-    # bindings package.
+    # by updating the corresponding dependency inside build.zig.zon.
+    # Otherwise, the symbols exported by Nix may # not be guaranteed to
+    # be the same as the ones in the upstream Nix bindings package.
     zignix.url = "github:water-sucks/zignix";
-
-    zig-overlay.url = "github:mitchellh/zig-overlay";
 
     flake-compat = {
       url = "github:edolstra/flake-compat";
       flake = false;
-    };
-
-    gitignore = {
-      url = "github:hercules-ci/gitignore.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
@@ -43,87 +35,29 @@
         system,
         ...
       }: let
-        zigPackage = inputs.zig-overlay.packages.${system}."0.12.0";
         nixPackage = inputs.zignix.inputs.nix.packages.${system}.nix;
-
-        inherit (inputs.gitignore.lib) gitignoreSource;
-
-        package = {
-          callPackage,
-          zig,
-          pkg-config,
-          autoPatchelfHook,
-          nix,
-          flake ? true,
-        }:
-          pkgs.stdenv.mkDerivation {
-            pname = "nixos";
-            version = "0.7.0-dev";
-            src = gitignoreSource ./.;
-
-            postPatch = ''
-              mkdir -p .cache
-              ln -s ${callPackage ./deps.nix {}} .cache/p
-            '';
-
-            nativeBuildInputs = [zig pkg-config autoPatchelfHook];
-
-            buildInputs = [nix.dev];
-
-            dontConfigure = true;
-            dontInstall = true;
-
-            _NIXOS_GIT_REV = self.rev or "dirty";
-
-            buildPhase = ''
-              mkdir -p $out
-              zig build install \
-                --cache-dir $(pwd)/zig-cache \
-                --global-cache-dir $(pwd)/.cache \
-                -Dcpu=baseline \
-                -Doptimize=ReleaseSafe \
-                -Dflake=${lib.boolToString flake} \
-                --prefix $out
-            '';
-
-            meta = with pkgs.lib; {
-              homepage = "https://github.com/water-sucks/nixos";
-              description = "A unified NixOS tooling replacement for nixos-* utilities";
-              license = licenses.gpl3Only;
-              maintainers = with maintainers; [water-sucks];
-            };
-          };
       in {
         packages = rec {
           default = nixos;
-          nixos = pkgs.callPackage package {
-            zig = zigPackage;
+          nixos = pkgs.callPackage (import ./package.nix) {
+            revision = self.rev or "dirty";
             nix = nixPackage;
           };
           nixosLegacy = nixos.override {flake = false;};
         };
 
-        devShells.default = let
-          zon2nix = pkgs.zon2nix.overrideAttrs (o: {
-            patches = [./zon2nix.patch];
-          });
-        in
-          pkgs.mkShell {
-            name = "nixos-shell";
-            packages = [
-              pkgs.alejandra
-              zon2nix
-            ];
-            nativeBuildInputs = [
-              zigPackage
-              pkgs.pkg-config
-            ];
-            buildInputs = [
-              nixPackage.dev
-            ];
+        devShells.default = pkgs.mkShell {
+          name = "nixos-shell";
+          nativeBuildInputs = [
+            pkgs.zig
+            pkgs.pkg-config
+          ];
+          buildInputs = [
+            nixPackage.dev
+          ];
 
-            ZIG_DOCS = "${zigPackage}/doc/langref.html";
-          };
+          ZIG_DOCS = "${pkgs.zig}/doc/langref.html";
+        };
       };
 
       flake = {
