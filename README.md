@@ -42,14 +42,12 @@ the recommended way to use this program.
 ## Configuration
 
 This can be configured using the NixOS module (the preferred way), which
-generates a file at `/etc/nixos-cli/config.toml`.
+generates a file at `/etc/nixos-cli/config.toml`. An absolute path to a
+configuration file can also be specified using the `NIXOS_CLI_CONFIG`
+environment variable.
 
-The default configuration with all available options and examples is located
-in [`config.sample.toml`](./config.sample.toml).
-
-Some of the configuration is a little awkward to specify right now, such
-as aliases, but I plan to fix that in the future once I can find a TOML
-parsing library that supports dynamic key-value pairs.
+A sample configuration file with all available options, along with some example
+configuration is located in [`config.sample.toml`](./config.sample.toml).
 
 ## TODO
 
