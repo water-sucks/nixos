@@ -44,43 +44,8 @@ the recommended way to use this program.
 This can be configured using the NixOS module (the preferred way), which
 generates a file at `/etc/nixos-cli/config.toml`.
 
-The default configuration with all available options and examples is as follows:
-
-```toml
-# Aliases for long commands that you don't want to type out. All arguments
-# after the aliases are passed as-is to the underlying command.
-[[aliases]]
-# alias = "genlist" # Name of the alias; must not contain spaces
-# resolve = ["generation", "list"] # Args to resolve this alias, as a list of strings
-
-# Multiple aliases must be defined separately (this is a limitation of the
-# TOML parsing library and will be fixed in the future)
-# [[aliases]]
-# alias = "switch"
-# resolve = ["generation", "switch"]
-
-# Configuration for the `apply` subcommand.
-[apply]
-specialisation = "" # Name of specialisation to use by default
-config_location = "/etc/nixos" # Where to look for configuration by default
-use_nom = false # Use `nix-output-monitor` as an alternative `nix build` front-end
-
-# Configuration for the `enter` subcommand.
-[enter]
-mount_resolv_conf = true # Bind-mount the host `resolv.conf` inside the chroot for internet access
-
-# Configuration for the `init` subcommand. This is managed by `nixpkgs`, and
-# normally should not be touched unless you know what you are doing.
-[init]
-enable_xserver = false # Generate options to enable X11 display server
-desktop_config = "" # Configuration options for a desktop environment to include by default
-extra_config = "" # Extra configuration to append to `configuration.nix` as a string
-
-# Extra configuration to append to `configuration.nix`, as structured key-value pairs
-[[init.extra_attrs]]
-# name = "" # Name of key
-# value = "" # Name of value
-```
+The default configuration with all available options and examples is located
+in [`config.sample.toml`](./config.sample.toml).
 
 Some of the configuration is a little awkward to specify right now, such
 as aliases, but I plan to fix that in the future once I can find a TOML
