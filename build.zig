@@ -1,6 +1,7 @@
 const std = @import("std");
 const posix = std.posix;
 const mem = std.mem;
+const ChildProcess = std.process.Child;
 
 const whitespace = &std.ascii.whitespace;
 
@@ -37,7 +38,7 @@ pub fn build(b: *std.Build) void {
 
     const full_version = blk: {
         if (mem.endsWith(u8, version, "-dev")) {
-            const git_describe_output = std.ChildProcess.run(.{
+            const git_describe_output = ChildProcess.run(.{
                 .allocator = b.allocator,
                 .argv = &.{ "git", "-C", b.build_root.path orelse ".", "describe", "--long" },
             }) catch break :blk version;
@@ -62,7 +63,7 @@ pub fn build(b: *std.Build) void {
 
     const git_rev = blk: {
         const nixos_rev_var = posix.getenv("_NIXOS_GIT_REV") orelse "unknown";
-        const git_rev_parse_output = std.ChildProcess.run(.{
+        const git_rev_parse_output = ChildProcess.run(.{
             .allocator = b.allocator,
             .argv = &.{ "git", "rev-parse", "HEAD" },
         }) catch break :blk nixos_rev_var;
@@ -104,7 +105,7 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run.step);
 
     const exe_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });

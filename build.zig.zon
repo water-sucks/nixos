@@ -1,15 +1,20 @@
 .{
     .name = "nixos",
     .version = "0.7.0-dev",
-    .minimum_zig_version = "0.12.0",
-    .paths = .{"."},
+    .minimum_zig_version = "0.13.0",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "README.md",
+    },
     .dependencies = .{
         // Make sure the flake input is in sync with the Zig-fetched package
         // by updating the zignix input inside flake.nix any time this package
         // is updated.
         .zignix = .{
-            .url = "https://github.com/water-sucks/zignix/archive/31c699f40892ea0ffb144bd8513ae75755a8f0bf.tar.gz",
-            .hash = "12209ebe56e52b20466a2b2d763b6195134d82544ad4decb630eb7c1e2403aff482c",
+            .url = "https://github.com/water-sucks/zignix/archive/8ab6fb2688d3c7a1e4797c063fd8caddd162b270.tar.gz",
+            .hash = "1220af3693cc465af183cbef9b17123012d4e4b39d22d42b7a9385917d5c6fe269cc",
         },
         .@"zig-toml" = .{
             .url = "https://github.com/sam701/zig-toml/archive/d55987673c6f41931fdd6986892c3a8d7e9595a2.tar.gz",

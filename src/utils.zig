@@ -13,8 +13,8 @@ const log = @import("./log.zig");
 
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
-const ChildProcess = std.ChildProcess;
-const EnvMap = std.process.EnvMap;
+const ChildProcess = process.Child;
+const EnvMap = process.EnvMap;
 
 /// Print to a writer, ignoring errors.
 pub fn print(out: anytype, comptime format: []const u8, args: anytype) void {

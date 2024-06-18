@@ -16,6 +16,8 @@
       url = "github:edolstra/flake-compat";
       flake = false;
     };
+
+    zig-deps-fod.url = "github:water-sucks/zig-deps-fod";
   };
 
   outputs = {
@@ -35,28 +37,30 @@
         system,
         ...
       }: let
+        inherit (pkgs) callPackage zig pkg-config mkShell;
         nixPackage = inputs.zignix.inputs.nix.packages.${system}.nix;
       in {
         packages = rec {
           default = nixos;
-          nixos = pkgs.callPackage (import ./package.nix) {
+          nixos = callPackage (import ./package.nix) {
             revision = self.rev or "dirty";
             nix = nixPackage;
+            inherit (inputs.zig-deps-fod.lib) fetchZigDeps;
           };
           nixosLegacy = nixos.override {flake = false;};
         };
 
-        devShells.default = pkgs.mkShell {
+        devShells.default = mkShell {
           name = "nixos-shell";
           nativeBuildInputs = [
-            pkgs.zig
-            pkgs.pkg-config
+            zig
+            pkg-config
           ];
           buildInputs = [
             nixPackage.dev
           ];
 
-          ZIG_DOCS = "${pkgs.zig}/doc/langref.html";
+          ZIG_DOCS = "${zig}/doc/langref.html";
         };
       };
 

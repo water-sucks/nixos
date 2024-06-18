@@ -9,8 +9,8 @@ fn log(comptime prefix: []const u8, comptime fmt: []const u8, args: anytype) voi
     const real_prefix = prefix ++ (if (prefix.len != 0) ": " else "");
 
     const stderr = std.io.getStdErr().writer();
-    std.debug.getStderrMutex().lock();
-    defer std.debug.getStderrMutex().unlock();
+    std.debug.lockStdErr();
+    defer std.debug.unlockStdErr();
     nosuspend stderr.print(real_prefix ++ fmt ++ "\n", args) catch return;
 }
 

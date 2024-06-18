@@ -638,10 +638,11 @@ fn install(allocator: Allocator, args: InstallArgs) InstallError!void {
             return InstallError.ResourceCreationFailed;
         }
     };
-    mountpoint_dir.writeFile("etc/NIXOS", "") catch |err| {
+    const file = mountpoint_dir.createFile("etc/NIXOS", .{}) catch |err| {
         log.err("unable to create file {s}/etc/NIXOS: {s}", .{ mountpoint, @errorName(err) });
         return InstallError.ResourceCreationFailed;
     };
+    file.close();
 
     if (!args.no_bootloader) {
         log.info("installing the bootloader...", .{});
