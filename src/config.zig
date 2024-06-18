@@ -1,6 +1,7 @@
 const std = @import("std");
 const mem = std.mem;
 const json = std.json;
+const posix = std.posix;
 const Allocator = mem.Allocator;
 
 const Constants = @import("constants.zig");
@@ -54,7 +55,7 @@ pub fn getConfig() Config {
 }
 
 pub fn parseConfig(allocator: Allocator) !void {
-    const config_location = Constants.config_location ++ "/config.toml";
+    const config_location = posix.getenv("NIXOS_CLI_CONFIG") orelse Constants.default_config_location;
 
     const config_str = readFile(allocator, config_location) catch |err| {
         switch (err) {
