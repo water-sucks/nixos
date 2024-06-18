@@ -21,13 +21,13 @@ const getNextArgs = argparse.getNextArgs;
 const ArgParseError = argparse.ArgParseError;
 
 const config = @import("config.zig");
-const KVPair = config.KVPair;
 
 const Constants = @import("constants.zig");
 
 const log = @import("log.zig");
 
 const utils = @import("utils.zig");
+const KVPair = utils.KVPair;
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 const readFile = utils.readFile;
 const concatStringsSep = utils.concatStringsSep;
@@ -842,7 +842,15 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: Ni
     var attrs = ArrayList(KVPair).init(allocator);
     defer attrs.deinit();
     if (c.init.extra_attrs) |extra_attrs| {
-        try attrs.appendSlice(extra_attrs);
+        var it = extra_attrs.iterator();
+        while (it.next()) |kv| {
+            const key = kv.key_ptr.*;
+            const value = kv.value_ptr.string;
+            try attrs.append(KVPair{
+                .name = key,
+                .value = value,
+            });
+        }
     }
 
     const array_refs = ArrayRefs{

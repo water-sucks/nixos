@@ -312,3 +312,8 @@ pub fn execAsRoot(allocator: Allocator) !noreturn {
     err = process.execve(allocator, argv.items, null);
     return err;
 }
+
+pub const KVPair = struct {
+    name: []const u8,
+    value: []const u8,
+};

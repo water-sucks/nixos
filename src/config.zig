@@ -14,20 +14,8 @@ const utils = @import("utils.zig");
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 const readFile = utils.readFile;
 
-pub const Alias = struct {
-    /// Name of alias on command line; must not contain spaces
-    alias: []const u8,
-    /// What to resolve alias to on command line
-    resolve: []const []const u8,
-};
-
-pub const KVPair = struct {
-    name: []const u8,
-    value: []const u8,
-};
-
 pub const Config = struct {
-    aliases: ?[]Alias = null,
+    aliases: ?toml.Table = null,
     apply: struct {
         specialisation: ?[]const u8 = null,
         config_location: []const u8 = "/etc/nixos",
@@ -39,7 +27,7 @@ pub const Config = struct {
     init: struct {
         enable_xserver: bool = false,
         desktop_config: ?[]const u8 = null,
-        extra_attrs: ?[]KVPair = null,
+        extra_attrs: ?toml.Table = null,
         extra_config: ?[]const u8 = null,
     } = .{},
 };
@@ -78,18 +66,47 @@ pub fn parseConfig(allocator: Allocator) !void {
 
     // Validation
     if (config.aliases) |aliases| {
-        for (aliases) |kv| {
-            if (kv.alias.len == 0) {
-                configError("alias name cannot be empty", .{});
+        var it = aliases.iterator();
+        while (it.next()) |kv| {
+            const key = kv.key_ptr.*;
+            const value = kv.value_ptr.*;
+
+            if (key.len == 0) {
+                configError("aliases: alias name cannot be empty", .{});
                 return ParseConfigError.InvalidValue;
-            } else if (kv.resolve.len == 0) {
-                configError("alias value cannot be empty", .{});
+            }
+            if (mem.startsWith(u8, key, "-")) {
+                configError("aliases: alias '{s}' cannot start with a '-'", .{key});
                 return ParseConfigError.InvalidValue;
-            } else if (mem.startsWith(u8, kv.alias, "-")) {
-                configError("alias '{s}' cannot start with a '-'", .{kv.alias});
+            }
+            if (mem.indexOfAny(u8, key, &std.ascii.whitespace) != null) {
+                configError("aliases: alias '{s}' cannot have whitespace", .{key});
                 return ParseConfigError.InvalidValue;
-            } else if (mem.indexOfAny(u8, kv.alias, &std.ascii.whitespace) != null) {
-                configError("alias '{s}' cannot have whitespace", .{kv.alias});
+            }
+            if (std.meta.activeTag(value) != .array) {
+                configError("aliases.{s}: expected type array, got type {s}", .{ key, @tagName(value) });
+                return ParseConfigError.InvalidValue;
+            }
+            if (value.array.items.len == 0) {
+                configError("aliases.{s}: args list cannot be empty", .{key});
+                return ParseConfigError.InvalidValue;
+            }
+            for (value.array.items) |arg| {
+                if (std.meta.activeTag(arg) != .string) {
+                    configError("aliases.{s}: expected type string for args array, got type {s}", .{ key, @tagName(arg) });
+                    return ParseConfigError.InvalidValue;
+                }
+            }
+        }
+    }
+
+    if (config.init.extra_attrs) |extra_attrs| {
+        var it = extra_attrs.iterator();
+        while (it.next()) |kv| {
+            const key = kv.key_ptr.*;
+            const value = kv.value_ptr.*;
+            if (std.meta.activeTag(value) != .string) {
+                configError("init.extra_attrs: expected type string for key '{s}', got type {s}", .{ key, @tagName(value) });
                 return ParseConfigError.InvalidValue;
             }
         }

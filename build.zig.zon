@@ -17,8 +17,8 @@
             .hash = "1220af3693cc465af183cbef9b17123012d4e4b39d22d42b7a9385917d5c6fe269cc",
         },
         .@"zig-toml" = .{
-            .url = "https://github.com/sam701/zig-toml/archive/d55987673c6f41931fdd6986892c3a8d7e9595a2.tar.gz",
-            .hash = "1220a982de60b7b9671df3855bd4301560476ce82c601b5c234015bbc163153db9d8",
+            .url = "https://github.com/sam701/zig-toml/archive/67e35c75c5d11caf398bccae39d14d7187d1a952.tar.gz",
+            .hash = "1220ced9b2f6943f688ce1e20a40f143d83c4182320e4b9d30e470b010d44b356f0a",
         },
     },
 }

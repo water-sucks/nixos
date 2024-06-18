@@ -1,14 +1,11 @@
 # Aliases for long commands that you don't want to type out. All arguments
 # after the aliases are passed as-is to the underlying command.
-[[aliases]]
-alias = "genlist" # Name of the alias; must not contain spaces
-resolve = ["generation", "list"] # Args to resolve this alias, as a list of strings
-
-# Multiple aliases must be defined separately (this is a limitation of the
-# TOML parsing library and will be fixed in the future)
-# [[aliases]]
-# alias = "switch"
-# resolve = ["generation", "switch"]
+# Aliases must not contain spaces.
+# Aliases are resolved to a series of arguments, as a list of strings.
+[aliases]
+genlist = ["generation", "list"]
+switch = ["generation", "switch"]
+rollback = ["generation", "rollback"]
 
 # Configuration for the `apply` subcommand.
 [apply]
@@ -28,6 +25,5 @@ desktop_config = "" # Configuration options for a desktop environment to include
 extra_config = "" # Extra configuration to append to `configuration.nix` as a string
 
 # Extra configuration to append to `configuration.nix`, as structured key-value pairs
-[[init.extra_attrs]]
-name = "hello" # Name of key
-value = "\"world\"" # Name of value
+[init.extra_attrs]
+hello = "\"world\""

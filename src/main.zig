@@ -27,7 +27,6 @@ const InstallArgs = install.InstallArgs;
 const ReplArgs = repl.ReplArgs;
 
 const config = @import("config.zig");
-const Alias = config.Alias;
 
 const log = @import("log.zig");
 
@@ -44,7 +43,7 @@ const MainArgs = struct {
 
     const Subcommand = union(enum) {
         aliases,
-        alias: Alias,
+        alias: []const []const u8,
         apply: ApplyArgs,
         enter: EnterArgs,
         generation: GenerationArgs,
@@ -130,9 +129,18 @@ const MainArgs = struct {
             const is_alias = blk: {
                 const c = config.getConfig();
                 if (c.aliases) |aliases| {
-                    for (aliases) |kv| {
-                        if (mem.eql(u8, arg, kv.alias)) {
-                            result.subcommand = .{ .alias = kv };
+                    var it = aliases.iterator();
+                    while (it.next()) |kv| {
+                        const key = kv.key_ptr.*;
+                        const value = kv.value_ptr.array.items;
+
+                        if (mem.eql(u8, arg, key)) {
+                            const resolved_alias_args = try allocator.alloc([]const u8, value.len);
+                            errdefer allocator.free(resolved_alias_args);
+                            for (value, 0..) |a, i| {
+                                resolved_alias_args[i] = a.string;
+                            }
+                            result.subcommand = .{ .alias = resolved_alias_args };
                             break :blk true;
                         }
                     }
@@ -200,8 +208,9 @@ pub fn main() !u8 {
             alias.printAliases();
             return 0;
         },
-        .alias => |al| {
-            execAlias(allocator, al) catch |err| {
+        .alias => |resolved| {
+            defer allocator.free(resolved);
+            execAlias(allocator, resolved) catch |err| {
                 log.err("error executing alias command: {s}", .{@errorName(err)});
                 return 1;
             };
@@ -224,7 +233,7 @@ pub fn main() !u8 {
     return status;
 }
 
-fn execAlias(allocator: Allocator, al: Alias) !void {
+fn execAlias(allocator: Allocator, resolved: []const []const u8) !void {
     const original_args = try process.argsAlloc(allocator);
     defer process.argsFree(allocator, original_args);
 
@@ -232,7 +241,7 @@ fn execAlias(allocator: Allocator, al: Alias) !void {
     defer new_args.deinit();
 
     try new_args.append(original_args[0]);
-    try new_args.appendSlice(al.resolve);
+    try new_args.appendSlice(resolved);
     if (original_args.len > 2) {
         try new_args.appendSlice(original_args[2..]);
     }
