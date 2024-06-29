@@ -11,7 +11,7 @@ const whitespace = &std.ascii.whitespace;
 /// for the commit that gets tagged. Directly after the tagged commit,
 /// the version should be bumped and the "-dev" suffix added.
 /// Thanks to `riverwm` for this idea for version number management.
-const version = "0.7.0-dev";
+const version = "0.8.0-dev";
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -80,7 +80,7 @@ pub fn build(b: *std.Build) void {
     // Flake-specific features are enabled by default.
     const flake = b.option(bool, "flake", "Use flake-specific commands and options") orelse true;
     // Change the nixpkgs branch to initialize configurations with
-    const nixpkgs_version = b.option([]const u8, "nixpkgs-version", "Nixpkgs branch name to initialize configurations with") orelse "release-23.11";
+    const nixpkgs_version = b.option([]const u8, "nixpkgs-version", "Nixpkgs branch name to initialize configurations with") orelse "release-24.05";
 
     options.addOption([]const u8, "version", full_version);
     options.addOption(bool, "flake", flake);
