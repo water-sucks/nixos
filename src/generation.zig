@@ -47,7 +47,7 @@ pub const GenerationArgs = struct {
         \\    nixos generation [options] <COMMAND>
         \\
         \\Commands:
-        \\    diff <FROM>..<TO>    Show what packages were changed between two generations
+        \\    diff <FROM> <TO>    Show what packages were changed between two generations
         \\    list                 List all NixOS generations in current profile
         \\    rollback             Activate the previous generation
         \\    switch <NUMBER>      Activate the generation with the given number

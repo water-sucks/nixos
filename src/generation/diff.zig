@@ -21,8 +21,8 @@ const fileExistsAbsolute = utils.fileExistsAbsolute;
 const runCmd = utils.runCmd;
 
 pub const GenerationDiffArgs = struct {
-    before: usize = undefined,
-    after: usize = undefined,
+    before: usize = 0,
+    after: usize = 0,
 
     const usage =
         \\Display what packages differ between two generations.
@@ -33,33 +33,46 @@ pub const GenerationDiffArgs = struct {
         \\Arguments:
         \\    <BEFORE>:    Number of first generation
         \\    <AFTER>:     Number of second generation
+        \\
     ;
 
     pub fn parseArgs(argv: *ArgIterator) !GenerationDiffArgs {
-        var result: GenerationDiffArgs = GenerationDiffArgs{};
+        var result = GenerationDiffArgs{};
 
-        const before = argv.next() orelse {
+        var before_parsed = false;
+        var after_parsed = false;
+
+        while (argv.next()) |arg| {
+            if (argIs(arg, "--help", "-h")) {
+                log.print("{s}", .{usage});
+                return ArgParseError.HelpInvoked;
+            }
+
+            if (!before_parsed) {
+                result.before = std.fmt.parseInt(usize, arg, 10) catch {
+                    argError("'{s}' is not a valid generation number", .{arg});
+                    return ArgParseError.InvalidArgument;
+                };
+                before_parsed = true;
+            } else if (!after_parsed) {
+                result.after = std.fmt.parseInt(usize, arg, 10) catch {
+                    argError("'{s}' is not a valid generation number", .{arg});
+                    return ArgParseError.InvalidArgument;
+                };
+                after_parsed = true;
+            } else {
+                argError("argument '{s}' is not valid in this context", .{arg});
+                return ArgParseError.InvalidArgument;
+            }
+        }
+
+        if (result.before == 0) {
             argError("missing required argument <BEFORE>", .{});
             return ArgParseError.MissingRequiredArgument;
-        };
-        result.before = std.fmt.parseInt(usize, before, 10) catch {
-            argError("'{s}' is not a valid generation number", .{before});
-            return ArgParseError.InvalidArgument;
-        };
-
-        const next = argv.next() orelse {
+        }
+        if (result.after == 0) {
             argError("missing required argument <AFTER>", .{});
             return ArgParseError.MissingRequiredArgument;
-        };
-
-        result.after = std.fmt.parseInt(usize, next, 10) catch {
-            argError("'{s}' is not a valid generation number", .{next});
-            return ArgParseError.InvalidArgument;
-        };
-
-        if (argv.next()) |arg| {
-            argError("'{s}' is not valid in this context", .{arg});
-            return ArgParseError.InvalidArgument;
         }
 
         return result;
