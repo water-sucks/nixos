@@ -44,34 +44,27 @@ pub const GenerationRollbackArgs = struct {
         \\
     ;
 
-    pub fn parseArgs(argv: *ArgIterator) !GenerationRollbackArgs {
-        var result: GenerationRollbackArgs = GenerationRollbackArgs{};
-
+    pub fn parseArgs(argv: *ArgIterator, parsed: *GenerationRollbackArgs) !?[]const u8 {
         var next_arg = argv.next();
         while (next_arg) |arg| {
             if (argIs(arg, "--dry", "-d")) {
-                result.dry = true;
+                parsed.dry = true;
             } else if (argIs(arg, "--help", "-h")) {
                 log.print("{s}", .{usage});
                 return ArgParseError.HelpInvoked;
             } else if (argIs(arg, "--specialisation", "-s")) {
                 const next = (try getNextArgs(argv, arg, 1))[0];
-                result.specialization = next;
+                parsed.specialization = next;
             } else if (argIs(arg, "--verbose", "-v")) {
-                result.verbose = true;
+                parsed.verbose = true;
             } else {
-                if (argparse.isFlag(arg)) {
-                    argError("unrecognised flag '{s}'", .{arg});
-                } else {
-                    argError("argument '{s}' is not valid in this context", .{arg});
-                }
-                return ArgParseError.InvalidArgument;
+                return arg;
             }
 
             next_arg = argv.next();
         }
 
-        return result;
+        return null;
     }
 };
 

@@ -48,9 +48,9 @@ pub const GenerationArgs = struct {
         \\
         \\Commands:
         \\    diff <FROM> <TO>    Show what packages were changed between two generations
-        \\    list                 List all NixOS generations in current profile
-        \\    rollback             Activate the previous generation
-        \\    switch <NUMBER>      Activate the generation with the given number
+        \\    list                List all NixOS generations in current profile
+        \\    rollback            Activate the previous generation
+        \\    switch <NUMBER>     Activate the generation with the given number
         \\
         \\Options:
         \\    -h, --help        Show this help menu
@@ -63,6 +63,8 @@ pub const GenerationArgs = struct {
     pub fn parseArgs(argv: *ArgIterator) !GenerationArgs {
         var result: GenerationArgs = GenerationArgs{};
 
+        var selected_subcommand = false;
+
         var next_arg: ?[]const u8 = argv.next();
         while (next_arg) |arg| {
             if (argIs(arg, "--help", "-h")) {
@@ -70,34 +72,46 @@ pub const GenerationArgs = struct {
                 return ArgParseError.HelpInvoked;
             } else if (argIs(arg, "--profile", "-p")) {
                 result.profile = (try argparse.getNextArgs(argv, arg, 1))[0];
-            } else if (mem.eql(u8, arg, "diff")) {
-                result.subcommand = .{ .diff = try GenerationDiffArgs.parseArgs(argv) };
-            } else if (mem.eql(u8, arg, "list")) {
-                result.subcommand = .{ .list = try GenerationListArgs.parseArgs(argv) };
-            } else if (mem.eql(u8, arg, "rollback")) {
-                result.subcommand = .{ .rollback = try GenerationRollbackArgs.parseArgs(argv) };
-            } else if (mem.eql(u8, arg, "switch")) {
-                result.subcommand = .{ .@"switch" = try GenerationSwitchArgs.parseArgs(argv) };
-            } else {
-                if (argparse.isFlag(arg)) {
-                    argError("unrecognised flag '{s}'", .{arg});
-                } else {
-                    if (result.subcommand == null) {
-                        argError("unknown subcommand '{s}'", .{arg});
-                        return ArgParseError.InvalidSubcommand;
-                    }
-                    argError("argument '{s}' is not valid in this context", .{arg});
-                }
+            } else if (argparse.isFlag(arg)) {
+                argError("unrecognised flag '{s}'", .{arg});
                 return ArgParseError.InvalidArgument;
+            } else if (!selected_subcommand) {
+                if (mem.eql(u8, arg, "diff")) {
+                    result.subcommand = .{ .diff = GenerationDiffArgs{} };
+                } else if (mem.eql(u8, arg, "list")) {
+                    result.subcommand = .{ .list = GenerationListArgs{} };
+                } else if (mem.eql(u8, arg, "rollback")) {
+                    result.subcommand = .{ .rollback = GenerationRollbackArgs{} };
+                } else if (mem.eql(u8, arg, "switch")) {
+                    result.subcommand = .{ .@"switch" = GenerationSwitchArgs{} };
+                } else {
+                    argError("unknown subcommand '{s}'", .{arg});
+                    return ArgParseError.InvalidSubcommand;
+                }
+                selected_subcommand = true;
             }
 
-            next_arg = argv.next();
+            next_arg = if (selected_subcommand) switch (result.subcommand.?) {
+                .diff => |*sub_args| try GenerationDiffArgs.parseArgs(argv, sub_args),
+                .list => |*sub_args| try GenerationListArgs.parseArgs(argv, sub_args),
+                .rollback => |*sub_args| try GenerationRollbackArgs.parseArgs(argv, sub_args),
+                .@"switch" => |*sub_args| try GenerationSwitchArgs.parseArgs(argv, sub_args),
+            } else argv.next();
         }
 
-        if (result.subcommand == null) {
+        if (!selected_subcommand) {
             argError("no subcommand specified", .{});
             return ArgParseError.MissingRequiredArgument;
         }
+
+        // NOTE: DO NOT REMOVE THIS! This serves as extra validation in case
+        // an extra argument has not been passed correctly.
+        _ = switch (result.subcommand.?) {
+            .diff => |*sub_args| try GenerationDiffArgs.parseArgs(argv, sub_args),
+            .list => |*sub_args| try GenerationListArgs.parseArgs(argv, sub_args),
+            .rollback => |*sub_args| try GenerationRollbackArgs.parseArgs(argv, sub_args),
+            .@"switch" => |*sub_args| try GenerationSwitchArgs.parseArgs(argv, sub_args),
+        };
 
         return result;
     }

@@ -36,9 +36,7 @@ pub const GenerationDiffArgs = struct {
         \\
     ;
 
-    pub fn parseArgs(argv: *ArgIterator) !GenerationDiffArgs {
-        var result = GenerationDiffArgs{};
-
+    pub fn parseArgs(argv: *ArgIterator, parsed: *GenerationDiffArgs) !?[]const u8 {
         var before_parsed = false;
         var after_parsed = false;
 
@@ -48,14 +46,18 @@ pub const GenerationDiffArgs = struct {
                 return ArgParseError.HelpInvoked;
             }
 
+            if (argparse.isFlag(arg)) {
+                return arg;
+            }
+
             if (!before_parsed) {
-                result.before = std.fmt.parseInt(usize, arg, 10) catch {
+                parsed.before = std.fmt.parseInt(usize, arg, 10) catch {
                     argError("'{s}' is not a valid generation number", .{arg});
                     return ArgParseError.InvalidArgument;
                 };
                 before_parsed = true;
             } else if (!after_parsed) {
-                result.after = std.fmt.parseInt(usize, arg, 10) catch {
+                parsed.after = std.fmt.parseInt(usize, arg, 10) catch {
                     argError("'{s}' is not a valid generation number", .{arg});
                     return ArgParseError.InvalidArgument;
                 };
@@ -66,16 +68,16 @@ pub const GenerationDiffArgs = struct {
             }
         }
 
-        if (result.before == 0) {
+        if (parsed.before == 0) {
             argError("missing required argument <BEFORE>", .{});
             return ArgParseError.MissingRequiredArgument;
         }
-        if (result.after == 0) {
+        if (parsed.after == 0) {
             argError("missing required argument <AFTER>", .{});
             return ArgParseError.MissingRequiredArgument;
         }
 
-        return result;
+        return null;
     }
 };
 
