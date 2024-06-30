@@ -49,30 +49,25 @@ pub const GenerationSwitchArgs = struct {
         \\
     ;
 
-    pub fn parseArgs(argv: *ArgIterator) !GenerationSwitchArgs {
-        var result: GenerationSwitchArgs = GenerationSwitchArgs{};
-
+    pub fn parseArgs(argv: *ArgIterator, parsed: *GenerationSwitchArgs) !?[]const u8 {
         var next_arg = argv.next();
+
         while (next_arg) |arg| {
             if (argIs(arg, "--dry", "-d")) {
-                result.dry = true;
+                parsed.dry = true;
             } else if (argIs(arg, "--help", "-h")) {
                 log.print("{s}", .{usage});
                 return ArgParseError.HelpInvoked;
             } else if (argIs(arg, "--specialisation", "-s")) {
                 const next = (try getNextArgs(argv, arg, 1))[0];
-                result.specialization = next;
+                parsed.specialization = next;
             } else if (argIs(arg, "--verbose", "-v")) {
-                result.verbose = true;
+                parsed.verbose = true;
+            } else if (argparse.isFlag(arg)) {
+                return arg;
             } else {
-                if (argparse.isFlag(arg)) {
-                    argError("unrecognised flag '{s}'", .{arg});
-                    return ArgParseError.InvalidArgument;
-                }
-
-                if (result.gen_number != null) {
-                    argError("argument '{s}' is not valid in this context", .{arg});
-                    return ArgParseError.InvalidArgument;
+                if (parsed.gen_number != null) {
+                    return arg;
                 }
 
                 _ = std.fmt.parseInt(usize, arg, 10) catch |err| {
@@ -83,18 +78,18 @@ pub const GenerationSwitchArgs = struct {
                     return ArgParseError.InvalidArgument;
                 };
 
-                result.gen_number = arg;
+                parsed.gen_number = arg;
             }
 
             next_arg = argv.next();
         }
 
-        if (result.gen_number == null) {
+        if (parsed.gen_number == null) {
             argError("missing required argument <NUMBER>", .{});
             return ArgParseError.MissingRequiredArgument;
         }
 
-        return result;
+        return null;
     }
 };
 
