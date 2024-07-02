@@ -36,7 +36,7 @@ const runCmd = utils.runCmd;
 const nix = @import("nix");
 const NixState = nix.expr.EvalState;
 
-pub const InitConfigArgs = struct {
+pub const InitConfigCommand = struct {
     dir: ?[]const u8 = null,
     force: bool = false,
     no_fs: bool = false,
@@ -58,43 +58,36 @@ pub const InitConfigArgs = struct {
         \\
     ;
 
-    pub fn parseArgs(args: *ArgIterator) !InitConfigArgs {
-        var result = InitConfigArgs{};
-
-        var next_arg: ?[]const u8 = args.next();
+    pub fn parseArgs(argv: *ArgIterator, parsed: *InitConfigCommand) !?[]const u8 {
+        var next_arg: ?[]const u8 = argv.next();
         while (next_arg) |arg| {
             if (argIs(arg, "--dir", "-d")) {
-                const next = (try getNextArgs(args, arg, 1))[0];
-                result.dir = next;
+                const next = (try getNextArgs(argv, arg, 1))[0];
+                parsed.dir = next;
             } else if (argIs(arg, "--help", "-h")) {
                 log.print("{s}", .{usage});
                 return ArgParseError.HelpInvoked;
             } else if (argIs(arg, "--force", "-f")) {
-                result.force = true;
+                parsed.force = true;
             } else if (argIs(arg, "--no-fs", "-n")) {
-                result.no_fs = true;
+                parsed.no_fs = true;
             } else if (argIs(arg, "--root", "-r")) {
-                const next = (try getNextArgs(args, arg, 1))[0];
+                const next = (try getNextArgs(argv, arg, 1))[0];
                 if (mem.eql(u8, next, "/")) {
                     argError("no need to specify '/' with '--root', it is the default", .{});
                     return ArgParseError.InvalidArgument;
                 }
-                result.root = next;
+                parsed.root = next;
             } else if (argIs(arg, "--show-hardware-config", "-s")) {
-                result.show_hw_config = true;
+                parsed.show_hw_config = true;
             } else {
-                if (argparse.isFlag(arg)) {
-                    argError("unrecognised flag '{s}'", .{arg});
-                } else {
-                    argError("argument '{s}' is not valid in this context", .{arg});
-                }
-                return ArgParseError.InvalidArgument;
+                return arg;
             }
 
-            next_arg = args.next();
+            next_arg = argv.next();
         }
 
-        return result;
+        return null;
     }
 };
 
@@ -821,7 +814,7 @@ fn nixStringList(allocator: Allocator, items: []const []const u8, sep: []const u
 /// Generate hardware-configuration.nix text.
 /// Caller owns returned memory.
 // TODO: cleanup allocs properly
-fn generateHwConfigNix(allocator: Allocator, args: InitConfigArgs, nix_state: NixState, virt_type: VirtualizationType) ![]const u8 {
+fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, nix_state: NixState, virt_type: VirtualizationType) ![]const u8 {
     const c = config.getConfig();
 
     var imports = ArrayList([]const u8).init(allocator);
@@ -1241,7 +1234,7 @@ fn generateConfigNix(allocator: Allocator, virt_type: VirtualizationType) ![]con
     });
 }
 
-fn initConfig(allocator: Allocator, args: InitConfigArgs) !void {
+fn initConfig(allocator: Allocator, args: InitConfigCommand) !void {
     // This is needed by both configuration.nix and
     // hardware-configuration.nix, so it's generated outside.
     const virt_type = determineVirtualizationType(allocator);
@@ -1388,7 +1381,7 @@ fn initConfig(allocator: Allocator, args: InitConfigArgs) !void {
     }
 }
 
-pub fn initConfigMain(allocator: Allocator, args: InitConfigArgs) u8 {
+pub fn initConfigMain(allocator: Allocator, args: InitConfigCommand) u8 {
     if (builtin.os.tag != .linux) {
         log.err("the init command is unsupported on non-Linux systems");
         return 3;

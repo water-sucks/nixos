@@ -27,13 +27,11 @@ const GenerationRollbackArgs = generationRollback.GenerationRollbackArgs;
 
 const GenerationError = error{};
 
-pub const GenerationArgs = struct {
-    // System profile directory to use
+pub const GenerationCommand = struct {
     profile: ?[]const u8 = null,
-    // Subcommand that will be ran
-    subcommand: ?GenerationCommand = null,
+    subcommand: ?GenerationSubcommand = null,
 
-    const GenerationCommand = union(enum) {
+    const GenerationSubcommand = union(enum) {
         diff: GenerationDiffArgs,
         list: GenerationListArgs,
         rollback: GenerationRollbackArgs,
@@ -60,60 +58,53 @@ pub const GenerationArgs = struct {
         \\
     ;
 
-    pub fn parseArgs(argv: *ArgIterator) !GenerationArgs {
-        var result: GenerationArgs = GenerationArgs{};
-
-        var selected_subcommand = false;
-
+    pub fn parseArgs(argv: *ArgIterator, parsed: *GenerationCommand) !?[]const u8 {
         var next_arg: ?[]const u8 = argv.next();
         while (next_arg) |arg| {
             if (argIs(arg, "--help", "-h")) {
                 log.print("{s}", .{usage});
                 return ArgParseError.HelpInvoked;
             } else if (argIs(arg, "--profile", "-p")) {
-                result.profile = (try argparse.getNextArgs(argv, arg, 1))[0];
+                parsed.profile = (try argparse.getNextArgs(argv, arg, 1))[0];
             } else if (argparse.isFlag(arg)) {
-                argError("unrecognised flag '{s}'", .{arg});
-                return ArgParseError.InvalidArgument;
-            } else if (!selected_subcommand) {
+                return arg;
+            } else if (parsed.subcommand == null) {
                 if (mem.eql(u8, arg, "diff")) {
-                    result.subcommand = .{ .diff = GenerationDiffArgs{} };
+                    parsed.subcommand = .{ .diff = GenerationDiffArgs{} };
                 } else if (mem.eql(u8, arg, "list")) {
-                    result.subcommand = .{ .list = GenerationListArgs{} };
+                    parsed.subcommand = .{ .list = GenerationListArgs{} };
                 } else if (mem.eql(u8, arg, "rollback")) {
-                    result.subcommand = .{ .rollback = GenerationRollbackArgs{} };
+                    parsed.subcommand = .{ .rollback = GenerationRollbackArgs{} };
                 } else if (mem.eql(u8, arg, "switch")) {
-                    result.subcommand = .{ .@"switch" = GenerationSwitchArgs{} };
+                    parsed.subcommand = .{ .@"switch" = GenerationSwitchArgs{} };
                 } else {
-                    argError("unknown subcommand '{s}'", .{arg});
-                    return ArgParseError.InvalidSubcommand;
+                    return arg;
                 }
-                selected_subcommand = true;
             }
 
-            next_arg = if (selected_subcommand) switch (result.subcommand.?) {
-                .diff => |*sub_args| try GenerationDiffArgs.parseArgs(argv, sub_args),
-                .list => |*sub_args| try GenerationListArgs.parseArgs(argv, sub_args),
-                .rollback => |*sub_args| try GenerationRollbackArgs.parseArgs(argv, sub_args),
-                .@"switch" => |*sub_args| try GenerationSwitchArgs.parseArgs(argv, sub_args),
-            } else argv.next();
+            if (parsed.subcommand != null) {
+                next_arg = switch (parsed.subcommand.?) {
+                    .diff => |*sub_args| try GenerationDiffArgs.parseArgs(argv, sub_args),
+                    .list => |*sub_args| try GenerationListArgs.parseArgs(argv, sub_args),
+                    .rollback => |*sub_args| try GenerationRollbackArgs.parseArgs(argv, sub_args),
+                    .@"switch" => |*sub_args| try GenerationSwitchArgs.parseArgs(argv, sub_args),
+                };
+            } else {
+                next_arg = argv.next();
+            }
         }
 
-        if (!selected_subcommand) {
+        if (parsed.subcommand == null) {
             argError("no subcommand specified", .{});
             return ArgParseError.MissingRequiredArgument;
         }
 
-        // NOTE: DO NOT REMOVE THIS! This serves as extra validation in case
-        // an extra argument has not been passed correctly.
-        _ = switch (result.subcommand.?) {
+        return switch (parsed.subcommand.?) {
             .diff => |*sub_args| try GenerationDiffArgs.parseArgs(argv, sub_args),
             .list => |*sub_args| try GenerationListArgs.parseArgs(argv, sub_args),
             .rollback => |*sub_args| try GenerationRollbackArgs.parseArgs(argv, sub_args),
             .@"switch" => |*sub_args| try GenerationSwitchArgs.parseArgs(argv, sub_args),
         };
-
-        return result;
     }
 };
 
@@ -124,7 +115,7 @@ pub const GenerationInfo = struct {
     configurationRevision: ?[]const u8 = null,
 };
 
-pub fn generationMain(allocator: Allocator, args: GenerationArgs) u8 {
+pub fn generationMain(allocator: Allocator, args: GenerationCommand) u8 {
     if (!fileExistsAbsolute(Constants.etc_nixos)) {
         log.err("the generation command is unsupported on non-NixOS systems", .{});
         return 3;

@@ -1,5 +1,6 @@
 const std = @import("std");
 const opts = @import("options");
+const io = std.io;
 const mem = std.mem;
 const process = std.process;
 const posix = std.posix;
@@ -18,13 +19,13 @@ const install = @import("install.zig");
 const manual = @import("manual.zig");
 const repl = @import("repl.zig");
 
-const ApplyArgs = apply.ApplyArgs;
-const EnterArgs = enter.EnterArgs;
-const GenerationArgs = generation.GenerationArgs;
-const InfoArgs = info.InfoArgs;
-const InitConfigArgs = init.InitConfigArgs;
-const InstallArgs = install.InstallArgs;
-const ReplArgs = repl.ReplArgs;
+const ApplyCommand = apply.ApplyCommand;
+const EnterCommand = enter.EnterCommand;
+const GenerationCommand = generation.GenerationCommand;
+const InfoCommand = info.InfoCommand;
+const InitConfigCommand = init.InitConfigCommand;
+const InstallCommand = install.InstallCommand;
+const ReplCommand = repl.ReplCommand;
 
 const config = @import("config.zig");
 
@@ -32,27 +33,34 @@ const log = @import("log.zig");
 
 const argparse = @import("argparse.zig");
 const argError = argparse.argError;
+const argIs = argparse.argIs;
 const App = argparse.App;
 const ArgParseError = argparse.ArgParseError;
 const Command = argparse.Command;
 
 const nix = @import("nix");
 
+const utils = @import("utils.zig");
+const println = utils.println;
+
 const MainArgs = struct {
-    subcommand: Subcommand = undefined,
+    subcommand: ?Subcommand = null,
+    allocator: Allocator,
+
+    const Self = @This();
 
     const Subcommand = union(enum) {
         aliases,
         alias: []const []const u8,
-        apply: ApplyArgs,
-        enter: EnterArgs,
-        generation: GenerationArgs,
+        apply: ApplyCommand,
+        enter: EnterCommand,
+        generation: GenerationCommand,
         features,
-        info: InfoArgs,
-        init: InitConfigArgs,
-        install: InstallArgs,
+        info: InfoCommand,
+        init: InitConfigCommand,
+        install: InstallCommand,
         manual,
-        repl: ReplArgs,
+        repl: ReplCommand,
     };
 
     const usage =
@@ -75,86 +83,119 @@ const MainArgs = struct {
         \\
         \\Options:
         \\    -h, --help       Show this help menu
-        \\    -v, --version    Print version information
+        \\        --version    Print version information
         \\
         \\For more information about a command and its options, add --help after.
         \\
     ;
 
     pub fn parseArgs(allocator: Allocator, argv: *ArgIterator) !MainArgs {
-        var result: MainArgs = MainArgs{};
+        var result: MainArgs = MainArgs{ .allocator = allocator };
+        errdefer result.deinit();
 
-        const next_arg = argv.next();
+        const c = config.getConfig();
 
-        if (next_arg == null) {
+        var next_arg: ?[]const u8 = argv.next();
+        while (next_arg) |arg| {
+            if (argparse.argIs(arg, "--help", "-h")) {
+                log.print(usage, .{});
+                return ArgParseError.HelpInvoked;
+            } else if (argparse.argIs(arg, "--version", null)) {
+                return ArgParseError.VersionInvoked;
+            } else if (argparse.isFlag(arg)) {
+                argError("unrecognised flag '{s}'", .{arg});
+                return ArgParseError.InvalidArgument;
+            } else if (result.subcommand == null) {
+                if (mem.eql(u8, arg, "alias")) {
+                    result.subcommand = .aliases;
+                } else if (mem.eql(u8, arg, "apply")) {
+                    result.subcommand = .{ .apply = ApplyCommand.init(allocator) };
+                } else if (mem.eql(u8, arg, "enter")) {
+                    result.subcommand = .{ .enter = EnterCommand.init(allocator) };
+                } else if (mem.eql(u8, arg, "features")) {
+                    result.subcommand = .features;
+                } else if (mem.eql(u8, arg, "generation")) {
+                    result.subcommand = .{ .generation = GenerationCommand{} };
+                } else if (mem.eql(u8, arg, "info")) {
+                    result.subcommand = .{ .info = InfoCommand{} };
+                } else if (mem.eql(u8, arg, "init")) {
+                    result.subcommand = .{ .init = InitConfigCommand{} };
+                } else if (mem.eql(u8, arg, "install")) {
+                    result.subcommand = .{ .install = InstallCommand.init(allocator) };
+                } else if (mem.eql(u8, arg, "manual")) {
+                    result.subcommand = .manual;
+                } else if (mem.eql(u8, arg, "repl")) {
+                    result.subcommand = .{ .repl = ReplCommand.init(allocator) };
+                } else {
+                    const is_alias = blk: {
+                        if (c.aliases) |aliases| {
+                            var it = aliases.iterator();
+                            while (it.next()) |kv| {
+                                const key = kv.key_ptr.*;
+                                const value = kv.value_ptr.array.items;
+
+                                if (mem.eql(u8, arg, key)) {
+                                    const resolved_alias_args = try allocator.alloc([]const u8, value.len);
+                                    errdefer allocator.free(resolved_alias_args);
+                                    for (value, 0..) |a, i| {
+                                        resolved_alias_args[i] = a.string;
+                                    }
+                                    result.subcommand = .{ .alias = resolved_alias_args };
+                                    break :blk true;
+                                }
+                            }
+                        }
+                        break :blk false;
+                    };
+
+                    if (!is_alias) {
+                        argError("unknown subcommand '{s}'", .{arg});
+                        return ArgParseError.InvalidSubcommand;
+                    }
+                }
+            } else {
+                argError("unknown subcommand '{s}'", .{arg});
+                return ArgParseError.InvalidSubcommand;
+            }
+
+            if (result.subcommand != null) {
+                next_arg = switch (result.subcommand.?) {
+                    .aliases => |_| null,
+                    .alias => unreachable,
+                    .apply => |*sub_args| try ApplyCommand.parseArgs(argv, sub_args),
+                    .enter => |*sub_args| try EnterCommand.parseArgs(argv, sub_args),
+                    .generation => |*sub_args| try GenerationCommand.parseArgs(argv, sub_args),
+                    .features => null,
+                    .info => |*sub_args| try InfoCommand.parseArgs(argv, sub_args),
+                    .init => |*sub_args| try InitConfigCommand.parseArgs(argv, sub_args),
+                    .install => |*sub_args| try InstallCommand.parseArgs(argv, sub_args),
+                    .manual => null,
+                    .repl => |*sub_args| try ReplCommand.parseArgs(argv, sub_args),
+                };
+            } else {
+                next_arg = argv.next();
+            }
+        }
+
+        if (result.subcommand == null) {
             argError("no subcommand specified", .{});
             return ArgParseError.MissingRequiredArgument;
         }
 
-        const arg = next_arg.?;
-
-        if (argparse.argIs(arg, "--help", "-h")) {
-            log.print(usage, .{});
-            return ArgParseError.HelpInvoked;
-        } else if (argparse.argIs(arg, "--version", "-v")) {
-            return ArgParseError.VersionInvoked;
-        }
-
-        if (mem.eql(u8, arg, "alias")) {
-            result.subcommand = .aliases;
-        } else if (mem.eql(u8, arg, "apply")) {
-            result.subcommand = .{ .apply = try ApplyArgs.parseArgs(allocator, argv) };
-        } else if (mem.eql(u8, arg, "enter")) {
-            result.subcommand = .{ .enter = try EnterArgs.parseArgs(allocator, argv) };
-        } else if (mem.eql(u8, arg, "features")) {
-            result.subcommand = .features;
-        } else if (mem.eql(u8, arg, "generation")) {
-            result.subcommand = .{ .generation = try GenerationArgs.parseArgs(argv) };
-        } else if (mem.eql(u8, arg, "info")) {
-            result.subcommand = .{ .info = try InfoArgs.parseArgs(argv) };
-        } else if (mem.eql(u8, arg, "init")) {
-            result.subcommand = .{ .init = try InitConfigArgs.parseArgs(argv) };
-        } else if (mem.eql(u8, arg, "install")) {
-            result.subcommand = .{ .install = try InstallArgs.parseArgs(allocator, argv) };
-        } else if (mem.eql(u8, arg, "manual")) {
-            result.subcommand = .manual;
-        } else if (mem.eql(u8, arg, "repl")) {
-            result.subcommand = .{ .repl = try ReplArgs.parseArgs(allocator, argv) };
-        } else {
-            if (argparse.isFlag(arg)) {
-                argError("unrecognised flag '{s}'", .{arg});
-                return ArgParseError.InvalidArgument;
-            }
-
-            const is_alias = blk: {
-                const c = config.getConfig();
-                if (c.aliases) |aliases| {
-                    var it = aliases.iterator();
-                    while (it.next()) |kv| {
-                        const key = kv.key_ptr.*;
-                        const value = kv.value_ptr.array.items;
-
-                        if (mem.eql(u8, arg, key)) {
-                            const resolved_alias_args = try allocator.alloc([]const u8, value.len);
-                            errdefer allocator.free(resolved_alias_args);
-                            for (value, 0..) |a, i| {
-                                resolved_alias_args[i] = a.string;
-                            }
-                            result.subcommand = .{ .alias = resolved_alias_args };
-                            break :blk true;
-                        }
-                    }
-                }
-                break :blk false;
-            };
-
-            if (!is_alias) {
-                argError("unknown subcommand '{s}'", .{arg});
-                return ArgParseError.InvalidSubcommand;
-            }
-        }
-
         return result;
+    }
+
+    pub fn deinit(self: *Self) void {
+        if (self.subcommand != null) {
+            switch (self.subcommand.?) {
+                .alias => |args| self.allocator.free(args),
+                .apply => |*args| args.deinit(),
+                .enter => |*args| args.deinit(),
+                .install => |*args| args.deinit(),
+                .repl => |*args| args.deinit(),
+                else => {},
+            }
+        }
     }
 };
 
@@ -175,6 +216,26 @@ pub fn main() !u8 {
     config.parseConfig(allocator) catch {};
     defer config.deinit();
 
+    if (posix.getenv("NIXOS_CLI_GET_COMPLETIONS")) |argc_str| {
+        const argc = std.fmt.parseInt(usize, argc_str, 10) catch {
+            log.err("invalid value '{s}' provided to NIXOS_CLI_GET_COMPLETIONS", .{argc_str});
+            return 1;
+        };
+
+        const argv = try process.argsAlloc(allocator);
+        defer allocator.free(argv);
+
+        // Check if argc does not have at least 1 arg (must be `nixos-cli` invocation)
+        // and that it matches either argv.len or argv.len + 1 (`nixos`)
+        if (!(argc > 0 and argc <= argv.len)) {
+            log.err("invalid value for NIXOS_CLI_GET_COMPLETIONS", .{});
+            return 1;
+        }
+
+        // try MainArgs.complete(argc, argv);
+        return 0;
+    }
+
     const nix_context = nix.util.NixContext.init() catch {
         log.err("out of memory, cannot continue", .{});
         return 1;
@@ -191,7 +252,7 @@ pub fn main() !u8 {
     // Skip executable name
     _ = argv.next();
 
-    const structured_args = MainArgs.parseArgs(allocator, &argv) catch |err| {
+    var structured_args = MainArgs.parseArgs(allocator, &argv) catch |err| {
         switch (err) {
             ArgParseError.HelpInvoked => return 0,
             ArgParseError.VersionInvoked => {
@@ -202,8 +263,9 @@ pub fn main() !u8 {
             else => return 2,
         }
     };
+    defer structured_args.deinit();
 
-    const status = switch (structured_args.subcommand) {
+    const status = switch (structured_args.subcommand.?) {
         .aliases => {
             alias.printAliases();
             return 0;

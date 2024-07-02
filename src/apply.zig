@@ -21,8 +21,6 @@ const argIs = argparse.argIs;
 const argIn = argparse.argIn;
 const argError = argparse.argError;
 const getNextArgs = argparse.getNextArgs;
-const conflict = argparse.conflict;
-const require = argparse.require;
 
 const config = @import("config.zig");
 const Config = config.Config;
@@ -40,49 +38,25 @@ const readFile = utils.readFile;
 const runCmd = utils.runCmd;
 const isExectuable = utils.isExecutable;
 
-pub const ApplyArgs = struct {
-    // Show what would be built or ran but do not actually run it
+pub const ApplyCommand = struct {
     dry: bool = false,
-    // Build the NixOS system from the specified flake ref
     flake: ?[]const u8 = null,
-    // (Re)install the bootloader on the device specified by the relevant configuration options
     install_bootloader: bool = false,
-    // Do not activate the built configuration
     no_activate: bool = false,
-    // Do not create a boot entry for this generation
     no_boot: bool = false,
-    // Symlink the output to a location (default: ./result, none on system activation)
     output: ?[]const u8 = null,
-    // Name of the system profile to use
     profile_name: ?[]const u8 = null,
-    // Activate the given specialisation
     specialization: ?[]const u8 = null,
-    // Upgrade the root user's 'nixos' channel
     upgrade_channels: bool = false,
-    // Upgrade all of the root user's channels
     upgrade_all_channels: bool = false,
-    // Use nix-output-monitor for building
     use_nom: bool = false,
-    // Build a script that starts a NixOS VM directly
     vm: bool = false,
-    // Build a script that starts a NixOS VM through the configured bootloader
     vm_with_bootloader: bool = false,
 
-    /// All options passed through to `nix` invocations
     build_options: ArrayList([]const u8),
-    /// All options passed through to `nix` invocations that involve flakes
     flake_options: ArrayList([]const u8),
 
     const Self = @This();
-
-    const conflicts = .{
-        // --dry cannot be used with --output
-        .{ "dry", .{"output"} },
-        // VM options can only be set by themselves, and not with boot or activate
-        .{ "vm", .{ "vm_with_bootloader", "activate", "boot" } },
-        // Specializations require `switch-to-configuration` to be ran with `switch` or `test`
-        .{ "specialization", .{"no_activate"} },
-    };
 
     const usage =
         \\Build and activate a NixOS system from a given configuration.
@@ -123,8 +97,8 @@ pub const ApplyArgs = struct {
         \\
     ;
 
-    fn init(allocator: Allocator) Self {
-        return ApplyArgs{
+    pub fn init(allocator: Allocator) Self {
+        return ApplyCommand{
             .build_options = ArrayList([]const u8).init(allocator),
             .flake_options = ArrayList([]const u8).init(allocator),
         };
@@ -132,85 +106,93 @@ pub const ApplyArgs = struct {
 
     /// Parse arguments from the command line and construct a BuildArgs struct
     /// with the provided arguments. Caller owns a BuildArgs instance.
-    pub fn parseArgs(allocator: Allocator, args: *ArgIterator) !ApplyArgs {
-        var result: ApplyArgs = ApplyArgs.init(allocator);
-        errdefer result.deinit();
-
+    pub fn parseArgs(args: *ArgIterator, parsed: *ApplyCommand) !?[]const u8 {
         var next_arg: ?[]const u8 = args.next();
         while (next_arg) |arg| {
             if (argIs(arg, "--dry", "-d")) {
-                result.dry = true;
+                parsed.dry = true;
             } else if (argIs(arg, "--help", "-h")) {
                 log.print(usage, .{});
                 return ArgParseError.HelpInvoked;
             } else if (argIs(arg, "--install-bootloader", null)) {
-                result.install_bootloader = true;
+                parsed.install_bootloader = true;
             } else if (argIs(arg, "--no-activate", null)) {
-                result.no_activate = true;
+                parsed.no_activate = true;
             } else if (argIs(arg, "--no-boot", null)) {
-                result.no_boot = true;
+                parsed.no_boot = true;
             } else if (argIs(arg, "--output", "-o")) {
                 const next = (try getNextArgs(args, arg, 1))[0];
-                result.output = next;
+                parsed.output = next;
             } else if (argIs(arg, "--profile-name", "-p")) {
                 const next = (try getNextArgs(args, arg, 1))[0];
-                result.profile_name = next;
+                parsed.profile_name = next;
             } else if (argIs(arg, "--specialisation", "-s")) {
                 const next = (try getNextArgs(args, arg, 1))[0];
-                result.specialization = next;
+                parsed.specialization = next;
             } else if (argIs(arg, "--upgrade", "-u") and !opts.flake) {
-                result.upgrade_channels = true;
+                parsed.upgrade_channels = true;
             } else if (argIs(arg, "--upgrade-all", null) and !opts.flake) {
-                result.upgrade_channels = true;
-                result.upgrade_all_channels = true;
+                parsed.upgrade_channels = true;
+                parsed.upgrade_all_channels = true;
             } else if (argIs(arg, "--use-nom", null)) {
-                result.use_nom = true;
+                parsed.use_nom = true;
             } else if (argIn(arg, &.{ "--verbose", "-v", "-vv", "-vvv", "-vvvv", "-vvvvv" })) {
                 verbose = true;
-                try result.build_options.append(arg);
+                try parsed.build_options.append(arg);
             } else if (argIs(arg, "--vm", null)) {
-                result.vm = true;
+                parsed.vm = true;
             } else if (argIs(arg, "--vm-with-bootloader", null)) {
-                result.vm_with_bootloader = true;
+                parsed.vm_with_bootloader = true;
             } else if (argIn(arg, &.{ "--quiet", "--print-build-logs", "-L", "--no-build-output", "-Q", "--show-trace", "--keep-going", "-k", "--keep-failed", "-K", "--fallback", "--refresh", "--repair", "--impure", "--offline", "--no-net" })) {
-                try result.build_options.append(arg);
+                try parsed.build_options.append(arg);
             } else if (argIn(arg, &.{ "-I", "--max-jobs", "-j", "--cores", "--builders", "--log-format" })) {
                 const next = (try getNextArgs(args, arg, 1))[0];
-                try result.build_options.append(arg);
-                try result.build_options.append(next);
+                try parsed.build_options.append(arg);
+                try parsed.build_options.append(next);
             } else if (argIs(arg, "--option", null)) {
                 const next_args = try getNextArgs(args, arg, 2);
-                try result.build_options.appendSlice(&.{ arg, next_args[0], next_args[1] });
+                try parsed.build_options.appendSlice(&.{ arg, next_args[0], next_args[1] });
             } else if (argIn(arg, &.{ "--recreate-lock-file", "--no-update-lock-file", "--no-write-lock-file", "--no-registries", "--commit-lock-file" }) and opts.flake) {
-                try result.flake_options.append(arg);
+                try parsed.flake_options.append(arg);
             } else if (argIs(arg, "--update-input", null) and opts.flake) {
                 const next = (try getNextArgs(args, arg, 1))[0];
-                try result.flake_options.append(arg);
-                try result.flake_options.append(next);
+                try parsed.flake_options.append(arg);
+                try parsed.flake_options.append(next);
             } else if (argIs(arg, "--override-input", null) and opts.flake) {
                 const next_args = try getNextArgs(args, arg, 2);
-                try result.build_options.appendSlice(&.{ arg, next_args[0], next_args[1] });
+                try parsed.build_options.appendSlice(&.{ arg, next_args[0], next_args[1] });
             } else {
-                if (argparse.isFlag(arg)) {
-                    argError("unrecognised flag '{s}'", .{arg});
-                    return ArgParseError.InvalidArgument;
-                } else if (opts.flake and result.flake == null) {
-                    result.flake = arg;
+                if (opts.flake and parsed.flake == null) {
+                    parsed.flake = arg;
                 } else {
-                    argError("argument '{s}' is not valid in this context", .{arg});
-                    return ArgParseError.InvalidArgument;
+                    return arg;
                 }
             }
 
             next_arg = args.next();
         }
 
-        if (result.no_activate and result.specialization != null) {
+        if (parsed.dry and parsed.output != null) {
+            argError("--dry cannot be used together with --output", .{});
+            return ArgParseError.ConflictingOptions;
+        }
+
+        if (parsed.vm and parsed.vm_with_bootloader) {
+            argError("--vm cannot be used together with --vm-with-bootloader", .{});
+            return ArgParseError.ConflictingOptions;
+        }
+
+        if (parsed.no_activate and parsed.specialization != null) {
+            argError("--specialization can only be specified when activating, remove --no-activate", .{});
+            return ArgParseError.ConflictingOptions;
+        }
+
+        if (parsed.no_activate and parsed.no_boot and !parsed.install_bootloader) {
             argError("--install-bootloader requires activation, remove --no-activate and/or --no-boot", .{});
             return ArgParseError.ConflictingOptions;
         }
 
-        return result;
+        return null;
     }
 
     pub fn deinit(self: *Self) void {
@@ -547,7 +529,7 @@ fn runSwitchToConfiguration(
     }
 }
 
-fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
+fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
     const c = config.getConfig();
 
     const build_type: BuildType = if (args.vm)
@@ -822,7 +804,7 @@ fn apply(allocator: Allocator, args: ApplyArgs) ApplyError!void {
 }
 
 // Run apply and provide the relevant exit code
-pub fn applyMain(allocator: Allocator, args: ApplyArgs) u8 {
+pub fn applyMain(allocator: Allocator, args: ApplyCommand) u8 {
     if (!fileExistsAbsolute(Constants.etc_nixos)) {
         log.err("the apply command is currently unsupported on non-NixOS systems", .{});
         return 3;

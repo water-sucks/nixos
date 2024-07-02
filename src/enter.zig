@@ -33,7 +33,7 @@ const runCmd = utils.runCmd;
 
 const NIXOS_REEXEC = "_NIXOS_ENTER_REEXEC";
 
-pub const EnterArgs = struct {
+pub const EnterCommand = struct {
     // Command to execute in Bash
     command: ?[]const u8 = null,
     // Path to the NixOS system root to enter (default: /mnt)
@@ -67,51 +67,47 @@ pub const EnterArgs = struct {
         \\
     ;
 
-    fn init(allocator: Allocator) Self {
-        return EnterArgs{
+    pub fn init(allocator: Allocator) Self {
+        return EnterCommand{
             .command_args = ArrayList([]const u8).init(allocator),
         };
     }
 
-    pub fn parseArgs(allocator: Allocator, args: *ArgIterator) !EnterArgs {
-        var result: EnterArgs = EnterArgs.init(allocator);
-        errdefer result.deinit();
-
-        var next_arg: ?[]const u8 = args.next();
+    pub fn parseArgs(argv: *ArgIterator, parsed: *EnterCommand) !?[]const u8 {
+        var next_arg: ?[]const u8 = argv.next();
         while (next_arg) |arg| {
             if (argIs(arg, "--command", "-c")) {
-                const next = (try getNextArgs(args, arg, 1))[0];
-                result.command = next;
+                const next = (try getNextArgs(argv, arg, 1))[0];
+                parsed.command = next;
             } else if (argIs(arg, "--root", "-r")) {
-                const next = (try getNextArgs(args, arg, 1))[0];
-                result.root = next;
+                const next = (try getNextArgs(argv, arg, 1))[0];
+                parsed.root = next;
             } else if (argIs(arg, "--silent", "-s")) {
-                result.silent = true;
+                parsed.silent = true;
             } else if (argIs(arg, "--help", "-h")) {
                 log.print(usage, .{});
                 return ArgParseError.HelpInvoked;
             } else if (argIs(arg, "--verbose", "-v")) {
-                result.verbose = true;
+                parsed.verbose = true;
             } else if (mem.eql(u8, arg, "--")) {
                 // Append rest of command args to list and break
-                while (args.next()) |a| {
-                    try result.command_args.append(a);
+                while (argv.next()) |a| {
+                    try parsed.command_args.append(a);
                 }
                 break;
             } else {
-                argError("unrecognised flag '{s}'", .{arg});
-                return ArgParseError.InvalidArgument;
+                return arg;
             }
 
-            next_arg = args.next();
+            next_arg = argv.next();
         }
 
-        if (result.command_args.items.len != 0 and result.command != null) {
+        if (parsed.command_args.items.len != 0 and parsed.command != null) {
             argError("cannot specify both --command and --", .{});
             return ArgParseError.ConflictingOptions;
         }
 
-        return result;
+        return null;
     }
 
     pub fn deinit(self: *Self) void {
@@ -327,7 +323,7 @@ fn startChroot(allocator: Allocator, root: []const u8, args: []const []const u8)
     process.execve(allocator, argv.items, &env_map) catch return EnterError.ChrootFailed;
 }
 
-fn enter(allocator: Allocator, args: EnterArgs) EnterError!void {
+fn enter(allocator: Allocator, args: EnterCommand) EnterError!void {
     const c = config.getConfig();
 
     // Just for cleanliness's sake in other functions
@@ -405,7 +401,7 @@ fn enter(allocator: Allocator, args: EnterArgs) EnterError!void {
     }
 }
 
-pub fn enterMain(allocator: Allocator, args: EnterArgs) u8 {
+pub fn enterMain(allocator: Allocator, args: EnterCommand) u8 {
     if (builtin.os.tag != .linux) {
         log.err("the enter command is unsupported on non-Linux systems", .{});
         return 3;
