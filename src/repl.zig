@@ -25,7 +25,7 @@ const utils = @import("utils.zig");
 const FlakeRef = utils.FlakeRef;
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 
-pub const ReplArgs = struct {
+pub const ReplCommand = struct {
     flake: ?[]const u8 = null,
     includes: ArrayList([]const u8),
 
@@ -52,37 +52,29 @@ pub const ReplArgs = struct {
     ;
 
     pub fn init(allocator: Allocator) Self {
-        return ReplArgs{
+        return ReplCommand{
             .includes = ArrayList([]const u8).init(allocator),
         };
     }
 
-    pub fn parseArgs(allocator: Allocator, argv: *ArgIterator) !ReplArgs {
-        var result = ReplArgs.init(allocator);
-        errdefer result.deinit();
-
+    pub fn parseArgs(argv: *ArgIterator, parsed: *ReplCommand) !?[]const u8 {
         var next_arg = argv.next();
-
         while (next_arg) |arg| {
             if (argIs(arg, "--include", "-I")) {
                 const next = (try getNextArgs(argv, arg, 1))[0];
-                try result.includes.append(next);
+                try parsed.includes.append(next);
             } else {
-                if (argparse.isFlag(arg)) {
-                    argError("unrecognised flag '{s}'", .{arg});
-                    return ArgParseError.InvalidArgument;
-                } else if (opts.flake and result.flake == null) {
-                    result.flake = arg;
+                if (opts.flake and parsed.flake == null) {
+                    parsed.flake = arg;
                 } else {
-                    argError("argument '{s}' is not valid in this context", .{arg});
-                    return ArgParseError.InvalidArgument;
+                    return arg;
                 }
             }
 
             next_arg = argv.next();
         }
 
-        return result;
+        return null;
     }
 
     pub fn deinit(self: *Self) void {
@@ -206,7 +198,7 @@ fn execLegacyRepl(allocator: Allocator, includes: []const []const u8, impure: bo
     return process.execve(allocator, argv.items, null);
 }
 
-fn repl(allocator: Allocator, args: ReplArgs) ReplError!void {
+fn repl(allocator: Allocator, args: ReplCommand) ReplError!void {
     if (opts.flake) {
         const flake_ref = if (args.flake) |flake|
             FlakeRef.fromSlice(flake)
@@ -219,7 +211,7 @@ fn repl(allocator: Allocator, args: ReplArgs) ReplError!void {
     }
 }
 
-pub fn replMain(allocator: Allocator, args: ReplArgs) u8 {
+pub fn replMain(allocator: Allocator, args: ReplCommand) u8 {
     repl(allocator, args) catch |err| {
         return switch (err) {
             ReplError.ReplExecError => 1,

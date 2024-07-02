@@ -23,7 +23,7 @@ const fileExistsAbsolute = utils.fileExistsAbsolute;
 
 const InfoError = error{} || Allocator.Error;
 
-pub const InfoArgs = struct {
+pub const InfoCommand = struct {
     config_rev: bool = false,
     json: bool = false,
     markdown: bool = false,
@@ -46,40 +46,33 @@ pub const InfoArgs = struct {
         \\
     ;
 
-    pub fn parseArgs(args: *ArgIterator) !InfoArgs {
-        var result = InfoArgs{};
-
+    pub fn parseArgs(argv: *ArgIterator, parsed: *InfoCommand) !?[]const u8 {
         // TODO: should this ignore conflicting args,
         // or take the first argument and run with it?
-        if (args.next()) |arg| {
+        if (argv.next()) |arg| {
             if (argIs(arg, "--config-rev", "-c")) {
-                result.config_rev = true;
+                parsed.config_rev = true;
             } else if (argIs(arg, "--json", "-j")) {
-                result.json = true;
+                parsed.json = true;
             } else if (argIs(arg, "--help", "-h")) {
                 log.print(usage, .{});
                 return ArgParseError.HelpInvoked;
             } else if (argIs(arg, "--markdown", "-m")) {
-                result.markdown = true;
+                parsed.markdown = true;
             } else if (argIs(arg, "--nixpkgs-rev", "-n")) {
-                result.nixpkgs_rev = true;
+                parsed.nixpkgs_rev = true;
             } else if (argIs(arg, "--version", "-v")) {
-                result.version = true;
+                parsed.version = true;
             } else {
-                if (argparse.isFlag(arg)) {
-                    argError("unrecognised flag '{s}'", .{arg});
-                } else {
-                    argError("argument '{s}' is not valid in this context", .{arg});
-                }
-                return ArgParseError.InvalidArgument;
+                return arg;
             }
         }
 
-        return result;
+        return null;
     }
 };
 
-fn info(allocator: Allocator, args: InfoArgs) InfoError!void {
+fn info(allocator: Allocator, args: InfoCommand) InfoError!void {
     const parsed_version_contents = blk: {
         const filename = Constants.current_system ++ "/nixos-version.json";
 
@@ -157,7 +150,7 @@ fn info(allocator: Allocator, args: InfoArgs) InfoError!void {
     }
 }
 
-pub fn infoMain(allocator: Allocator, args: InfoArgs) u8 {
+pub fn infoMain(allocator: Allocator, args: InfoCommand) u8 {
     if (!fileExistsAbsolute(Constants.etc_nixos)) {
         log.err("the generation command is unsupported on non-NixOS systems", .{});
         return 3;

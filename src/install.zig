@@ -32,7 +32,7 @@ const fileExistsAbsolute = utils.fileExistsAbsolute;
 const mkTmpDir = utils.mkTmpDir;
 const runCmd = utils.runCmd;
 
-pub const InstallArgs = struct {
+pub const InstallCommand = struct {
     /// Use this derivation as the `nixos` channel to copy
     channel: ?[]const u8 = null,
     // Build the NixOS system from the specified flake ref
@@ -90,8 +90,8 @@ pub const InstallArgs = struct {
         \\
     ;
 
-    fn init(allocator: Allocator) Self {
-        return InstallArgs{
+    pub fn init(allocator: Allocator) Self {
+        return InstallCommand{
             .build_options = ArrayList([]const u8).init(allocator),
             .flake_options = ArrayList([]const u8).init(allocator),
             .lock_options = ArrayList([]const u8).init(allocator),
@@ -100,72 +100,65 @@ pub const InstallArgs = struct {
 
     /// Parse arguments from the command line and construct a BuildArgs struct
     /// with the provided arguments. Caller owns a BuildArgs instance.
-    pub fn parseArgs(allocator: Allocator, args: *ArgIterator) !InstallArgs {
-        var result: InstallArgs = InstallArgs.init(allocator);
-        errdefer result.deinit();
-
-        var next_arg: ?[]const u8 = args.next();
+    pub fn parseArgs(argv: *ArgIterator, parsed: *InstallCommand) !?[]const u8 {
+        var next_arg: ?[]const u8 = argv.next();
         while (next_arg) |arg| {
             if (argIs(arg, "--channel", "-c")) {
-                const next = (try getNextArgs(args, arg, 1))[0];
-                result.channel = next;
+                const next = (try getNextArgs(argv, arg, 1))[0];
+                parsed.channel = next;
             } else if (argIs(arg, "--help", "-h")) {
                 log.print(usage, .{});
                 return ArgParseError.HelpInvoked;
             } else if (argIs(arg, "--no-bootloader", null)) {
-                result.no_bootloader = true;
+                parsed.no_bootloader = true;
             } else if (argIs(arg, "--no-channel-copy", null)) {
-                result.no_copy_channel = true;
+                parsed.no_copy_channel = true;
             } else if (argIs(arg, "--no-root-passwd", null)) {
-                result.no_root_passwd = true;
+                parsed.no_root_passwd = true;
             } else if (argIs(arg, "--root", "-r")) {
-                const next = (try getNextArgs(args, arg, 1))[0];
-                result.root = next;
+                const next = (try getNextArgs(argv, arg, 1))[0];
+                parsed.root = next;
             } else if (argIs(arg, "--system", "-r")) {
-                const next = (try getNextArgs(args, arg, 1))[0];
-                result.system = next;
+                const next = (try getNextArgs(argv, arg, 1))[0];
+                parsed.system = next;
             } else if (argIn(arg, &.{ "--verbose", "-v", "-vv", "-vvv", "-vvvv", "-vvvvv" })) {
                 verbose = true;
-                try result.build_options.append(arg);
+                try parsed.build_options.append(arg);
             } else if (argIn(arg, &.{ "--quiet", "--print-build-logs", "-L", "--no-build-output", "-Q", "--show-trace", "--keep-going", "-k", "--keep-failed", "-K", "--fallback", "--refresh", "--repair", "--impure", "--offline", "--no-net" })) {
-                try result.build_options.append(arg);
+                try parsed.build_options.append(arg);
             } else if (argIn(arg, &.{ "-I", "--max-jobs", "-j", "--cores", "--substituters", "--log-format" })) {
-                const next_args = (try getNextArgs(args, arg, 1));
-                try result.build_options.appendSlice(&.{ arg, next_args[0] });
+                const next_args = (try getNextArgs(argv, arg, 1));
+                try parsed.build_options.appendSlice(&.{ arg, next_args[0] });
             } else if (argIs(arg, "--option", null)) {
-                const next_args = try getNextArgs(args, arg, 2);
-                try result.build_options.appendSlice(&.{ arg, next_args[0], next_args[1] });
+                const next_args = try getNextArgs(argv, arg, 2);
+                try parsed.build_options.appendSlice(&.{ arg, next_args[0], next_args[1] });
             } else if (argIn(arg, &.{ "--recreate-lock-file", "--no-update-lock-file", "--no-write-lock-file", "--no-registries", "--commit-lock-file" }) and opts.flake) {
-                try result.lock_options.append(arg);
+                try parsed.lock_options.append(arg);
             } else if (argIs(arg, "--update-input", null) and opts.flake) {
-                const next_args = (try getNextArgs(args, arg, 1));
-                try result.lock_options.appendSlice(&.{ arg, next_args[0] });
+                const next_args = (try getNextArgs(argv, arg, 1));
+                try parsed.lock_options.appendSlice(&.{ arg, next_args[0] });
             } else if (argIs(arg, "--override-input", null) and opts.flake) {
-                const next_args = try getNextArgs(args, arg, 2);
-                try result.lock_options.appendSlice(&.{ arg, next_args[0], next_args[1] });
+                const next_args = try getNextArgs(argv, arg, 2);
+                try parsed.lock_options.appendSlice(&.{ arg, next_args[0], next_args[1] });
             } else {
-                if (argparse.isFlag(arg)) {
-                    argError("unrecognised flag '{s}'", .{arg});
-                    return ArgParseError.InvalidArgument;
-                } else if (opts.flake and result.flake == null) {
-                    result.flake = arg;
+                if (opts.flake and parsed.flake == null) {
+                    parsed.flake = arg;
                 } else {
-                    argError("argument '{s}' is not valid in this context", .{arg});
-                    return ArgParseError.InvalidArgument;
+                    return arg;
                 }
             }
 
-            next_arg = args.next();
+            next_arg = argv.next();
         }
 
-        if (result.channel != null and result.no_copy_channel) {
+        if (parsed.channel != null and parsed.no_copy_channel) {
             argError("--channel and --no-copy-channel flags conflict", .{});
             return ArgParseError.ConflictingOptions;
         }
 
-        if (opts.flake and result.flake != null) {
-            const split = mem.indexOf(u8, result.flake.?, "#");
-            if (split == null or split == result.flake.?.len - 1) {
+        if (opts.flake and parsed.flake != null) {
+            const split = mem.indexOf(u8, parsed.flake.?, "#");
+            if (split == null or split == parsed.flake.?.len - 1) {
                 argError("missing required argument <SYSTEM-NAME>", .{});
                 return ArgParseError.MissingRequiredArgument;
             }
@@ -174,7 +167,7 @@ pub const InstallArgs = struct {
             return ArgParseError.MissingRequiredArgument;
         }
 
-        return result;
+        return null;
     }
 
     pub fn deinit(self: *Self) void {
@@ -523,7 +516,7 @@ fn setRootPassword(allocator: Allocator, mountpoint: []const u8) !void {
     }
 }
 
-fn install(allocator: Allocator, args: InstallArgs) InstallError!void {
+fn install(allocator: Allocator, args: InstallCommand) InstallError!void {
     const options = .{
         .build_options = args.build_options.items,
         .flake_options = args.flake_options.items,
@@ -660,7 +653,7 @@ fn install(allocator: Allocator, args: InstallArgs) InstallError!void {
 }
 
 // Run apply and provide the relevant exit code
-pub fn installMain(allocator: Allocator, args: InstallArgs) u8 {
+pub fn installMain(allocator: Allocator, args: InstallCommand) u8 {
     if (builtin.os.tag != .linux or !fileExistsAbsolute(Constants.etc_nixos)) {
         log.err("the install command is currently unsupported on non-NixOS systems", .{});
         return 3;
