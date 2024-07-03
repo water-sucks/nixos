@@ -1,9 +1,12 @@
 const std = @import("std");
 const posix = std.posix;
 const mem = std.mem;
+const Build = std.Build;
 const ChildProcess = std.process.Child;
+const OptimizeMode = std.builtin.OptimizeMode;
 
-const whitespace = &std.ascii.whitespace;
+const assert = std.debug.assert;
+const whitespace = std.ascii.whitespace;
 
 /// While a `nixos` release is in development, this string should
 /// contain the version in development with the "-dev" suffix.
@@ -13,68 +16,12 @@ const whitespace = &std.ascii.whitespace;
 /// Thanks to `riverwm` for this idea for version number management.
 const version = "0.8.0-dev";
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const zignix_package = b.dependency("zignix", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    const toml_package = b.dependency("zig-toml", .{
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const exe = b.addExecutable(.{
-        .name = "nixos",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    b.installArtifact(exe);
-    exe.root_module.addImport("nix", zignix_package.module("zignix"));
-    exe.root_module.addImport("toml", toml_package.module("zig-toml"));
-
-    const full_version = blk: {
-        if (mem.endsWith(u8, version, "-dev")) {
-            const git_describe_output = ChildProcess.run(.{
-                .allocator = b.allocator,
-                .argv = &.{ "git", "-C", b.build_root.path orelse ".", "describe", "--long" },
-            }) catch break :blk version;
-
-            switch (git_describe_output.term) {
-                .Exited => |status| if (status != 0) break :blk version,
-                else => break :blk version,
-            }
-
-            var tokens = mem.split(u8, mem.trim(u8, git_describe_output.stdout, whitespace), "-");
-            _ = tokens.next();
-            const commit_count = tokens.next().?;
-            const short_hash = tokens.next().?;
-            std.debug.assert(tokens.next() == null);
-            std.debug.assert(short_hash[0] == 'g');
-
-            break :blk b.fmt(version ++ ".{s}+{s}", .{ commit_count, short_hash[1..] });
-        } else {
-            break :blk version;
-        }
-    };
-
-    const git_rev = blk: {
-        const nixos_rev_var = posix.getenv("_NIXOS_GIT_REV") orelse "unknown";
-        const git_rev_parse_output = ChildProcess.run(.{
-            .allocator = b.allocator,
-            .argv = &.{ "git", "rev-parse", "HEAD" },
-        }) catch break :blk nixos_rev_var;
-
-        switch (git_rev_parse_output.term) {
-            .Exited => |status| if (status != 0) break :blk nixos_rev_var,
-            else => break :blk nixos_rev_var,
-        }
-
-        break :blk mem.trim(u8, git_rev_parse_output.stdout, whitespace);
-    };
+    const full_version = getFullVersion(b);
+    const git_rev = getGitRev(b);
 
     const options = b.addOptions();
     // Flake-specific features are enabled by default.
@@ -86,14 +33,21 @@ pub fn build(b: *std.Build) void {
     options.addOption(bool, "flake", flake);
     options.addOption([]const u8, "nixpkgs_version", nixpkgs_version);
     options.addOption([]const u8, "git_rev", git_rev);
-    exe.root_module.addOptions("options", options);
 
-    // Link to the Nix C API directly.
-    exe.linkLibC();
-    exe.linkLibrary(zignix_package.artifact("zignix"));
-    exe.linkSystemLibrary("nixexprc");
-    exe.linkSystemLibrary("nixstorec");
-    exe.linkSystemLibrary("nixutilc");
+    const exe = nixosExecutable(b, .{
+        .target = target,
+        .optimize = optimize,
+        .options = options,
+    });
+    b.installArtifact(exe);
+
+    const exe_check = nixosExecutable(b, .{
+        .target = target,
+        .optimize = optimize,
+        .options = options,
+    });
+    const check = b.step("check", "Check if executable compiles");
+    check.dependOn(&exe_check.step);
 
     const run = b.addRunArtifact(exe);
     run.step.dependOn(b.getInstallStep());
@@ -112,4 +66,79 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&exe_tests.step);
+}
+
+fn nixosExecutable(b: *Build, opts: struct {
+    target: Build.ResolvedTarget,
+    optimize: OptimizeMode,
+    options: *Build.Step.Options,
+}) *Build.Step.Compile {
+    const zignix_package = b.dependency("zignix", .{
+        .target = opts.target,
+        .optimize = opts.optimize,
+    });
+    const toml_package = b.dependency("zig-toml", .{
+        .target = opts.target,
+        .optimize = opts.optimize,
+    });
+
+    const exe = b.addExecutable(.{
+        .name = "nixos",
+        .root_source_file = b.path("src/main.zig"),
+        .target = opts.target,
+        .optimize = opts.optimize,
+    });
+    exe.root_module.addImport("nix", zignix_package.module("zignix"));
+    exe.root_module.addImport("toml", toml_package.module("zig-toml"));
+
+    exe.root_module.addOptions("options", opts.options);
+
+    // Link to the Nix C API directly.
+    exe.linkLibC();
+    exe.linkLibrary(zignix_package.artifact("zignix"));
+    exe.linkSystemLibrary("nixexprc");
+    exe.linkSystemLibrary("nixstorec");
+    exe.linkSystemLibrary("nixutilc");
+
+    return exe;
+}
+
+fn getFullVersion(b: *Build) []const u8 {
+    if (!mem.endsWith(u8, version, "-dev")) {
+        return version;
+    }
+
+    const git_describe_output = ChildProcess.run(.{
+        .allocator = b.allocator,
+        .argv = &.{ "git", "-C", b.build_root.path orelse ".", "describe", "--long" },
+    }) catch return version;
+
+    switch (git_describe_output.term) {
+        .Exited => |status| if (status != 0) return version,
+        else => return version,
+    }
+
+    var tokens = mem.split(u8, mem.trim(u8, git_describe_output.stdout, &whitespace), "-");
+    _ = tokens.next();
+    const commit_count = tokens.next().?;
+    const short_hash = tokens.next().?;
+    assert(tokens.next() == null);
+    assert(short_hash[0] == 'g');
+
+    return b.fmt(version ++ ".{s}+{s}", .{ commit_count, short_hash[1..] });
+}
+
+fn getGitRev(b: *Build) []const u8 {
+    const nixos_rev_var = posix.getenv("_NIXOS_GIT_REV") orelse "unknown";
+    const git_rev_parse_output = ChildProcess.run(.{
+        .allocator = b.allocator,
+        .argv = &.{ "git", "rev-parse", "HEAD" },
+    }) catch return nixos_rev_var;
+
+    switch (git_rev_parse_output.term) {
+        .Exited => |status| if (status != 0) return nixos_rev_var,
+        else => return nixos_rev_var,
+    }
+
+    return mem.trim(u8, git_rev_parse_output.stdout, &whitespace);
 }
