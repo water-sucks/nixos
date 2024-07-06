@@ -187,7 +187,7 @@ pub const ApplyCommand = struct {
             return ArgParseError.ConflictingOptions;
         }
 
-        if (parsed.no_activate and parsed.no_boot and !parsed.install_bootloader) {
+        if (parsed.no_activate and parsed.no_boot and parsed.install_bootloader) {
             argError("--install-bootloader requires activation, remove --no-activate and/or --no-boot", .{});
             return ArgParseError.ConflictingOptions;
         }
