@@ -20,6 +20,7 @@ const log = @import("log.zig");
 const utils = @import("utils.zig");
 const readFile = utils.readFile;
 const fileExistsAbsolute = utils.fileExistsAbsolute;
+const println = utils.println;
 
 const InfoError = error{} || Allocator.Error;
 
@@ -47,9 +48,7 @@ pub const InfoCommand = struct {
     ;
 
     pub fn parseArgs(argv: *ArgIterator, parsed: *InfoCommand) !?[]const u8 {
-        // TODO: should this ignore conflicting args,
-        // or take the first argument and run with it?
-        if (argv.next()) |arg| {
+        while (argv.next()) |arg| {
             if (argIs(arg, "--config-rev", "-c")) {
                 parsed.config_rev = true;
             } else if (argIs(arg, "--json", "-j")) {
@@ -127,26 +126,41 @@ fn info(allocator: Allocator, args: InfoCommand) InfoError!void {
         version_info.nixpkgsRevision = "unknown";
     }
 
-    if (args.nixpkgs_rev) {
-        stdout.print("{s}\n", .{version_info.nixpkgsRevision.?}) catch unreachable;
-    } else if (args.nixpkgs_rev) {
-        stdout.print("{s}\n", .{version_info.nixpkgsRevision.?}) catch unreachable;
-    } else if (args.json) {
+    if (args.json) {
         std.json.stringify(version_info, .{ .whitespace = .indent_2 }, stdout) catch unreachable;
-        stdout.print("\n", .{}) catch unreachable;
-    } else if (args.markdown) {
-        stdout.print(
+        println(stdout, "", .{});
+        return;
+    }
+
+    if (args.markdown) {
+        println(stdout,
             \\ - nixos version: `{s}`
             \\ - nixpkgs revision: `{s}`
             \\ - configuration revision: `{s}`
-            \\
         , .{
             version_info.nixosVersion.?,
             version_info.nixpkgsRevision.?,
             version_info.configurationRevision.?,
-        }) catch unreachable;
-    } else {
-        stdout.print("{s}\n", .{version_info.nixosVersion.?}) catch unreachable;
+        });
+        return;
+    }
+
+    // If no args are filled, just print the version and exit
+    if (!args.config_rev and !args.nixpkgs_rev and !args.version) {
+        println(stdout, "{s}", .{version_info.nixosVersion.?});
+        return;
+    }
+
+    if (args.nixpkgs_rev) {
+        println(stdout, "{s}", .{version_info.nixpkgsRevision.?});
+    }
+
+    if (args.config_rev) {
+        println(stdout, "{s}", .{version_info.configurationRevision.?});
+    }
+
+    if (args.version) {
+        println(stdout, "{s}", .{version_info.nixosVersion.?});
     }
 }
 

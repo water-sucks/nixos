@@ -12,7 +12,7 @@
 }:
 stdenv.mkDerivation rec {
   pname = "nixos";
-  version = "0.8.0";
+  version = "0.9.0-dev";
   src = nix-gitignore.gitignoreSource [] ./.;
 
   postPatch = let
