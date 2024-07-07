@@ -38,7 +38,7 @@ const App = argparse.App;
 const ArgParseError = argparse.ArgParseError;
 const Command = argparse.Command;
 
-const nix = @import("nix");
+// const nix = @import("nix");
 
 const utils = @import("utils.zig");
 const println = utils.println;
@@ -216,35 +216,15 @@ pub fn main() !u8 {
     config.parseConfig(allocator) catch {};
     defer config.deinit();
 
-    if (posix.getenv("NIXOS_CLI_GET_COMPLETIONS")) |argc_str| {
-        const argc = std.fmt.parseInt(usize, argc_str, 10) catch {
-            log.err("invalid value '{s}' provided to NIXOS_CLI_GET_COMPLETIONS", .{argc_str});
-            return 1;
-        };
-
-        const argv = try process.argsAlloc(allocator);
-        defer allocator.free(argv);
-
-        // Check if argc does not have at least 1 arg (must be `nixos-cli` invocation)
-        // and that it matches either argv.len or argv.len + 1 (`nixos`)
-        if (!(argc > 0 and argc <= argv.len)) {
-            log.err("invalid value for NIXOS_CLI_GET_COMPLETIONS", .{});
-            return 1;
-        }
-
-        // try MainArgs.complete(argc, argv);
-        return 0;
-    }
-
-    const nix_context = nix.util.NixContext.init() catch {
-        log.err("out of memory, cannot continue", .{});
-        return 1;
-    };
-    defer nix_context.deinit();
-
-    nix.util.init(nix_context) catch unreachable;
-    nix.store.init(nix_context) catch unreachable;
-    nix.expr.init(nix_context) catch unreachable;
+    // const nix_context = nix.util.NixContext.init() catch {
+    //     log.err("out of memory, cannot continue", .{});
+    //     return 1;
+    // };
+    // defer nix_context.deinit();
+    //
+    // nix.util.init(nix_context) catch unreachable;
+    // nix.store.init(nix_context) catch unreachable;
+    // nix.expr.init(nix_context) catch unreachable;
 
     var argv = try std.process.argsWithAllocator(allocator);
     defer argv.deinit();

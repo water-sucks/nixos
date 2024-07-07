@@ -73,10 +73,10 @@ fn nixosExecutable(b: *Build, opts: struct {
     optimize: OptimizeMode,
     options: *Build.Step.Options,
 }) *Build.Step.Compile {
-    const zignix_package = b.dependency("zignix", .{
-        .target = opts.target,
-        .optimize = opts.optimize,
-    });
+    // const zignix_package = b.dependency("zignix", .{
+    //     .target = opts.target,
+    //     .optimize = opts.optimize,
+    // });
     const toml_package = b.dependency("zig-toml", .{
         .target = opts.target,
         .optimize = opts.optimize,
@@ -88,17 +88,17 @@ fn nixosExecutable(b: *Build, opts: struct {
         .target = opts.target,
         .optimize = opts.optimize,
     });
-    exe.root_module.addImport("nix", zignix_package.module("zignix"));
+    // exe.root_module.addImport("nix", zignix_package.module("zignix"));
     exe.root_module.addImport("toml", toml_package.module("zig-toml"));
 
     exe.root_module.addOptions("options", opts.options);
 
     // Link to the Nix C API directly.
-    exe.linkLibC();
-    exe.linkLibrary(zignix_package.artifact("zignix"));
-    exe.linkSystemLibrary("nixexprc");
-    exe.linkSystemLibrary("nixstorec");
-    exe.linkSystemLibrary("nixutilc");
+    // exe.linkLibC();
+    // exe.linkLibrary(zignix_package.artifact("zignix"));
+    // exe.linkSystemLibrary("nixexprc");
+    // exe.linkSystemLibrary("nixstorec");
+    // exe.linkSystemLibrary("nixutilc");
 
     return exe;
 }

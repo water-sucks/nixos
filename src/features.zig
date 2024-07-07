@@ -1,4 +1,4 @@
-//! Undocumented features subcommand for error reports and debugging.
+//! Features subcommand for error reports and debugging.
 //! This prints out the features, Zig version, and other information
 //! that this was compiled with.
 
@@ -14,16 +14,14 @@ const config = @import("config.zig");
 const utils = @import("utils.zig");
 const println = utils.println;
 
-const nix = @import("nix");
-
 pub fn printFeatures() void {
     const stdout = io.getStdOut().writer();
 
     println(stdout, "nixos {s}\n", .{opts.version});
     println(stdout, "git rev: {s}", .{opts.git_rev});
     println(stdout, "zig version: {}", .{builtin.zig_version});
-    println(stdout, "optimize mode: {s}", .{@tagName(builtin.mode)});
-    println(stdout, "bundled nix version: {s}\n", .{nix.util.version()});
+    println(stdout, "optimize mode: {s}\n", .{@tagName(builtin.mode)});
+
     println(stdout, "Enabled Features", .{});
     println(stdout, "----------------", .{});
 

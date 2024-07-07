@@ -5,7 +5,6 @@
   nix-gitignore,
   pkg-config,
   autoPatchelfHook,
-  nix,
   revision ? "dirty",
   flake ? true,
   fetchZigDeps,
@@ -20,7 +19,7 @@ stdenv.mkDerivation rec {
       inherit stdenv zig;
       name = pname;
       src = ./.;
-      depsHash = "sha256-I7yZiQ78wRy9pF0UJTOVxEH9RJ2hNPgkSXfTZfUOk7Y=";
+      depsHash = "sha256-a4GiBgoqMzYiceDeiu4CaDXtshp6qCXhQ1pMilRvVNg=";
     };
   in ''
     mkdir -p .cache
@@ -28,8 +27,6 @@ stdenv.mkDerivation rec {
   '';
 
   nativeBuildInputs = [zig pkg-config autoPatchelfHook];
-
-  buildInputs = [nix.dev];
 
   dontConfigure = true;
   dontInstall = true;

@@ -33,9 +33,6 @@ const readFile = utils.readFile;
 const concatStringsSep = utils.concatStringsSep;
 const runCmd = utils.runCmd;
 
-const nix = @import("nix");
-const NixState = nix.expr.EvalState;
-
 pub const InitConfigCommand = struct {
     dir: ?[]const u8 = null,
     force: bool = false,
@@ -814,7 +811,7 @@ fn nixStringList(allocator: Allocator, items: []const []const u8, sep: []const u
 /// Generate hardware-configuration.nix text.
 /// Caller owns returned memory.
 // TODO: cleanup allocs properly
-fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, nix_state: NixState, virt_type: VirtualizationType) ![]const u8 {
+fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, virt_type: VirtualizationType) ![]const u8 {
     const c = config.getConfig();
 
     var imports = ArrayList([]const u8).init(allocator);
@@ -855,20 +852,22 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, nix_state:
     };
 
     // Determine `nixpkgs.hostPlatform` using the current system.
-    // Initializing a config is inherently impure, so no problems here.
-    const nix_context = nix.util.NixContext.init() catch return InitConfigError.OutOfMemory;
-    const nix_value = nix_state.evalFromString(nix_context, "builtins.currentSystem", "") catch {
-        const err_msg = nix_context.errorMessage(nix_context) catch @panic("unable to read error context");
-        log.print("{s}\n", .{err_msg.?});
-        return InitConfigError.ResourceAccessFailed;
+    const host_platform_result = runCmd(.{
+        .allocator = allocator,
+        .argv = &.{ "nix-instantiate", "--eval", "--expr", "builtins.currentSystem" },
+    }) catch |err| blk: {
+        log.warn("unable to determine current system architecture: {s}", .{@errorName(err)});
+        log.print("Fill in the nixpkgs.hostPlatform attribute in your configuration later.\n", .{});
+        break :blk null;
     };
+    defer {
+        if (host_platform_result) |system| allocator.free(system.stdout.?);
+    }
 
-    const host_system = nix_value.string(allocator, nix_context) catch unreachable;
-    defer allocator.free(host_system);
-
+    const host_platform = if (host_platform_result) |system| system.stdout.? else "";
     try attrs.append(KVPair{
         .name = "nixpkgs.hostPlatform",
-        .value = try quote(allocator, host_system),
+        .value = try allocator.dupe(u8, host_platform),
     });
 
     // Check if KVM is enabled
@@ -1239,25 +1238,8 @@ fn initConfig(allocator: Allocator, args: InitConfigCommand) !void {
     // hardware-configuration.nix, so it's generated outside.
     const virt_type = determineVirtualizationType(allocator);
 
-    const nix_context = nix.util.NixContext.init() catch return InitConfigError.OutOfMemory;
-    defer nix_context.deinit();
-
-    // To generate the hardware config, we need access to the Nix
-    // store to determine the current system string with a Nix interpreter.
-    const nix_store = nix.store.Store.open(allocator, nix_context, "", .{}) catch {
-        const err_msg = nix_context.errorMessage(nix_context) catch @panic("fatal: unable to read error context");
-        log.print("{s}\n", .{err_msg.?});
-        return InitConfigError.ResourceAccessFailed;
-    };
-    defer nix_store.deinit();
-    const nix_state = nix.expr.EvalState.init(nix_context, nix_store) catch {
-        const err_msg = nix_context.errorMessage(nix_context) catch @panic("fatal: unable to read error context");
-        log.print("{s}\n", .{err_msg.?});
-        return InitConfigError.ResourceAccessFailed;
-    };
-
     // Generate hardware-configuration.nix.
-    const hw_config = try generateHwConfigNix(allocator, args, nix_state, virt_type);
+    const hw_config = try generateHwConfigNix(allocator, args, virt_type);
     defer allocator.free(hw_config);
 
     if (args.show_hw_config) {

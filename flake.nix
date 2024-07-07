@@ -10,7 +10,7 @@
     # by updating the corresponding dependency inside build.zig.zon.
     # Otherwise, the symbols exported by Nix may # not be guaranteed to
     # be the same as the ones in the upstream Nix bindings package.
-    zignix.url = "github:water-sucks/zignix";
+    # zignix.url = "github:water-sucks/zignix";
 
     flake-compat = {
       url = "github:edolstra/flake-compat";
@@ -38,13 +38,12 @@
         ...
       }: let
         inherit (pkgs) callPackage zig pkg-config mkShell;
-        nixPackage = inputs.zignix.inputs.nix.packages.${system}.nix;
+        # nix = inputs.zignix.inputs.nix.packages.${system}.nix;
       in {
         packages = rec {
           default = nixos;
           nixos = callPackage (import ./package.nix) {
             revision = self.rev or "dirty";
-            nix = nixPackage;
             inherit (inputs.zig-deps-fod.lib) fetchZigDeps;
           };
           nixosLegacy = nixos.override {flake = false;};
@@ -55,9 +54,6 @@
           nativeBuildInputs = [
             zig
             pkg-config
-          ];
-          buildInputs = [
-            nixPackage.dev
           ];
 
           ZIG_DOCS = "${zig}/doc/langref.html";
