@@ -177,16 +177,18 @@ pub const Generation = struct {
             }
         }
 
+        var specialisation_dir = path.openDir("specialisation", .{ .iterate = true }) catch |err| blk: {
+            log.warn("unable to find specialisations: {s}", .{@errorName(err)});
+            break :blk null;
+        };
         // Find specialisations in NixOS generation
-        if (path.openDir("specialisation", .{ .iterate = true })) |*dir| {
-            // HACK: why is @constCast needed to close the directory?
-            defer @constCast(dir).close();
+        if (specialisation_dir) |*dir| {
+            defer dir.close();
+
             iter = dir.iterate();
             while (iter.next() catch return GenerationListError.ResourceAccessFailed) |entry| {
                 try specializations_list.append(try allocator.dupe(u8, entry.name));
             }
-        } else |err| {
-            log.warn("unable to find specialisations: {s}", .{@errorName(err)});
         }
 
         const configuration_revision = if (nixos_version_info.configurationRevision) |rev|
