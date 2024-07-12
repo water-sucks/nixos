@@ -51,7 +51,7 @@ in {
         builtins.toJSON {
           nixosVersion = "${nixosCfg.distroName} ${nixosCfg.release} (${nixosCfg.codeName})";
           nixpkgsRevision = "${nixosCfg.revision}";
-          configurationRevision = "${config.system.configurationRevision}";
+          configurationRevision = "${builtins.toString config.system.configurationRevision}";
         };
     in ''
       cat > "$out/nixos-version.json" << EOF
