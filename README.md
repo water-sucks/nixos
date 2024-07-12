@@ -39,6 +39,43 @@ the recommended way to use this program.
 }
 ```
 
+## Legacy
+
+This is primarily a flake-oriented package, since flakes are the future, at
+least as far as can be seen. However, legacy configurations managed with
+`nix-channel` and a `configuration.nix` are maintained here as well, albeit they
+are a little harder to use. The `nixos-cli` package that manages legacy
+configurations is completely separated from the flake-enabled `nixos-cli`, as
+to not mix usage between the two and separate concerns. In order to use the
+NixOS module, one must add the following to `configuration.nix` (or wherever
+`imports` are specified) in order to use the NixOS module properly:
+
+```nix
+{ config, system, pkgs, ...}:
+
+let
+  # Make sure to specify the git revision to fetch the flake in pure eval mode.
+  nixos-cli = builtins.getFlake "github:water-sucks/nixos/GITREVDEADBEEFDEADBEEF0000";
+in {
+  imports = [
+    (nixos-cli).nixosModules.nixos-cli
+  ];
+
+  services.nixos-cli = {
+    enable = true;
+    package = nixos-cli.packages.${pkgs.system}.nixosLegacy;
+  };
+
+  nix.settings.extra-experimental-features = ["flakes"];
+
+  # ... rest of config
+}
+```
+
+Note that this does involve flakes to be an enabled feature. If this is a
+deal-breaker for some reason, then please file an issue; legacy configurations
+are actively supported.
+
 ## Configuration
 
 This can be configured using the NixOS module (the preferred way), which
