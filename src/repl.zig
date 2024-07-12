@@ -174,9 +174,9 @@ fn legacyConfigExists(allocator: Allocator) !void {
 const legacy_repl_expr =
     \\let
     \\  system = import <nixpkgs/nixos> {};
-    \\in {{
+    \\in {
     \\  inherit (system) config lib options pkgs;
-    \\}}
+    \\}
     \\
 ;
 
