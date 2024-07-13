@@ -345,3 +345,37 @@ pub const KVPair = struct {
     name: []const u8,
     value: []const u8,
 };
+
+/// Verify legacy configuration exists, if needed. This
+/// is implicitly used by the "<nixpkgs/nixos>" attribute.
+pub fn verifyLegacyConfigurationExists(allocator: Allocator, verbose: bool) !void {
+    if (posix.getenv("NIXOS_CONFIG")) |dir| {
+        const filename = try fs.path.join(allocator, &.{ dir, "default.nix" });
+        defer allocator.free(filename);
+        if (!fileExistsAbsolute(filename)) {
+            log.err("no configuration found, expected {s} to exist", .{filename});
+            return error.NotFound;
+        } else {
+            if (verbose) log.info("found legacy configuration at {s}", .{filename});
+        }
+    } else {
+        const nix_path = posix.getenv("NIX_PATH") orelse "";
+        var paths = mem.tokenize(u8, nix_path, ":");
+
+        var configuration: ?[]const u8 = null;
+        while (paths.next()) |path| {
+            var kv = mem.tokenize(u8, path, "=");
+            if (mem.eql(u8, kv.next() orelse "", "nixos-config")) {
+                configuration = kv.next();
+                break;
+            }
+        }
+
+        if (configuration) |conf| {
+            if (verbose) log.info("found legacy configuration at {s}", .{conf});
+        } else {
+            log.err("no configuration found, expected 'nixos-config' attribute to exist in NIX_PATH", .{});
+            return error.NotFound;
+        }
+    }
+}

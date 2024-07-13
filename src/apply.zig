@@ -558,37 +558,7 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
 
         if (verbose) log.info("found flake configuration {s}#{s}", .{ flake_ref.uri, flake_ref.system });
     } else {
-        // Verify legacy configuration exists, if needed (no need to store location,
-        // because it is implicitly used by `nix-build "<nixpkgs/nixos>"`)
-        if (posix.getenv("NIXOS_CONFIG")) |dir| {
-            const filename = try fs.path.join(allocator, &.{ dir, "default.nix" });
-            defer allocator.free(filename);
-            if (!fileExistsAbsolute(filename)) {
-                log.err("no configuration found, expected {s} to exist", .{filename});
-                return ApplyError.ConfigurationNotFound;
-            } else {
-                if (verbose) log.info("found legacy configuration at {s}", .{filename});
-            }
-        } else {
-            const nix_path = posix.getenv("NIX_PATH") orelse "";
-            var paths = mem.tokenize(u8, nix_path, ":");
-
-            var configuration: ?[]const u8 = null;
-            while (paths.next()) |path| {
-                var kv = mem.tokenize(u8, path, "=");
-                if (mem.eql(u8, kv.next() orelse "", "nixos-config")) {
-                    configuration = kv.next();
-                    break;
-                }
-            }
-
-            if (configuration) |conf| {
-                if (verbose) log.info("found legacy configuration at {s}", .{conf});
-            } else {
-                log.err("no configuration found, expected 'nixos-config' attribute to exist in NIX_PATH", .{});
-                return ApplyError.ConfigurationNotFound;
-            }
-        }
+        utils.verifyLegacyConfigurationExists(allocator, verbose) catch return ApplyError.ConfigurationNotFound;
     }
 
     // Upgrade all channels

@@ -110,36 +110,6 @@ fn execFlakeRepl(allocator: Allocator, ref: FlakeRef, includes: []const []const 
     return process.execve(allocator, argv.items, null);
 }
 
-// Verify legacy configuration exists, if needed (no need to store location,
-// because it is implicitly used by Nix REPL expression)
-fn legacyConfigExists(allocator: Allocator) !void {
-    if (posix.getenv("NIXOS_CONFIG")) |dir| {
-        const filename = try fs.path.join(allocator, &.{ dir, "default.nix" });
-        defer allocator.free(filename);
-        if (!fileExistsAbsolute(filename)) {
-            log.err("no configuration found, expected {s} to exist", .{filename});
-            return ReplError.ConfigurationNotFound;
-        }
-    } else {
-        const nix_path = posix.getenv("NIX_PATH") orelse "";
-        var paths = mem.tokenize(u8, nix_path, ":");
-
-        var configuration: ?[]const u8 = null;
-        while (paths.next()) |path| {
-            var kv = mem.tokenize(u8, path, "=");
-            if (mem.eql(u8, kv.next() orelse "", "nixos-config")) {
-                configuration = kv.next();
-                break;
-            }
-        }
-
-        if (configuration == null) {
-            log.err("no configuration found, expected 'nixos-config' attribute to exist in NIX_PATH", .{});
-            return ReplError.ConfigurationNotFound;
-        }
-    }
-}
-
 const legacy_repl_expr =
     \\let
     \\  system = import <nixpkgs/nixos> {};
@@ -178,7 +148,7 @@ fn repl(allocator: Allocator, args: ReplCommand) ReplError!void {
 
         execFlakeRepl(allocator, flake_ref, args.includes.items) catch return ReplError.ReplExecError;
     } else {
-        try legacyConfigExists(allocator);
+        utils.verifyLegacyConfigurationExists(allocator, false) catch return ReplError.ConfigurationNotFound;
         execLegacyRepl(allocator, args.includes.items, posix.getenv("NIXOS_CONFIG") != null) catch return ReplError.ReplExecError;
     }
 }
