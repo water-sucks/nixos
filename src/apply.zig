@@ -212,7 +212,6 @@ pub const ApplyError = error{
     ResourceCreationFailed,
     SetNixProfileFailed,
     SwitchToConfigurationFailed,
-    UnknownHostname,
     UnknownSpecialization,
     UpgradeChannelsFailed,
 } || process.GetEnvMapError || Allocator.Error;
@@ -223,9 +222,6 @@ pub const BuildType = enum {
     VM,
     VMWithBootloader,
 };
-
-// Yes, I'm really this lazy. I don't want to use an allocator for this.
-var hostname_buffer: [posix.HOST_NAME_MAX]u8 = undefined;
 
 // Global exit status indicator for runCmd, so
 // that the correct exit code from a failed command
@@ -551,47 +547,14 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
     if (verbose) log.info("looking for configuration...", .{});
     // Find flake if unset, and parse it into its separate components
     var flake_ref: FlakeRef = undefined;
+    var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
 
-    if (opts.flake) flake_config: {
-        if (args.flake) |flake| {
-            // Parse flake arg if explicitly specified as a positional argument.
-            flake_ref = FlakeRef.fromSlice(flake);
-            if (flake_ref.system.len == 0) {
-                flake_ref.system = posix.gethostname(&hostname_buffer) catch {
-                    log.err("unable to determine hostname", .{});
-                    return ApplyError.UnknownHostname;
-                };
-            }
-
-            if (verbose) log.info("found flake configuration {s}#{s}", .{ flake_ref.uri, flake_ref.system });
-
-            break :flake_config;
-        }
-
-        // Check for existence of flake.nix in the NIXOS_CONFIG
-        // or location specified in settings for `apply.config_location`
-        const nixos_config = posix.getenv("NIXOS_CONFIG") orelse c.apply.config_location;
-
-        const nixos_config_is_flake = blk: {
-            const filename = try fs.path.join(allocator, &.{ nixos_config, "flake.nix" });
-            defer allocator.free(filename);
-            break :blk fileExistsAbsolute(filename);
-        };
-
-        if (nixos_config_is_flake) {
-            const dir = try fmt.allocPrint(allocator, "{s}#", .{nixos_config});
-
-            flake_ref = FlakeRef.fromSlice(dir);
-            if (flake_ref.system.len == 0) {
-                flake_ref.system = posix.gethostname(&hostname_buffer) catch {
-                    log.err("unable to determine hostname", .{});
-                    return ApplyError.UnknownHostname;
-                };
-            }
-        } else {
-            log.err("configuration at {s} is not a flake", .{nixos_config});
-            return ApplyError.ConfigurationNotFound;
-        }
+    if (opts.flake) {
+        flake_ref = if (args.flake) |flake|
+            FlakeRef.fromSlice(flake)
+        else
+            utils.findFlakeRef() catch return ApplyError.ConfigurationNotFound;
+        flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return ApplyError.ConfigurationNotFound;
 
         if (verbose) log.info("found flake configuration {s}#{s}", .{ flake_ref.uri, flake_ref.system });
     } else {

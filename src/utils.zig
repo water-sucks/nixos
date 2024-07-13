@@ -9,6 +9,8 @@ const mem = std.mem;
 const posix = std.posix;
 const process = std.process;
 
+const config = @import("config.zig");
+
 const log = @import("./log.zig");
 
 const Allocator = mem.Allocator;
@@ -183,7 +185,33 @@ pub const FlakeRef = struct {
             .system = "",
         };
     }
+
+    pub fn inferSystemNameIfNeeded(self: *Self, hostname_buf: *[posix.HOST_NAME_MAX]u8) !void {
+        if (self.system.len == 0) {
+            self.system = posix.gethostname(hostname_buf) catch {
+                log.err("unable to infer configuration attr using hostname", .{});
+                return error.NotFound;
+            };
+        }
+    }
 };
+
+pub fn findFlakeRef() !FlakeRef {
+    const c = config.getConfig();
+
+    var flake_ref: FlakeRef = undefined;
+
+    const nixos_config = posix.getenv("NIXOS_CONFIG") orelse c.config_location;
+
+    if (nixos_config.len < 1) {
+        log.err("NIXOS_CONFIG is unset, unable to find configuration", .{});
+        return error.NotFound;
+    }
+
+    flake_ref = FlakeRef.fromSlice(nixos_config);
+
+    return flake_ref;
+}
 
 /// Check if a file exists by opening and closing it.
 pub fn fileExistsAbsolute(filename: []const u8) bool {

@@ -84,37 +84,6 @@ pub const ReplCommand = struct {
 
 pub const ReplError = error{ ConfigurationNotFound, ReplExecError } || Allocator.Error;
 
-var hostname_buffer: [posix.HOST_NAME_MAX]u8 = undefined;
-
-fn findFlakeRef(allocator: Allocator) !FlakeRef {
-    var flake_ref: FlakeRef = undefined;
-    const nixos_config = posix.getenv("NIXOS_CONFIG") orelse {
-        log.err("NIXOS_CONFIG is unset, unable to find configuration", .{});
-        return ReplError.ConfigurationNotFound;
-    };
-
-    const nixos_config_is_flake = blk: {
-        const filename = try fs.path.join(allocator, &.{ nixos_config, "flake.nix" });
-        defer allocator.free(filename);
-
-        break :blk fileExistsAbsolute(filename);
-    };
-
-    if (!nixos_config_is_flake) {
-        log.err("configuration at {s} is not a flake", .{nixos_config});
-        return ReplError.ConfigurationNotFound;
-    }
-
-    flake_ref = FlakeRef.fromSlice(nixos_config);
-    if (flake_ref.system.len == 0) {
-        flake_ref.system = posix.gethostname(&hostname_buffer) catch {
-            log.err("unable to determine hostname", .{});
-            return ReplError.ConfigurationNotFound;
-        };
-    }
-    return flake_ref;
-}
-
 const flake_repl_expr =
     \\let
     \\  flake = builtins.getFlake "{s}";
@@ -200,10 +169,13 @@ fn execLegacyRepl(allocator: Allocator, includes: []const []const u8, impure: bo
 
 fn repl(allocator: Allocator, args: ReplCommand) ReplError!void {
     if (opts.flake) {
-        const flake_ref = if (args.flake) |flake|
+        var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
+        var flake_ref = if (args.flake) |flake|
             FlakeRef.fromSlice(flake)
         else
-            try findFlakeRef(allocator);
+            utils.findFlakeRef() catch return ReplError.ConfigurationNotFound;
+        flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return ReplError.ConfigurationNotFound;
+
         execFlakeRepl(allocator, flake_ref, args.includes.items) catch return ReplError.ReplExecError;
     } else {
         try legacyConfigExists(allocator);

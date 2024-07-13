@@ -18,9 +18,9 @@ pub const Config = struct {
     aliases: ?toml.Table = null,
     apply: struct {
         specialisation: ?[]const u8 = null,
-        config_location: []const u8 = "/etc/nixos",
         use_nom: bool = false,
     } = .{},
+    config_location: []const u8 = "/etc/nixos",
     enter: struct {
         mount_resolv_conf: bool = true,
     } = .{},
