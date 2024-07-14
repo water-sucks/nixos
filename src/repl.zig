@@ -36,7 +36,7 @@ pub const ReplCommand = struct {
         \\
         \\Usage:
         \\
-    (if (opts.flake)
+    ++ (if (opts.flake)
         \\    nixos repl [FLAKE-REF] [options]
         \\
         \\Arguments:
@@ -63,6 +63,9 @@ pub const ReplCommand = struct {
             if (argIs(arg, "--include", "-I")) {
                 const next = (try getNextArgs(argv, arg, 1))[0];
                 try parsed.includes.append(next);
+            } else if (argIs(arg, "--help", "-h")) {
+                log.print(usage, .{});
+                return ArgParseError.HelpInvoked;
             } else {
                 if (opts.flake and parsed.flake == null) {
                     parsed.flake = arg;

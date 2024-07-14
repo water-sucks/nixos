@@ -17,6 +17,7 @@ const info = @import("info.zig");
 const init = @import("init.zig");
 const install = @import("install.zig");
 const manual = @import("manual.zig");
+const option = @import("option.zig");
 const repl = @import("repl.zig");
 
 const ApplyCommand = apply.ApplyCommand;
@@ -26,6 +27,7 @@ const InfoCommand = info.InfoCommand;
 const InitConfigCommand = init.InitConfigCommand;
 const InstallCommand = install.InstallCommand;
 const ReplCommand = repl.ReplCommand;
+const OptionCommand = option.OptionCommand;
 
 const config = @import("config.zig");
 
@@ -60,6 +62,7 @@ const MainArgs = struct {
         init: InitConfigCommand,
         install: InstallCommand,
         manual,
+        option: OptionCommand,
         repl: ReplCommand,
     };
 
@@ -79,6 +82,7 @@ const MainArgs = struct {
         \\    init          Initialize a configuration.nix file
         \\    install       Install a NixOS configuration and bootloader
         \\    manual        Open the NixOS manual in a browser
+        \\    option        Query NixOS options and their details
         \\    repl          Start a Nix REPL with system configuration loaded
         \\
         \\Options:
@@ -124,6 +128,8 @@ const MainArgs = struct {
                     result.subcommand = .{ .install = InstallCommand.init(allocator) };
                 } else if (mem.eql(u8, arg, "manual")) {
                     result.subcommand = .manual;
+                } else if (mem.eql(u8, arg, "option")) {
+                    result.subcommand = .{ .option = OptionCommand.init(allocator) };
                 } else if (mem.eql(u8, arg, "repl")) {
                     result.subcommand = .{ .repl = ReplCommand.init(allocator) };
                 } else {
@@ -154,7 +160,7 @@ const MainArgs = struct {
                     }
                 }
             } else {
-                argError("unknown subcommand '{s}'", .{arg});
+                argError("argument '{s}' is not valid in this context", .{arg});
                 return ArgParseError.InvalidSubcommand;
             }
 
@@ -170,6 +176,7 @@ const MainArgs = struct {
                     .init => |*sub_args| try InitConfigCommand.parseArgs(argv, sub_args),
                     .install => |*sub_args| try InstallCommand.parseArgs(argv, sub_args),
                     .manual => null,
+                    .option => |*sub_args| try OptionCommand.parseArgs(argv, sub_args),
                     .repl => |*sub_args| try ReplCommand.parseArgs(argv, sub_args),
                 };
             } else {
@@ -193,6 +200,7 @@ const MainArgs = struct {
                 .enter => |*args| args.deinit(),
                 .install => |*args| args.deinit(),
                 .repl => |*args| args.deinit(),
+                .option => |*args| args.deinit(),
                 else => {},
             }
         }
@@ -269,6 +277,7 @@ pub fn main() !u8 {
         .init => |args| init.initConfigMain(allocator, args),
         .install => |args| install.installMain(allocator, args),
         .manual => manual.manualMain(allocator),
+        .option => |args| option.optionMain(allocator, args),
         .repl => |args| repl.replMain(allocator, args),
     };
 
