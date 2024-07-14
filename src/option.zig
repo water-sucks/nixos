@@ -199,10 +199,13 @@ const UNDERLINE = "\x1B[4m";
 fn displayOption(name: []const u8, opt: NixosOptionFromFile) void {
     const stdout = io.getStdOut().writer();
 
+    // Descriptions more often than not have lots of newlines and spaces,
+    // especially trailing ones. This should be trimmed.
+    const description = mem.trim(u8, opt.description, "\n ");
     const default = if (opt.default) |d| d.text else null;
 
     println(stdout, BOLD ++ "Name\n" ++ RESET ++ "{s}\n", .{name});
-    println(stdout, BOLD ++ "Description\n" ++ RESET ++ "{s}\n", .{opt.description});
+    println(stdout, BOLD ++ "Description\n" ++ RESET ++ "{s}\n", .{description});
     println(stdout, BOLD ++ "Type\n" ++ RESET ++ "{s}\n", .{opt.type});
     println(stdout, BOLD ++ "Default\n" ++ RESET ++ "{s}\n", .{default orelse "No default value."});
     if (opt.example) |example| {
@@ -255,7 +258,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
             if (args.json) {
                 const output = .{
                     .name = key,
-                    .description = value.description,
+                    .description = mem.trim(u8, value.description, "\n "),
                     .type = value.type,
                     .default = if (value.default) |d| d.text else null,
                     .example = if (value.example) |e| e.text else null,
