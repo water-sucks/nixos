@@ -25,6 +25,7 @@ const FlakeRef = utils.FlakeRef;
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 const runCmd = utils.runCmd;
 const println = utils.println;
+const search = utils.search;
 
 pub const OptionError = error{
     NoOptionCache,
@@ -150,7 +151,7 @@ fn findNixosOptionFilepathFlake(allocator: Allocator) ![]const u8 {
     });
     defer allocator.free(option_attr);
 
-    const argv = &.{ "nix", "build", "--print-out-paths", option_attr };
+    const argv = &.{ "nix", "build", "--no-link", "--print-out-paths", option_attr };
 
     const result = runCmd(.{
         .allocator = allocator,
@@ -236,12 +237,13 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
     const options_filename = try fs.path.join(allocator, &.{ option_cache_realized_drv, "/share/doc/nixos/options.json" });
     defer allocator.free(options_filename);
 
-    var option_map = loadOptionsFromFile(allocator, options_filename) catch return OptionError.NoOptionCache;
-    defer option_map.deinit();
+    var parsed_options = loadOptionsFromFile(allocator, options_filename) catch return OptionError.NoOptionCache;
+    defer parsed_options.deinit();
 
-    const option_name = args.option.?;
+    const option_map = parsed_options.value.map;
+    const option_input = args.option.?;
 
-    var option_iter = option_map.value.map.iterator();
+    var option_iter = option_map.iterator();
 
     const stdout = io.getStdOut().writer();
 
@@ -249,7 +251,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
         const key = kv.key_ptr.*;
         const value = kv.value_ptr.*;
 
-        if (mem.eql(u8, option_name, key)) {
+        if (mem.eql(u8, option_input, key)) {
             if (args.json) {
                 const output = .{
                     .name = key,
@@ -265,18 +267,50 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
             } else {
                 displayOption(key, value);
             }
-            break;
+            return;
         }
     } else {
+        const candidate_filter_buf = try allocator.alloc(search.Candidate, option_map.count());
+        defer allocator.free(candidate_filter_buf);
+
+        const similar_options = blk: {
+            const raw_filtered = search.rankCandidates(candidate_filter_buf, option_map.keys(), &.{option_input}, false, true, true);
+            if (raw_filtered.len < 10) {
+                break :blk raw_filtered;
+            }
+            break :blk raw_filtered[0..10];
+        };
+
+        const error_message = try fmt.allocPrint(allocator, "no exact match for query '{s}' found", .{option_input});
+        defer allocator.free(error_message);
+
         if (args.json) {
+            const similar_options_str_list = try allocator.alloc([]const u8, similar_options.len);
+            defer allocator.free(similar_options_str_list);
+
+            for (similar_options, similar_options_str_list) |opt_name, *dst| {
+                dst.* = opt_name.str;
+            }
+
             const output = .{
-                .message = "no option matching this name found",
+                .message = error_message,
+                .similar_options = similar_options_str_list,
             };
+
             json.stringify(output, .{ .whitespace = .indent_2 }, stdout) catch unreachable;
         } else {
-            log.print("no option for query '{s}' found", .{option_name});
+            log.err("{s}", .{error_message});
+
+            if (similar_options.len > 0) {
+                log.print("\nSome similar options were found:\n", .{});
+                for (similar_options) |c| {
+                    log.print("  - {s}\n", .{c.str});
+                }
+            } else {
+                log.print("Try refining your search query.\n", .{});
+            }
         }
-        // TODO; find related options
+
         return OptionError.NoResultFound;
     }
 }

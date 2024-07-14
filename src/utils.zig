@@ -379,3 +379,5 @@ pub fn verifyLegacyConfigurationExists(allocator: Allocator, verbose: bool) !voi
         }
     }
 }
+
+pub const search = @import("utils/search.zig");
