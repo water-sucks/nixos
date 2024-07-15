@@ -154,7 +154,9 @@ const MainArgs = struct {
                         break :blk false;
                     };
 
-                    if (!is_alias) {
+                    if (is_alias) {
+                        return result;
+                    } else {
                         argError("unknown subcommand '{s}'", .{arg});
                         return ArgParseError.InvalidSubcommand;
                     }
