@@ -122,12 +122,18 @@ const NixosOptionFromFile = struct {
     declarations: []const []const u8,
 };
 
-fn findNixosOptionFilepathLegacy(allocator: Allocator) ![]const u8 {
-    const argv = &.{ "nix-build", "<nixpkgs/nixos>", "--no-out-link", "-A", "config.system.build.manual.optionsJSON" };
+fn findNixosOptionFilepathLegacy(allocator: Allocator, includes: []const []const u8) ![]const u8 {
+    var argv = ArrayList([]const u8).init(allocator);
+    defer argv.deinit();
+
+    try argv.appendSlice(&.{ "nix-build", "<nixpkgs/nixos>", "--no-out-link", "-A", "config.system.build.manual.optionsJSON" });
+    for (includes) |include| {
+        try argv.appendSlice(&.{ "-I", include });
+    }
 
     const result = runCmd(.{
         .allocator = allocator,
-        .argv = argv,
+        .argv = argv.items,
         .stderr_type = .Ignore,
     }) catch return OptionError.NoOptionCache;
 
@@ -140,7 +146,7 @@ fn findNixosOptionFilepathLegacy(allocator: Allocator) ![]const u8 {
     return try allocator.dupe(u8, result.stdout.?);
 }
 
-fn findNixosOptionFilepathFlake(allocator: Allocator) ![]const u8 {
+fn findNixosOptionFilepathFlake(allocator: Allocator, includes: []const []const u8) ![]const u8 {
     var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
     var flake_ref = utils.findFlakeRef() catch return OptionError.NoOptionCache;
     flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return OptionError.NoOptionCache;
@@ -151,8 +157,13 @@ fn findNixosOptionFilepathFlake(allocator: Allocator) ![]const u8 {
     });
     defer allocator.free(option_attr);
 
-    const argv = &.{ "nix", "build", "--no-link", "--print-out-paths", option_attr };
+    var argv = ArrayList([]const u8).init(allocator);
+    defer argv.deinit();
 
+    try argv.appendSlice(&.{ "nix", "build", "--no-link", "--print-out-paths", option_attr });
+    for (includes) |include| {
+        try argv.appendSlice(&.{ "-I", include });
+    }
     const result = runCmd(.{
         .allocator = allocator,
         .argv = argv,
@@ -232,9 +243,9 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
     }
 
     const option_cache_realized_drv = if (opts.flake)
-        try findNixosOptionFilepathFlake(allocator)
+        try findNixosOptionFilepathFlake(allocator, args.includes.items)
     else
-        try findNixosOptionFilepathLegacy(allocator);
+        try findNixosOptionFilepathLegacy(allocator, args.includes.items);
     defer allocator.free(option_cache_realized_drv);
 
     const options_filename = try fs.path.join(allocator, &.{ option_cache_realized_drv, "/share/doc/nixos/options.json" });
