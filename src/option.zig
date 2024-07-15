@@ -231,6 +231,8 @@ fn displayOption(name: []const u8, opt: NixosOptionFromFile) void {
     }
 }
 
+const prebuilt_options_cache_filename = Constants.current_system ++ "/sw/share/doc/nixos/options.json";
+
 fn option(allocator: Allocator, args: OptionCommand) !void {
     if (!fileExistsAbsolute(Constants.etc_nixos)) {
         log.err("the option command is unsupported on non-NixOS systems", .{});
@@ -242,14 +244,22 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
         return;
     }
 
-    const option_cache_realized_drv = if (opts.flake)
-        try findNixosOptionFilepathFlake(allocator, args.includes.items)
-    else
-        try findNixosOptionFilepathLegacy(allocator, args.includes.items);
-    defer allocator.free(option_cache_realized_drv);
+    var options_filename_alloc = false;
+    const options_filename = blk: {
+        if (fileExistsAbsolute(prebuilt_options_cache_filename)) {
+            break :blk prebuilt_options_cache_filename;
+        }
 
-    const options_filename = try fs.path.join(allocator, &.{ option_cache_realized_drv, "/share/doc/nixos/options.json" });
-    defer allocator.free(options_filename);
+        const option_cache_realized_drv = if (opts.flake)
+            try findNixosOptionFilepathFlake(allocator, args.includes.items)
+        else
+            try findNixosOptionFilepathLegacy(allocator, args.includes.items);
+        defer allocator.free(option_cache_realized_drv);
+
+        options_filename_alloc = true;
+        break :blk try fs.path.join(allocator, &.{ option_cache_realized_drv, "/share/doc/nixos/options.json" });
+    };
+    defer if (options_filename_alloc) allocator.free(options_filename);
 
     var parsed_options = loadOptionsFromFile(allocator, options_filename) catch return OptionError.NoOptionCache;
     defer parsed_options.deinit();
