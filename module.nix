@@ -35,10 +35,19 @@ in {
         }
         prev;
     };
+
+    prebuildOptionCache = lib.mkOption {
+      type = types.bool;
+      default = config.documentation.nixos.enable;
+      description = "Prebuild JSON cache for `nixos option` command";
+    };
   };
 
   config = lib.mkIf cfg.enable {
-    environment.systemPackages = [cfg.package];
+    environment.systemPackages = let
+      optionsJSON = config.system.build.manual.optionsJSON;
+    in
+      [cfg.package] ++ lib.optionals cfg.prebuildOptionCache [optionsJSON];
 
     environment.etc."nixos-cli/config.toml".source =
       tomlFormat.generate "nixos-cli-config.toml" cfg.config;
