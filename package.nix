@@ -19,7 +19,7 @@ stdenv.mkDerivation rec {
       inherit stdenv zig;
       name = pname;
       src = ./.;
-      depsHash = "sha256-a4GiBgoqMzYiceDeiu4CaDXtshp6qCXhQ1pMilRvVNg=";
+      depsHash = "sha256-y2inrj4evVbE4k0u5w6PGi65GWVxcoC/QUrOyPHgbGw=";
     };
   in ''
     mkdir -p .cache

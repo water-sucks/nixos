@@ -81,6 +81,10 @@ fn nixosExecutable(b: *Build, opts: struct {
         .target = opts.target,
         .optimize = opts.optimize,
     });
+    const zf_package = b.dependency("zf", .{
+        .target = opts.target,
+        .optimize = opts.optimize,
+    });
 
     const exe = b.addExecutable(.{
         .name = "nixos",
@@ -90,6 +94,7 @@ fn nixosExecutable(b: *Build, opts: struct {
     });
     // exe.root_module.addImport("nix", zignix_package.module("zignix"));
     exe.root_module.addImport("toml", toml_package.module("zig-toml"));
+    exe.root_module.addImport("zf", zf_package.module("zf"));
 
     exe.root_module.addOptions("options", opts.options);
 
