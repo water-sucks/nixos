@@ -166,7 +166,7 @@ fn findNixosOptionFilepathFlake(allocator: Allocator, includes: []const []const 
     }
     const result = runCmd(.{
         .allocator = allocator,
-        .argv = argv,
+        .argv = argv.items,
         .stderr_type = .Ignore,
     }) catch return OptionError.NoOptionCache;
 
