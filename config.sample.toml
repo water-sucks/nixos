@@ -1,3 +1,5 @@
+config_location = "/etc/nixos" # Where to look for configuration by default
+
 # Aliases for long commands that you don't want to type out. All arguments
 # after the aliases are passed as-is to the underlying command.
 # Aliases must not contain spaces.
@@ -10,7 +12,6 @@ rollback = ["generation", "rollback"]
 # Configuration for the `apply` subcommand.
 [apply]
 specialisation = "" # Name of specialisation to use by default
-config_location = "/etc/nixos" # Where to look for configuration by default
 use_nom = false # Use `nix-output-monitor` as an alternative `nix build` front-end
 
 # Configuration for the `enter` subcommand.
