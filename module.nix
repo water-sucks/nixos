@@ -5,6 +5,8 @@ self: {
   ...
 }: let
   cfg = config.services.nixos-cli;
+  nixosCfg = config.system.nixos;
+
   inherit (lib) types;
 
   tomlFormat = pkgs.formats.toml {};
@@ -36,6 +38,13 @@ in {
         prev;
     };
 
+    generationTag = lib.mkOption {
+      type = types.str;
+      default = lib.maybeEnv "NIXOS_GENERATION_TAG" nixosCfg.label;
+      description = "A description for this generation";
+      example = "Sign Git GPG commits by default";
+    };
+
     prebuildOptionCache = lib.mkOption {
       type = types.bool;
       default = config.documentation.nixos.enable;
@@ -54,14 +63,12 @@ in {
 
     # Hijack system builder commands to insert a `nixos-version.json` file at the root.
     system.systemBuilderCommands = let
-      nixos-version-json = let
-        nixosCfg = config.system.nixos;
-      in
-        builtins.toJSON {
-          nixosVersion = "${nixosCfg.distroName} ${nixosCfg.release} (${nixosCfg.codeName})";
-          nixpkgsRevision = "${nixosCfg.revision}";
-          configurationRevision = "${builtins.toString config.system.configurationRevision}";
-        };
+      nixos-version-json = builtins.toJSON {
+        nixosVersion = "${nixosCfg.distroName} ${nixosCfg.release} (${nixosCfg.codeName})";
+        nixpkgsRevision = "${nixosCfg.revision}";
+        configurationRevision = "${builtins.toString config.system.configurationRevision}";
+        description = builtins.trace cfg.generationTag "${cfg.generationTag}";
+      };
     in ''
       cat > "$out/nixos-version.json" << EOF
       ${nixos-version-json}

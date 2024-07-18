@@ -49,6 +49,7 @@ pub const ApplyCommand = struct {
     specialization: ?[]const u8 = null,
     upgrade_channels: bool = false,
     upgrade_all_channels: bool = false,
+    tag: ?[]const u8 = null,
     use_nom: bool = false,
     vm: bool = false,
     vm_with_bootloader: bool = false,
@@ -83,6 +84,7 @@ pub const ApplyCommand = struct {
         \\    -o, --output <LOCATION>        Symlink the output to a location
         \\    -p, --profile-name <NAME>      Name of the system profile to use
         \\    -s, --specialisation <NAME>    Activate the given specialisation
+        \\    -t, --tag <MESSAGE>            Tag this generation with a description
     ++ utils.optionalArgString(!opts.flake,
         \\    -u, --upgrade                  Upgrade the root user's `nixos` channel
         \\        --upgrade-all              Upgrade all of the root user's channels
@@ -129,6 +131,9 @@ pub const ApplyCommand = struct {
             } else if (argIs(arg, "--specialisation", "-s")) {
                 const next = (try getNextArgs(args, arg, 1))[0];
                 parsed.specialization = next;
+            } else if (argIs(arg, "--tag", "-t")) {
+                const next = (try getNextArgs(args, arg, 1))[0];
+                parsed.tag = next;
             } else if (argIs(arg, "--upgrade", "-u") and !opts.flake) {
                 parsed.upgrade_channels = true;
             } else if (argIs(arg, "--upgrade-all", null) and !opts.flake) {
@@ -170,6 +175,22 @@ pub const ApplyCommand = struct {
             }
 
             next_arg = args.next();
+        }
+
+        if (parsed.tag != null and opts.flake) {
+            const is_impure = blk: {
+                for (parsed.build_options.items) |arg| {
+                    if (mem.eql(u8, arg, "--impure")) {
+                        break :blk true;
+                    }
+                }
+                break :blk false;
+            };
+
+            if (!is_impure) {
+                argError("--impure is required when using --tag for flake configurations", .{});
+                return ArgParseError.ConflictingOptions;
+            }
         }
 
         if (parsed.dry and parsed.output != null) {
@@ -291,6 +312,7 @@ fn nixBuild(
         result_dir: ?[]const u8 = null,
         dry: bool = false,
         use_nom: bool = false,
+        tag: ?[]const u8 = null,
     },
 ) ![]const u8 {
     const attribute = switch (build_type) {
@@ -320,12 +342,20 @@ fn nixBuild(
 
     try argv.appendSlice(options.build_options);
 
+    var env_map = try process.getEnvMap(allocator);
+    defer env_map.deinit();
+
+    if (options.tag) |message| {
+        try env_map.put("NIXOS_GENERATION_TAG", message);
+    }
+
     if (verbose) log.cmd(argv.items);
 
     // The stdout is the real output path, so no need to readlink anything
     const result = runCmd(.{
         .allocator = allocator,
         .argv = argv.items,
+        .env_map = &env_map,
     }) catch return ApplyError.NixBuildFailed;
 
     if (result.status != 0) {
@@ -347,6 +377,7 @@ fn nixBuildFlake(
         result_dir: ?[]const u8 = null,
         dry: bool = false,
         use_nom: bool = false,
+        tag: ?[]const u8 = null,
     },
 ) ![]const u8 {
     const attr_to_build = switch (build_type) {
@@ -383,11 +414,19 @@ fn nixBuildFlake(
     try argv.appendSlice(options.build_options);
     try argv.appendSlice(options.flake_options);
 
+    var env_map = try process.getEnvMap(allocator);
+    defer env_map.deinit();
+
+    if (options.tag) |message| {
+        try env_map.put("NIXOS_GENERATION_TAG", message);
+    }
+
     if (verbose) log.cmd(argv.items);
 
     const result = runCmd(.{
         .allocator = allocator,
         .argv = argv.items,
+        .env_map = &env_map,
     }) catch return ApplyError.NixBuildFailed;
 
     if (result.stdout) |stdout| {
@@ -628,6 +667,7 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
                 null,
             .dry = dry_build,
             .use_nom = use_nom,
+            .tag = args.tag,
         }) catch |err| {
             log.err("failed to build the system configuration", .{});
             if (err == error.PermissionDenied) {
@@ -648,6 +688,7 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
                 null,
             .dry = dry_build,
             .use_nom = use_nom,
+            .tag = args.tag,
         }) catch |err| {
             log.err("failed to build the system configuration", .{});
             if (err == error.PermissionDenied) {
