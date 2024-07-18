@@ -27,7 +27,7 @@ pub fn build(b: *Build) void {
     // Flake-specific features are enabled by default.
     const flake = b.option(bool, "flake", "Use flake-specific commands and options") orelse true;
     // Change the nixpkgs branch to initialize configurations with
-    const nixpkgs_version = b.option([]const u8, "nixpkgs-version", "Nixpkgs branch name to initialize configurations with") orelse "release-24.05";
+    const nixpkgs_version = b.option([]const u8, "nixpkgs-version", "Nixpkgs branch name to initialize configurations with") orelse "24.05";
 
     options.addOption([]const u8, "version", full_version);
     options.addOption(bool, "flake", flake);

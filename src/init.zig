@@ -1230,6 +1230,7 @@ fn generateConfigNix(allocator: Allocator, virt_type: VirtualizationType) ![]con
         xserver_config,
         c.desktop_config orelse "",
         c.extra_config orelse "",
+        opts.nixpkgs_version, // state version
     });
 }
 
@@ -1334,7 +1335,7 @@ fn initConfig(allocator: Allocator, args: InitConfigCommand) !void {
 
     if (opts.flake) {
         // Use the NixOS version of the currently running system.
-        const nixpkgs_input = "\n    nixpkgs.url = \"github:NixOS/nixpkgs/" ++ opts.nixpkgs_version ++ "\";\n";
+        const nixpkgs_input = "\n    nixpkgs.url = \"github:NixOS/nixpkgs/release-" ++ opts.nixpkgs_version ++ "\";\n";
         const flake_str = try fmt.allocPrint(allocator, flake_template, .{nixpkgs_input});
 
         log.info("writing {s}...", .{flake_nix_filename});
