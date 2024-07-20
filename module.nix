@@ -39,8 +39,8 @@ in {
     };
 
     generationTag = lib.mkOption {
-      type = types.str;
-      default = lib.maybeEnv "NIXOS_GENERATION_TAG" nixosCfg.label;
+      type = types.nullOr types.str;
+      default = lib.maybeEnv "NIXOS_GENERATION_TAG" null;
       description = "A description for this generation";
       example = "Sign Git GPG commits by default";
     };
@@ -67,7 +67,7 @@ in {
         nixosVersion = "${nixosCfg.distroName} ${nixosCfg.release} (${nixosCfg.codeName})";
         nixpkgsRevision = "${nixosCfg.revision}";
         configurationRevision = "${builtins.toString config.system.configurationRevision}";
-        description = builtins.trace cfg.generationTag "${cfg.generationTag}";
+        description = cfg.generationTag;
       };
     in ''
       cat > "$out/nixos-version.json" << EOF

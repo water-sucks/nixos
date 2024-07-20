@@ -33,6 +33,8 @@ pub const GenerationMetadata = struct {
     current: bool = false,
     /// NixOS version of generation
     nixos_version: ?[]const u8 = null,
+    /// Description of generation, if given
+    description: ?[]const u8 = null,
     /// nixpkgs revision (if it exists)
     nixpkgs_revision: ?[]const u8 = null,
     /// Version of active kernel in generation
@@ -84,6 +86,9 @@ pub const GenerationMetadata = struct {
         }
         if (nixos_version_info.nixpkgsRevision) |rev| {
             result.nixpkgs_revision = try allocator.dupe(u8, rev);
+        }
+        if (nixos_version_info.description) |desc| {
+            result.description = try allocator.dupe(u8, desc);
         }
 
         if (result.nixos_version == null) {
@@ -180,6 +185,10 @@ pub const GenerationMetadata = struct {
         defer if (formatted_date) |date| self.allocator.free(date);
         try prettyPrintKeyValue(writer, "Creation Date", formatted_date, .{ .color = options.color });
 
+        if (self.description) |_| {
+            try prettyPrintKeyValue(writer, "Description", self.description, .{ .color = options.color });
+        }
+
         try prettyPrintKeyValue(writer, "Nixpkgs Revision", self.nixpkgs_revision, .{ .color = options.color });
         try prettyPrintKeyValue(writer, "Config Revision", self.configuration_revision, .{ .color = options.color });
         try prettyPrintKeyValue(writer, "Kernel Version", self.kernel_version, .{ .color = options.color });
@@ -255,9 +264,10 @@ pub const GenerationMetadata = struct {
     // JSON serialization problems.
     pub fn deinit(self: *Self) void {
         if (self.nixos_version) |version| self.allocator.free(version);
-        if (self.kernel_version) |version| self.allocator.free(version);
+        if (self.description) |desc| self.allocator.free(desc);
         if (self.nixpkgs_revision) |rev| self.allocator.free(rev);
         if (self.configuration_revision) |rev| self.allocator.free(rev);
+        if (self.kernel_version) |version| self.allocator.free(version);
 
         if (self.specialisations) |specialisations| {
             for (specialisations) |s| {
@@ -290,6 +300,9 @@ pub const GenerationMetadata = struct {
 
         try out.objectField("nixos_version");
         try out.write(self.nixos_version);
+
+        try out.objectField("description");
+        try out.write(self.description);
 
         try out.objectField("kernel_version");
         try out.write(self.kernel_version);
