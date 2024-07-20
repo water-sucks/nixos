@@ -13,8 +13,6 @@ const ArgParseError = argparse.ArgParseError;
 
 const Constants = @import("constants.zig");
 
-const GenerationInfo = @import("generation.zig").GenerationInfo;
-
 const log = @import("log.zig");
 
 const utils = @import("utils.zig");
@@ -72,95 +70,54 @@ pub const InfoCommand = struct {
 };
 
 fn info(allocator: Allocator, args: InfoCommand) InfoError!void {
-    const parsed_version_contents = blk: {
-        const filename = Constants.current_system ++ "/nixos-version.json";
-
-        const contents = readFile(allocator, filename) catch break :blk null;
-        defer allocator.free(contents);
-
-        break :blk std.json.parseFromSlice(GenerationInfo, allocator, contents, .{
-            .allocate = .alloc_always,
-            .ignore_unknown_fields = true,
-        }) catch null;
+    var current_system_dir = fs.openDirAbsolute("/run/current-system", .{}) catch |err| {
+        log.err("unable to open current system dir: {s}", .{@errorName(err)});
+        return InfoError.OutOfMemory;
     };
-    defer {
-        if (parsed_version_contents) |contents| contents.deinit();
-    }
+    defer current_system_dir.close();
+
+    var generation_info = utils.generation.GenerationMetadata.getGenerationInfo(allocator, current_system_dir, null) catch return InfoError.OutOfMemory;
+    defer generation_info.deinit();
 
     const stdout = io.getStdOut().writer();
 
-    var version_info = if (parsed_version_contents) |parsed|
-        parsed.value
-    else
-        GenerationInfo{};
-
-    // Find version from os-release PRETTY_NAME field if not known
-    const nixos_version = if (version_info.nixosVersion == null) blk: {
-        const filename = Constants.current_system ++ "/etc/os-release";
-
-        const os_release = readFile(allocator, filename) catch break :blk null;
-        defer allocator.free(os_release);
-
-        var lines = mem.tokenizeScalar(u8, os_release, '\n');
-        while (lines.next()) |line| {
-            if (mem.startsWith(u8, line, "PRETTY_NAME=")) {
-                break :blk try allocator.dupe(u8, line[13..(line.len - 1)]);
-            }
-        }
-
-        break :blk null;
-    } else null;
-    defer if (nixos_version) |v| allocator.free(v);
-
-    // Fill in unfilled fields with "unknown",
-    // it's not very fun to determine otherwise
-    if (version_info.nixosVersion == null) {
-        version_info.nixosVersion = nixos_version orelse "unknown";
-    }
-
-    if (version_info.configurationRevision == null) {
-        version_info.configurationRevision = "unknown";
-    }
-
-    if (version_info.nixpkgsRevision == null) {
-        version_info.nixpkgsRevision = "unknown";
-    }
-
     if (args.json) {
-        std.json.stringify(version_info, .{ .whitespace = .indent_2 }, stdout) catch unreachable;
+        std.json.stringify(generation_info, .{
+            .whitespace = .indent_2,
+        }, stdout) catch unreachable;
         println(stdout, "", .{});
         return;
     }
 
     if (args.markdown) {
         println(stdout,
-            \\ - nixos version: `{s}`
-            \\ - nixpkgs revision: `{s}`
-            \\ - configuration revision: `{s}`
+            \\ - nixos version: `{?s}`
+            \\ - nixpkgs revision: `{?s}`
+            \\ - configuration revision: `{?s}`
         , .{
-            version_info.nixosVersion.?,
-            version_info.nixpkgsRevision.?,
-            version_info.configurationRevision.?,
+            generation_info.nixos_version,
+            generation_info.nixpkgs_revision,
+            generation_info.configuration_revision,
         });
         return;
     }
 
     // If no args are filled, just print the version and exit
     if (!args.config_rev and !args.nixpkgs_rev and !args.version) {
-        println(stdout, "{s}", .{version_info.nixosVersion.?});
+        println(stdout, "{s}", .{generation_info.nixos_version orelse "unknown"});
         return;
     }
 
-    if (args.nixpkgs_rev) {
-        println(stdout, "{s}", .{version_info.nixpkgsRevision.?});
+    if (args.version) {
+        println(stdout, "{s}", .{generation_info.nixos_version orelse "unknown"});
     }
 
     if (args.config_rev) {
-        println(stdout, "{s}", .{version_info.configurationRevision.?});
+        println(stdout, "{s}", .{generation_info.configuration_revision orelse "unknown"});
     }
 
-    if (args.version) {
-        println(stdout, "{s}", .{version_info.nixosVersion.?});
+    if (args.nixpkgs_rev) {
+        println(stdout, "{s}", .{generation_info.nixpkgs_revision orelse "unknown"});
     }
 }
 

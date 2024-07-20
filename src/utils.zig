@@ -8,15 +8,14 @@ const io = std.io;
 const mem = std.mem;
 const posix = std.posix;
 const process = std.process;
-
-const config = @import("config.zig");
-
-const log = @import("./log.zig");
-
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
 const ChildProcess = process.Child;
 const EnvMap = process.EnvMap;
+
+const config = @import("config.zig");
+
+const log = @import("./log.zig");
 
 /// Print to a writer, ignoring errors.
 pub fn print(out: anytype, comptime format: []const u8, args: anytype) void {
@@ -381,3 +380,5 @@ pub fn verifyLegacyConfigurationExists(allocator: Allocator, verbose: bool) !voi
 }
 
 pub const search = @import("utils/search.zig");
+pub const date = @import("utils/date.zig");
+pub const generation = @import("utils/generation.zig");

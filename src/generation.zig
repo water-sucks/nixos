@@ -108,13 +108,6 @@ pub const GenerationCommand = struct {
     }
 };
 
-/// This will be parsed as JSON from the NixOS generation file.
-pub const GenerationInfo = struct {
-    nixosVersion: ?[]const u8 = null,
-    nixpkgsRevision: ?[]const u8 = null,
-    configurationRevision: ?[]const u8 = null,
-};
-
 pub fn generationMain(allocator: Allocator, args: GenerationCommand) u8 {
     if (!fileExistsAbsolute(Constants.etc_nixos)) {
         log.err("the generation command is unsupported on non-NixOS systems", .{});
