@@ -382,3 +382,4 @@ pub fn verifyLegacyConfigurationExists(allocator: Allocator, verbose: bool) !voi
 pub const search = @import("utils/search.zig");
 pub const date = @import("utils/date.zig");
 pub const generation = @import("utils/generation.zig");
+pub const ansi = @import("utils/ansi.zig");

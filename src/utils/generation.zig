@@ -3,12 +3,14 @@ const fmt = std.fmt;
 const fs = std.fs;
 const json = std.json;
 const mem = std.mem;
+const sort = std.sort;
 const Allocator = mem.Allocator;
 
 const log = @import("../log.zig");
 
 const utils = @import("../utils.zig");
-const date = utils.date;
+const TimeStamp = utils.date.TimeStamp;
+const ansi = utils.ansi;
 
 /// This is the parsed info the nixos-version.json generation file at the
 /// root of each generation created with the `nixos-cli` module contains.
@@ -26,7 +28,7 @@ pub const GenerationMetadata = struct {
     /// Generation number
     generation: ?usize = null,
     /// Date of generation creation
-    date: ?date.TimeStamp = null,
+    date: ?TimeStamp = null,
     /// If this generation is the currently activated one
     current: bool = false,
     /// NixOS version of generation
@@ -102,7 +104,7 @@ pub const GenerationMetadata = struct {
             break :blk null;
         };
         if (gen_stat) |stat| {
-            result.date = date.TimeStamp.fromEpochTime(@intCast(stat.ctime));
+            result.date = TimeStamp.fromEpochTime(@intCast(stat.ctime));
         }
 
         // Get kernel version of generation from lib/modules/${version} directory
@@ -144,7 +146,7 @@ pub const GenerationMetadata = struct {
             }
 
             result.specialisations = try specializations_list.toOwnedSlice();
-            mem.sort([]const u8, result.specialisations.?, {}, utils.stringLessThan);
+            sort.block([]const u8, result.specialisations.?, {}, utils.stringLessThan);
         }
 
         return result;
@@ -152,6 +154,101 @@ pub const GenerationMetadata = struct {
 
     pub fn lessThan(_: void, lhs: GenerationMetadata, rhs: GenerationMetadata) bool {
         return lhs.generation orelse 0 < rhs.generation orelse 0;
+    }
+
+    pub fn prettyPrint(self: Self, options: struct {
+        color: bool = true,
+        show_current_marker: bool = true,
+    }, writer: anytype) !void {
+        const nixos_version = self.nixos_version orelse "NixOS";
+
+        const show_current = self.current and options.show_current_marker;
+
+        if (options.color) {
+            try writer.print(ansi.BOLD ++ ansi.ITALIC ++ "{s}\n" ++ ansi.RESET, .{nixos_version});
+        } else {
+            try writer.print("{s}\n", .{nixos_version});
+        }
+        for (0..nixos_version.len) |_| {
+            try writer.print("-", .{});
+        }
+        try writer.print("\n", .{});
+
+        try prettyPrintKeyValue(writer, "Generation", self.generation, .{ .color = options.color });
+
+        const formatted_date = if (self.date) |date| try date.toDateISO8601(self.allocator) else null;
+        defer if (formatted_date) |date| self.allocator.free(date);
+        try prettyPrintKeyValue(writer, "Creation Date", formatted_date, .{ .color = options.color });
+
+        try prettyPrintKeyValue(writer, "Nixpkgs Revision", self.nixpkgs_revision, .{ .color = options.color });
+        try prettyPrintKeyValue(writer, "Config Revision", self.configuration_revision, .{ .color = options.color });
+        try prettyPrintKeyValue(writer, "Kernel Version", self.kernel_version, .{ .color = options.color });
+
+        const specialisations: ?[]const u8 = if (self.specialisations != null and self.specialisations.?.len > 0)
+            try utils.concatStringsSep(self.allocator, self.specialisations orelse &.{}, ", ")
+        else
+            null;
+        defer if (specialisations) |s| self.allocator.free(s);
+        try prettyPrintKeyValue(writer, "Specialisations", specialisations, .{
+            .color = options.color,
+            .default = "(none)",
+        });
+
+        if (options.color) {
+            if (show_current) {
+                try writer.print(ansi.RED ++ ansi.BOLD ++ "This generation is currently active.\n" ++ ansi.RESET, .{});
+            }
+        } else {
+            if (show_current) {
+                try writer.print("This generation is currently active.\n", .{});
+            }
+        }
+    }
+
+    const key_column_length = std.fmt.comptimePrint("{d}", .{
+        sort.max(
+            comptime_int,
+            &.{ "Generation".len, "Creation Date".len, "Nixpkgs Revision".len, "Kernel Version".len },
+            {},
+            sort.asc(comptime_int),
+        ).? + 1,
+    });
+
+    fn prettyPrintKeyValue(writer: anytype, title: []const u8, value: anytype, options: struct {
+        color: bool = true,
+        default: []const u8 = "unknown",
+    }) !void {
+        if (options.color) {
+            try writer.print(ansi.CYAN ++ "{s: <" ++ key_column_length ++ "}" ++ ansi.RESET ++ ":: ", .{title});
+        } else {
+            try writer.print("{s: <" ++ key_column_length ++ "}" ++ ":: ", .{title});
+        }
+
+        const typ = @TypeOf(value);
+
+        if (typ == ?usize) {
+            if (options.color) {
+                if (value) |v| {
+                    try writer.print(ansi.ITALIC ++ "{d}" ++ ansi.RESET ++ "\n", .{v});
+                } else {
+                    try writer.print(ansi.ITALIC ++ "{s}" ++ ansi.RESET ++ "\n", .{options.default});
+                }
+            } else {
+                if (value) |v| {
+                    try writer.print("{d}\n", .{v});
+                } else {
+                    try writer.print("{s}\n", .{options.default});
+                }
+            }
+        } else if (typ == ?[]const u8) {
+            if (options.color) {
+                try writer.print(ansi.ITALIC ++ "{s}" ++ ansi.RESET ++ "\n", .{value orelse options.default});
+            } else {
+                try writer.print("{s}\n", .{value orelse options.default});
+            }
+        } else {
+            @compileError("prettyPrintKeyValue can only take usize or []const u8 values");
+        }
     }
 
     // Explicitly pass the allocator here in order to avoid
