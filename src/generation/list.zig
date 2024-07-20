@@ -15,6 +15,8 @@ const argIs = argparse.argIs;
 const argError = argparse.argError;
 const ArgParseError = argparse.ArgParseError;
 
+const Constants = @import("../constants.zig");
+
 const log = @import("../log.zig");
 
 const utils = @import("../utils.zig");
@@ -147,7 +149,7 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
     }
 
     for (generations.items, 0..) |gen, i| {
-        gen.prettyPrint(.{ .color = posix.getenv("NO_COLOR") == null }, stdout) catch unreachable;
+        gen.prettyPrint(.{ .color = Constants.use_color }, stdout) catch unreachable;
         if (i != generations.items.len - 1) {
             print(stdout, "\n", .{});
         }

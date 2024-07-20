@@ -40,6 +40,8 @@ const App = argparse.App;
 const ArgParseError = argparse.ArgParseError;
 const Command = argparse.Command;
 
+const Constants = @import("constants.zig");
+
 // const nix = @import("nix");
 
 const utils = @import("utils.zig");
@@ -225,6 +227,8 @@ pub fn main() !u8 {
 
     config.parseConfig(allocator) catch {};
     defer config.deinit();
+
+    Constants.use_color = !mem.eql(u8, posix.getenv("NO_COLOR") orelse "", "1");
 
     // const nix_context = nix.util.NixContext.init() catch {
     //     log.err("out of memory, cannot continue", .{});

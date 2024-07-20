@@ -26,6 +26,7 @@ const fileExistsAbsolute = utils.fileExistsAbsolute;
 const runCmd = utils.runCmd;
 const println = utils.println;
 const search = utils.search;
+const ansi = utils.ansi;
 
 pub const OptionError = error{
     NoOptionCache,
@@ -202,11 +203,6 @@ fn loadOptionsFromFile(allocator: Allocator, filename: []const u8) !json.Parsed(
     return parsed;
 }
 
-const RESET = "\x1B[0m";
-const BOLD = "\x1B[1m";
-const ITALIC = "\x1B[3m";
-const UNDERLINE = "\x1B[4m";
-
 fn displayOption(name: []const u8, opt: NixosOptionFromFile) void {
     const stdout = io.getStdOut().writer();
 
@@ -215,19 +211,57 @@ fn displayOption(name: []const u8, opt: NixosOptionFromFile) void {
     const description = mem.trim(u8, opt.description, "\n ");
     const default = if (opt.default) |d| d.text else null;
 
-    println(stdout, BOLD ++ "Name\n" ++ RESET ++ "{s}\n", .{name});
-    println(stdout, BOLD ++ "Description\n" ++ RESET ++ "{s}\n", .{description});
-    println(stdout, BOLD ++ "Type\n" ++ RESET ++ "{s}\n", .{opt.type});
-    println(stdout, BOLD ++ "Default\n" ++ RESET ++ "{s}\n", .{default orelse "No default value."});
-    if (opt.example) |example| {
-        println(stdout, BOLD ++ "Example\n" ++ RESET ++ "{s}\n", .{example.text});
+    if (Constants.use_color) {
+        println(stdout, ansi.BOLD ++ "Name\n" ++ ansi.RESET ++ "{s}\n", .{name});
+    } else {
+        println(stdout, "Name\n{s}\n", .{name});
     }
-    println(stdout, BOLD ++ "Declared In" ++ RESET, .{});
+
+    if (Constants.use_color) {
+        println(stdout, ansi.BOLD ++ "Description\n" ++ ansi.RESET ++ "{s}\n", .{description});
+    } else {
+        println(stdout, "Description\n{s}\n", .{description});
+    }
+
+    if (Constants.use_color) {
+        println(stdout, ansi.BOLD ++ "Type\n" ++ ansi.RESET ++ "{s}\n", .{opt.type});
+    } else {
+        println(stdout, "Type\n{s}\n", .{opt.type});
+    }
+
+    if (Constants.use_color) {
+        println(stdout, ansi.BOLD ++ "Default\n" ++ ansi.RESET ++ "{s}\n", .{default orelse "No default value."});
+    } else {
+        println(stdout, "Default\n{s}\n", .{default orelse "No default value."});
+    }
+
+    if (opt.example) |example| {
+        if (Constants.use_color) {
+            println(stdout, ansi.BOLD ++ "Example\n" ++ ansi.RESET ++ "{s}\n", .{example.text});
+        } else {
+            println(stdout, "Example\n{s}\n", .{example.text});
+        }
+    }
+
+    if (Constants.use_color) {
+        println(stdout, ansi.BOLD ++ "Declared In" ++ ansi.RESET, .{});
+    } else {
+        println(stdout, "Declared In", .{});
+    }
+
     for (opt.declarations) |decl| {
-        println(stdout, ITALIC ++ "  - {s}" ++ RESET, .{decl});
+        if (Constants.use_color) {
+            println(stdout, ansi.ITALIC ++ "  - {s}" ++ ansi.RESET, .{decl});
+        } else {
+            println(stdout, "  - {s}", .{decl});
+        }
     }
     if (opt.readOnly) {
-        println(stdout, UNDERLINE ++ ITALIC ++ "\nThis option is read-only." ++ RESET, .{});
+        if (Constants.use_color) {
+            println(stdout, ansi.RED ++ ansi.ITALIC ++ "\nThis option is read-only." ++ ansi.RESET, .{});
+        } else {
+            println(stdout, "\nThis option is read-only.", .{});
+        }
     }
 }
 
