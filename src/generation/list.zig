@@ -62,72 +62,6 @@ const GenerationListError = error{
     ResourceAccessFailed,
 } || Allocator.Error;
 
-fn printGenerationTable(allocator: Allocator, generations: []const GenerationMetadata) !void {
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    defer arena.deinit();
-
-    const alloc = arena.allocator();
-
-    const stdout = io.getStdOut().writer();
-
-    const headers: []const []const u8 = &.{ "Generation", "Build Date", "NixOS Version", "Kernel Version", "Configuration Revision", "Nixpkgs Revision", "Specialisations" };
-
-    var max_row_len = comptime blk: {
-        var tmp: []const usize = &[_]usize{};
-        for (headers) |header| {
-            tmp = tmp ++ [_]usize{header.len};
-        }
-        var new: [tmp.len]usize = undefined;
-        std.mem.copyForwards(usize, &new, tmp);
-        break :blk new;
-    };
-
-    var i: usize = 0;
-
-    const generation_numbers = try alloc.alloc([]const u8, generations.len);
-    const date_list = try alloc.alloc([]const u8, generations.len);
-    const specialization_list = try alloc.alloc([]const u8, generations.len);
-
-    for (generations, generation_numbers, date_list, specialization_list) |gen, *num, *date, *spec| {
-        num.* = try fmt.allocPrint(alloc, "{d}{s}", .{ gen.generation.?, if (gen.current) "*" else "" });
-        date.* = if (gen.date) |d| try d.toDateISO8601(alloc) else try fmt.allocPrint(alloc, "unknown", .{});
-        spec.* = try concatStringsSep(alloc, gen.specialisations orelse &.{}, ",");
-        i += 1;
-
-        max_row_len[0] = @max(max_row_len[0], num.*.len); // Generation
-        max_row_len[1] = @max(max_row_len[1], date.*.len); // Date
-        max_row_len[2] = @max(max_row_len[2], if (gen.nixos_version) |v| v.len else 4);
-        max_row_len[3] = @max(max_row_len[3], if (gen.kernel_version) |v| v.len else 4);
-        max_row_len[4] = @max(max_row_len[4], if (gen.configuration_revision) |v| v.len else 4);
-        max_row_len[5] = @max(max_row_len[4], if (gen.nixpkgs_revision) |v| v.len else 4);
-        max_row_len[6] = @max(max_row_len[5], spec.*.len); // Specialisations
-    }
-
-    for (headers, 0..) |header, j| {
-        print(stdout, "{s}", .{header});
-        var k: usize = 4 + max_row_len[j] - header.len;
-        while (k > 0) {
-            print(stdout, " ", .{});
-            k -= 1;
-        }
-    }
-    print(stdout, "\n", .{});
-
-    for (generations, generation_numbers, date_list, specialization_list, 0..) |gen, num, date, spec, idx| {
-        const row = [_]?[]const u8{ num, date, gen.nixos_version, gen.kernel_version, gen.configuration_revision, gen.nixpkgs_revision, spec };
-        for (row, 0..) |col, j| {
-            print(stdout, "{?s}", .{col});
-            var k: usize = 4 + max_row_len[j] - if (col) |c| c.len else 4;
-            while (k > 0) {
-                print(stdout, " ", .{});
-                k -= 1;
-            }
-        }
-        if (idx < generations.len - 1) print(stdout, "\n", .{});
-    }
-    print(stdout, "\n", .{});
-}
-
 fn listGenerations(allocator: Allocator, profile_name: []const u8, args: GenerationListArgs) GenerationListError!void {
     const profile_dirname = if (mem.eql(u8, profile_name, "system"))
         "/nix/var/nix/profiles"
@@ -212,7 +146,12 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
         return;
     }
 
-    try printGenerationTable(allocator, generations.items);
+    for (generations.items, 0..) |gen, i| {
+        gen.prettyPrint(.{ .color = posix.getenv("NO_COLOR") == null }, stdout) catch unreachable;
+        if (i != generations.items.len - 1) {
+            print(stdout, "\n", .{});
+        }
+    }
 }
 
 pub fn generationListMain(allocator: Allocator, profile: ?[]const u8, args: GenerationListArgs) u8 {
