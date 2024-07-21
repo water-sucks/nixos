@@ -9,8 +9,9 @@ const Allocator = mem.Allocator;
 const log = @import("../log.zig");
 
 const utils = @import("../utils.zig");
-const TimeStamp = utils.date.TimeStamp;
 const ansi = utils.ansi;
+
+const zeit = @import("zeit");
 
 /// This is the parsed info the nixos-version.json generation file at the
 /// root of each generation created with the `nixos-cli` module contains.
@@ -28,7 +29,7 @@ pub const GenerationMetadata = struct {
     /// Generation number
     generation: ?usize = null,
     /// Date of generation creation
-    date: ?TimeStamp = null,
+    date: ?zeit.Time = null,
     /// If this generation is the currently activated one
     current: bool = false,
     /// NixOS version of generation
@@ -108,8 +109,11 @@ pub const GenerationMetadata = struct {
             log.err("unable to stat generation {?d} dir to find last modified time: {s}", .{ gen_number, @errorName(err) });
             break :blk null;
         };
-        if (gen_stat) |stat| {
-            result.date = TimeStamp.fromEpochTime(@intCast(stat.ctime));
+        if (gen_stat) |stat| blk: {
+            const ctime = zeit.instant(.{ .source = .{ .unix_nano = stat.ctime } }) catch break :blk;
+
+            const local_tz = zeit.local(allocator) catch break :blk;
+            result.date = ctime.in(&local_tz).time();
         }
 
         // Get kernel version of generation from lib/modules/${version} directory
@@ -181,7 +185,10 @@ pub const GenerationMetadata = struct {
 
         try prettyPrintKeyValue(writer, "Generation", self.generation, .{ .color = options.color });
 
-        const formatted_date = if (self.date) |date| try date.toDateISO8601(self.allocator) else null;
+        const formatted_date: ?[]const u8 = if (self.date) |date|
+            try fmt.allocPrint(self.allocator, "{s} {d:0>2}, {d} {d:0>2}:{d:0>2}:{d:0>2}", .{ date.month.name(), date.day, date.year, date.hour, date.minute, date.second })
+        else
+            null;
         defer if (formatted_date) |date| self.allocator.free(date);
         try prettyPrintKeyValue(writer, "Creation Date", formatted_date, .{ .color = options.color });
 
@@ -287,8 +294,17 @@ pub const GenerationMetadata = struct {
 
         try out.objectField("date");
         if (self.date) |d| {
+            // Avoid a + being inserted for i32 type for year
+            const year: u32 = @intCast(d.year);
             // error.OutOfMemory is not allowed in this error union.
-            const formatted_date = d.toDateISO8601(self.allocator) catch return error.SystemResources;
+            const formatted_date = fmt.allocPrint(self.allocator, "{d:0>4}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}", .{
+                year,
+                @intFromEnum(d.month),
+                d.day,
+                d.hour,
+                d.minute,
+                d.second,
+            }) catch return error.SystemResources;
             defer self.allocator.free(formatted_date);
             try out.write(formatted_date);
         } else {
