@@ -38,26 +38,21 @@ pub const InfoCommand = struct {
         \\    nixos info [options]
         \\
         \\Options:
-        \\    -h, --help           Show this help menu
-        \\    -j, --json           Format output as JSON
+        \\    -h, --help       Show this help menu
+        \\    -j, --json       Format output as JSON
+        \\    -m, --markdown   Format output as Markdown for reporting
         \\
     ;
 
     pub fn parseArgs(argv: *ArgIterator, parsed: *InfoCommand) !?[]const u8 {
         while (argv.next()) |arg| {
-            if (argIs(arg, "--config-rev", "-c")) {
-                parsed.config_rev = true;
-            } else if (argIs(arg, "--json", "-j")) {
-                parsed.json = true;
-            } else if (argIs(arg, "--help", "-h")) {
+            if (argIs(arg, "--help", "-h")) {
                 log.print(usage, .{});
                 return ArgParseError.HelpInvoked;
+            } else if (argIs(arg, "--json", "-j")) {
+                parsed.json = true;
             } else if (argIs(arg, "--markdown", "-m")) {
                 parsed.markdown = true;
-            } else if (argIs(arg, "--nixpkgs-rev", "-n")) {
-                parsed.nixpkgs_rev = true;
-            } else if (argIs(arg, "--version", "-v")) {
-                parsed.version = true;
             } else {
                 return arg;
             }
@@ -154,12 +149,11 @@ fn info(allocator: Allocator, args: InfoCommand) InfoError!void {
         println(stdout,
             \\ - nixos version: `{?s}`
             \\ - nixpkgs revision: `{?s}`
-            \\ - configuration revision: `{?s}`
-            \\ - 
+            \\ - kernel version: `{?s}`
         , .{
             generation_info.nixos_version,
             generation_info.nixpkgs_revision,
-            generation_info.configuration_revision,
+            generation_info.kernel_version,
         });
         return;
     }
