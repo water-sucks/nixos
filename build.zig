@@ -77,14 +77,15 @@ fn nixosExecutable(b: *Build, opts: struct {
     //     .target = opts.target,
     //     .optimize = opts.optimize,
     // });
-    const toml_package = b.dependency("zig-toml", .{
+
+    const common_dep_options = .{
         .target = opts.target,
         .optimize = opts.optimize,
-    });
-    const zf_package = b.dependency("zf", .{
-        .target = opts.target,
-        .optimize = opts.optimize,
-    });
+    };
+
+    const toml_package = b.dependency("zig-toml", common_dep_options);
+    const zf_package = b.dependency("zf", common_dep_options);
+    const zeit_package = b.dependency("zeit", common_dep_options);
 
     const exe = b.addExecutable(.{
         .name = "nixos",
@@ -95,6 +96,7 @@ fn nixosExecutable(b: *Build, opts: struct {
     // exe.root_module.addImport("nix", zignix_package.module("zignix"));
     exe.root_module.addImport("toml", toml_package.module("zig-toml"));
     exe.root_module.addImport("zf", zf_package.module("zf"));
+    exe.root_module.addImport("zeit", zeit_package.module("zeit"));
 
     exe.root_module.addOptions("options", opts.options);
 

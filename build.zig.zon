@@ -24,5 +24,9 @@
             .url = "https://github.com/natecraddock/zf/archive/91bc9808bebddd5e1663ffde009bf4510a45e48d.tar.gz",
             .hash = "1220a763e0496d7dade9329044fbac181eaf7c1a1f4f51ab5e3a0a77d986615aa4e4",
         },
+        .zeit = .{
+            .url = "https://github.com/rockorager/zeit/archive/1d2dc95d73160096f84830e54b419514e41e78e8.tar.gz",
+            .hash = "1220aad3a3b05b27a2453ddb68caa70a656c530f69e321cf79a89d2a9c4b2dd51640",
+        },
     },
 }
