@@ -4,6 +4,11 @@
 
 const std = @import("std");
 
+const utils = @import("utils.zig");
+const ansi = utils.ansi;
+
+const Constants = @import("constants.zig");
+
 /// Base logging function with no level. Prints a newline automatically.
 fn log(comptime prefix: []const u8, comptime fmt: []const u8, args: anytype) void {
     const real_prefix = prefix ++ (if (prefix.len != 0) ": " else "");
@@ -20,21 +25,42 @@ pub const print = std.debug.print;
 
 /// Pretty-print a command that will be ran.
 pub fn cmd(argv: []const []const u8) void {
+    if (Constants.use_color) {
+        print(ansi.WHITE, .{});
+    }
+
     print("$ ", .{});
     for (argv) |arg| {
         print("{s} ", .{arg});
     }
+
+    if (Constants.use_color) {
+        print(ansi.RESET, .{});
+    }
+
     print("\n", .{});
 }
 
 pub fn err(comptime fmt: []const u8, args: anytype) void {
-    log("error", fmt, args);
+    if (Constants.use_color) {
+        log(ansi.BOLD ++ ansi.RED ++ "error" ++ ansi.RESET, fmt, args);
+    } else {
+        log("error", fmt, args);
+    }
 }
 
 pub fn warn(comptime fmt: []const u8, args: anytype) void {
-    log("warning", fmt, args);
+    if (Constants.use_color) {
+        log(ansi.BOLD ++ ansi.YELLOW ++ "warning" ++ ansi.RESET, fmt, args);
+    } else {
+        log("warning", fmt, args);
+    }
 }
 
 pub fn info(comptime fmt: []const u8, args: anytype) void {
-    log("info", fmt, args);
+    if (Constants.use_color) {
+        log(ansi.GREEN ++ "info" ++ ansi.RESET, fmt, args);
+    } else {
+        log("info", fmt, args);
+    }
 }

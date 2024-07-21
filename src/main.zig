@@ -228,7 +228,9 @@ pub fn main() !u8 {
     config.parseConfig(allocator) catch {};
     defer config.deinit();
 
-    Constants.use_color = !mem.eql(u8, posix.getenv("NO_COLOR") orelse "", "1");
+    Constants.use_color = !mem.eql(u8, posix.getenv("NO_COLOR") orelse "", "1") and
+        io.getStdOut().supportsAnsiEscapeCodes() and
+        io.getStdErr().supportsAnsiEscapeCodes();
 
     // const nix_context = nix.util.NixContext.init() catch {
     //     log.err("out of memory, cannot continue", .{});
@@ -250,7 +252,7 @@ pub fn main() !u8 {
         switch (err) {
             ArgParseError.HelpInvoked => return 0,
             ArgParseError.VersionInvoked => {
-                const stdout = std.io.getStdOut().writer();
+                const stdout = io.getStdOut().writer();
                 stdout.print(opts.version ++ "\n", .{}) catch unreachable;
                 return 0;
             },
