@@ -23,10 +23,32 @@ fn log(comptime prefix: []const u8, comptime fmt: []const u8, args: anytype) voi
 /// which is clunky.
 pub const print = std.debug.print;
 
+/// Global step counter. This will increase every single time step() is invoked.
+var step_num: usize = 0;
+
+pub fn step(comptime fmt: []const u8, args: anytype) void {
+    step_num += 1;
+
+    if (step_num > 1) {
+        print("\n", .{});
+    }
+    if (Constants.use_color) {
+        print(ansi.BOLD ++ ansi.MAGENTA, .{});
+    }
+
+    print("{d}. ", .{step_num});
+    print(fmt, args);
+
+    if (Constants.use_color) {
+        print(ansi.RESET, .{});
+    }
+    print("\n", .{});
+}
+
 /// Pretty-print a command that will be ran.
 pub fn cmd(argv: []const []const u8) void {
     if (Constants.use_color) {
-        print(ansi.WHITE, .{});
+        print(ansi.BR_BLUE, .{});
     }
 
     print("$ ", .{});

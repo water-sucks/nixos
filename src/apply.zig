@@ -338,6 +338,8 @@ fn nixBuild(
     if (options.result_dir) |dir| {
         try argv.append("--out-link");
         try argv.append(dir);
+    } else {
+        try argv.append("--no-out-link");
     }
 
     try argv.appendSlice(options.build_options);
@@ -400,11 +402,13 @@ fn nixBuildFlake(
 
     // ${nix_command} build ${attribute} [--out-link <dir>] [${build_options}] [${flake_options}]
     try argv.append(nix_command);
-    try argv.appendSlice(&.{ "build", attribute });
+    try argv.appendSlice(&.{ "build", attribute, "--print-out-paths" });
 
     if (options.result_dir) |dir| {
         try argv.append("--out-link");
         try argv.append(dir);
+    } else {
+        try argv.append("--no-link");
     }
 
     if (options.dry) {
@@ -428,37 +432,14 @@ fn nixBuildFlake(
         .argv = argv.items,
         .env_map = &env_map,
     }) catch return ApplyError.NixBuildFailed;
-
-    if (result.stdout) |stdout| {
-        allocator.free(stdout);
-    }
+    defer if (result.stdout) |stdout| allocator.free(stdout);
 
     if (result.status != 0) {
         exit_status = result.status;
         return ApplyError.NixBuildFailed;
     }
 
-    // No stdout output is emitted by nix build without --print-out-paths,
-    // avoiding that option here to support Nix versions without it.
-    // Reading the symlink suffices.
-    const result_dir = options.result_dir orelse "./result";
-    var path_buf: [posix.PATH_MAX]u8 = undefined;
-    const path = posix.readlink(result_dir, &path_buf) catch |err| {
-        switch (err) {
-            error.AccessDenied => {
-                log.err("unable to readlink {s}: permission denied", .{result_dir});
-                return ApplyError.PermissionDenied;
-            },
-            error.FileNotFound => @panic("result dir not found after building"),
-            error.FileSystem => log.err("unable to readlink {s}: i/o error", .{result_dir}),
-            error.NotLink, error.NotDir => @panic("result dir is not a symlink"),
-            error.SymLinkLoop => @panic("result dir is a symlink loop"),
-            error.SystemResources => return error.OutOfMemory, // corresponds to errno NOMEM when reading link
-            else => log.err("unexpected error encountered when reading symlink {s}: {s}", .{ result_dir, @errorName(err) }),
-        }
-        return err;
-    };
-    return allocator.dupe(u8, path);
+    return try allocator.dupe(u8, result.stdout.?);
 }
 
 /// Set the target system's NixOS system profile to the newly built generation
@@ -583,16 +564,23 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
         };
     }
 
-    if (verbose) log.info("looking for configuration...", .{});
+    if (verbose) log.step("Looking for configuration...", .{});
+
     // Find flake if unset, and parse it into its separate components
     var flake_ref: FlakeRef = undefined;
     var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
 
     if (opts.flake) {
-        flake_ref = if (args.flake) |flake|
-            FlakeRef.fromSlice(flake)
-        else
-            utils.findFlakeRef() catch return ApplyError.ConfigurationNotFound;
+        if (verbose) log.info("looking for flake configuration", .{});
+        flake_ref = blk: {
+            if (args.flake) |flake| {
+                break :blk FlakeRef.fromSlice(flake);
+            } else {
+                if (verbose) log.info("no flake ref specified, using $NIXOS_CONFIG to locate configuration", .{});
+                break :blk utils.findFlakeRef() catch return ApplyError.ConfigurationNotFound;
+            }
+        };
+        if (flake_ref.system.len == 0 and verbose) log.info("inferring system name using hostname", .{});
         flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return ApplyError.ConfigurationNotFound;
 
         if (verbose) log.info("found flake configuration {s}#{s}", .{ flake_ref.uri, flake_ref.system });
@@ -602,6 +590,8 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
 
     // Upgrade all channels
     if (!opts.flake and args.upgrade_channels) {
+        log.step("Upgrading channels...", .{});
+
         upgradeChannels(allocator, args.upgrade_all_channels) catch |err| {
             log.err("upgrading channels failed", .{});
             if (err == error.PermissionDenied) {
@@ -613,34 +603,15 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
         };
     }
 
-    // Create temporary directory for artifacts
-    const tmpdir_base = try fs.path.join(allocator, &.{ posix.getenv("TMPDIR") orelse "/tmp", "nixos-apply" });
-    defer allocator.free(tmpdir_base);
-    const tmpdir = utils.mkTmpDir(allocator, tmpdir_base) catch |err| {
-        if (err == error.PermissionDenied) {
-            return ApplyError.PermissionDenied;
-        } else if (err == error.OutOfMemory) {
-            return ApplyError.OutOfMemory;
-        }
-        return ApplyError.ResourceCreationFailed;
-    };
-    defer allocator.free(tmpdir);
-    defer {
-        fs.deleteTreeAbsolute(tmpdir) catch |err| {
-            log.warn("unable to remove temporary directory {s}: {s}", .{ tmpdir, @errorName(err) });
-        };
+    if (build_type == .VM or build_type == .VMWithBootloader) {
+        log.step("Building VM configuration...", .{});
+    } else {
+        log.step("Building system configuration...", .{});
     }
-
-    // Build the system configuration
-    log.print("building the system configuration...\n", .{});
 
     // Dry activation requires a real build, so --dry-run shouldn't be set
     // if --activate or --boot is set
     const dry_build = args.dry and (build_type == .System);
-
-    // Only use this temporary directory for builds to be activated with
-    const tmp_result_dir = try fs.path.join(allocator, &.{ tmpdir, "result" });
-    defer allocator.free(tmp_result_dir);
 
     // Location of the resulting NixOS generation
     var result: []const u8 = undefined;
@@ -655,16 +626,12 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
         log.warn("falling back to `nix` command for building", .{});
         use_nom = false;
     }
+
     if (opts.flake) {
         result = nixBuildFlake(allocator, build_type, flake_ref, .{
             .build_options = args.build_options.items,
             .flake_options = args.flake_options.items,
-            .result_dir = if (args.output) |output|
-                output
-            else if (build_type == .SystemActivation)
-                tmp_result_dir
-            else
-                null,
+            .result_dir = args.output,
             .dry = dry_build,
             .use_nom = use_nom,
             .tag = args.tag,
@@ -680,12 +647,7 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
     } else {
         result = nixBuild(allocator, build_type, .{
             .build_options = args.build_options.items,
-            .result_dir = if (args.output) |output|
-                output
-            else if (build_type == .SystemActivation)
-                tmp_result_dir
-            else
-                null,
+            .result_dir = args.output,
             .dry = dry_build,
             .use_nom = use_nom,
             .tag = args.tag,
@@ -722,18 +684,30 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
         if (filename) |f| {
             log.print("Done. The virtual machine can be started by running {s}/{s}.\n", .{ dirname, f });
         } else @panic("virtual machine not located in /bin of result dir");
+
+        return;
     }
 
     if (build_type != .SystemActivation) {
+        if (verbose) log.info("this is a dry build; no activation will take place", .{});
         return;
     }
 
     // Set nix-env profile, if needed
     if (!args.dry) {
+        if (verbose) {
+            log.step("Setting system profile...", .{});
+        }
         setNixEnvProfile(allocator, args.profile_name, result) catch |err| {
             log.err("failed to set system profile with nix-env", .{});
             return err;
         };
+    }
+
+    log.step("Activating configuration...", .{});
+
+    if (args.dry) {
+        log.info("this is a dry activation, no real activation will take place", .{});
     }
 
     // Run switch-to-configuration script, if needed. This will use the
@@ -749,10 +723,6 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
     else
         try fs.path.join(allocator, &.{ result, "bin", "switch-to-configuration" });
     defer allocator.free(stc);
-
-    const stc_options = .{
-        .install_bootloader = args.install_bootloader,
-    };
 
     // Assert the specialization exists
     if (specialization) |spec| {
@@ -774,7 +744,9 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
         unreachable;
 
     // No need to print error message, the script will do that.
-    try runSwitchToConfiguration(allocator, stc, stc_action, stc_options);
+    try runSwitchToConfiguration(allocator, stc, stc_action, .{
+        .install_bootloader = args.install_bootloader,
+    });
 }
 
 // Run apply and provide the relevant exit code
