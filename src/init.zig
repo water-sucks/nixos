@@ -93,7 +93,7 @@ const InitConfigError = error{
     ResourceAccessFailed,
 } || Allocator.Error;
 
-// Return string with double quotes around it. Caller owns returned memory.
+/// Return string with double quotes around it. Caller owns returned memory.
 fn quote(allocator: Allocator, string: []const u8) ![]u8 {
     return fmt.allocPrint(allocator, "\"{s}\"", .{string});
 }
@@ -137,11 +137,10 @@ fn getCpuInfo(allocator: Allocator) !CPUInfo {
     return result;
 }
 
-// Find module name of given PCI device path. Caller owns returned memory.
+/// Find module name of given PCI device path. Caller owns returned memory.
 fn findModuleName(allocator: Allocator, path: []const u8) !?[]u8 {
     var module_buf: [posix.PATH_MAX]u8 = undefined;
     const module_filename = try fs.path.join(allocator, &.{ path, "driver/module" });
-    defer allocator.free(module_filename);
 
     if (fileExistsAbsolute(module_filename)) {
         const link = try posix.readlink(module_filename, &module_buf);
@@ -197,20 +196,12 @@ const ArrayRefs = struct {
 
 fn pciCheck(allocator: Allocator, path: []const u8, array_refs: ArrayRefs) !void {
     const vendor_filename = try fs.path.join(allocator, &.{ path, "vendor" });
-    defer allocator.free(vendor_filename);
     const device_filename = try fs.path.join(allocator, &.{ path, "device" });
-    defer allocator.free(device_filename);
     const class_filename = try fs.path.join(allocator, &.{ path, "class" });
-    defer allocator.free(class_filename);
 
     const vendor_contents = readFile(allocator, vendor_filename) catch null;
-    const device_contents = readFile(allocator, vendor_filename) catch null;
+    const device_contents = readFile(allocator, device_filename) catch null;
     const class_contents = readFile(allocator, class_filename) catch null;
-    defer {
-        if (vendor_contents) |contents| allocator.free(contents);
-        if (device_contents) |contents| allocator.free(contents);
-        if (class_contents) |contents| allocator.free(contents);
-    }
 
     const vendor = mem.trim(u8, vendor_contents orelse "", "\n");
     const device = mem.trim(u8, device_contents orelse "", "\n");
@@ -275,20 +266,12 @@ fn pciCheck(allocator: Allocator, path: []const u8, array_refs: ArrayRefs) !void
 
 fn usbCheck(allocator: Allocator, path: []const u8, array_refs: ArrayRefs) !void {
     const class_filename = try fs.path.join(allocator, &.{ path, "bInterfaceClass" });
-    defer allocator.free(class_filename);
     // const subclass_filename = try fs.path.join(allocator, &.{path, "bInterfaceSubClass"});
-    // defer allocator.free(subclass_filename);
     const protocol_filename = try fs.path.join(allocator, &.{ path, "bInterfaceProtocol" });
-    defer allocator.free(protocol_filename);
 
     const class_contents = readFile(allocator, class_filename) catch null;
     // const subclass_contents = readFile(allocator, subclass_filename) catch null;
     const protocol_contents = readFile(allocator, protocol_filename) catch null;
-    defer {
-        if (class_contents) |contents| allocator.free(contents);
-        // if (subclass_contents) |contents| allocator.free(contents);
-        if (protocol_contents) |contents| allocator.free(contents);
-    }
 
     const class = mem.trim(u8, class_contents orelse "", "\n");
     const protocol = mem.trim(u8, protocol_contents orelse "", "\n");
@@ -326,9 +309,6 @@ fn determineVirtualizationType(allocator: Allocator) VirtualizationType {
         log.warn("unable to run systemd-detect-virt: {s}", .{@errorName(err)});
         return .other;
     };
-    defer {
-        if (result.stdout) |stdout| allocator.free(stdout);
-    }
 
     const virt_type = mem.trim(u8, result.stdout orelse "", "\n ");
     return if (mem.eql(u8, virt_type, "oracle"))
@@ -362,102 +342,61 @@ fn isLVM(allocator: Allocator) bool {
         log.warn("unable to run lsblk: {s}", .{@errorName(err)});
         return false;
     };
-    defer {
-        if (result.stdout) |stdout| allocator.free(stdout);
-    }
 
     return mem.indexOf(u8, result.stdout orelse "", "lvm") != null;
 }
 
-// Caller owns returned memory.
-fn findStableDevPath(allocator: Allocator, device: []const u8) ![]const u8 {
+fn checkDirForEqualDevice(allocator: Allocator, dev1_stat: linux.Stat, dirname: []const u8) !?[]const u8 {
+    var dir = fs.openDirAbsolute(dirname, .{ .iterate = true }) catch |err| {
+        log.warn("unable to open {s}: {s}", .{ dirname, @errorName(err) });
+        return null;
+    };
+    var iter = dir.iterate();
+
+    while (iter.next() catch |err| {
+        log.warn("error iterating {s}: {s}", .{ dirname, @errorName(err) });
+        return null;
+    }) |entry| {
+        const dev2_name = try fs.path.joinZ(allocator, &.{ dirname, entry.name });
+
+        var dev2_stat: linux.Stat = undefined;
+        const errno = linux.stat(dev2_name.ptr, &dev2_stat);
+        if (errno > 0) continue;
+
+        if (dev1_stat.rdev == dev2_stat.rdev) {
+            return dev2_name;
+        }
+    }
+
+    return null;
+}
+
+/// Caller owns returned memory.
+fn findStableDevPath(allocator: Allocator, device: []const u8) !?[]const u8 {
     if (mem.indexOf(u8, device, "/") != 0) {
-        return try allocator.dupe(u8, device);
+        return null;
     }
 
-    const device_name = posix.toPosixPath(device) catch return InitConfigError.OutOfMemory;
+    const device_name = posix.toPosixPath(device) catch return null;
     var dev_stat: linux.Stat = undefined;
-    var errno: usize = linux.stat(&device_name, &dev_stat);
+    const errno: usize = linux.stat(&device_name, &dev_stat);
     if (errno > 0) {
-        return try allocator.dupe(u8, device);
+        return null;
     }
 
-    // Find if device is in `by-uuid` dir
-    const by_uuid_dirname = "/dev/disk/by-uuid";
-    var by_uuid_dir = fs.openDirAbsolute(by_uuid_dirname, .{ .iterate = true }) catch |err| {
-        log.warn("unable to open {s}: {s}", .{ by_uuid_dirname, @errorName(err) });
-        return try allocator.dupe(u8, device);
-    };
-    defer by_uuid_dir.close();
-    var uuid_iter = by_uuid_dir.iterate();
-    while (uuid_iter.next() catch |err| {
-        log.warn("error iterating {s}: {s}", .{ by_uuid_dirname, @errorName(err) });
-        return try allocator.dupe(u8, device);
-    }) |entry| {
-        const device2_name = try fs.path.joinZ(allocator, &.{ by_uuid_dirname, entry.name });
-        defer allocator.free(device2_name);
-
-        var dev2_stat: linux.Stat = undefined;
-        errno = linux.stat(device2_name.ptr, &dev2_stat);
-        if (errno > 0) {
-            return try allocator.dupe(u8, device);
-        }
-
-        if (dev_stat.rdev == dev2_stat.rdev) {
-            return try fs.path.join(allocator, &.{ by_uuid_dirname, entry.name });
-        }
+    // `/dev/disk/by-uuid` is preferred, as these are stable identifiers.
+    if (checkDirForEqualDevice(allocator, dev_stat, "/dev/disk/by-uuid") catch null) |name| {
+        return name;
     }
 
-    // Find if device is in `/dev/mapper` (usually a LUKS device)
-    const mapper_dirname = "/dev/mapper";
-    var mapper_dir = fs.openDirAbsolute(mapper_dirname, .{ .iterate = true }) catch |err| {
-        log.warn("unable to open {s}: {s}", .{ mapper_dirname, @errorName(err) });
-        return try allocator.dupe(u8, device);
-    };
-    defer mapper_dir.close();
-    var mapper_iter = mapper_dir.iterate();
-    while (mapper_iter.next() catch |err| {
-        log.err("error iterating {s}: {s}", .{ mapper_dirname, @errorName(err) });
-        return try allocator.dupe(u8, device);
-    }) |entry| {
-        const device2_name = try fs.path.joinZ(allocator, &.{ mapper_dirname, entry.name });
-        defer allocator.free(device2_name);
-
-        var dev2_stat: linux.Stat = undefined;
-        errno = linux.stat(device2_name.ptr, &dev2_stat);
-        if (errno > 0) {
-            return try allocator.dupe(u8, device);
-        }
-
-        if (dev_stat.rdev == dev2_stat.rdev) {
-            return try fs.path.join(allocator, &.{ mapper_dirname, entry.name });
-        }
+    // `/dev/mapper` usually contains LUKS device
+    if (checkDirForEqualDevice(allocator, dev_stat, "/dev/mapper") catch null) |name| {
+        return name;
     }
 
-    // Find if device is in `/dev/disk/by-label`. Not preferred, as these can change.
-    const by_label_dirname = "/dev/disk/by-label";
-    var by_label_dir = fs.openDirAbsolute(by_label_dirname, .{ .iterate = true }) catch |err| {
-        log.warn("unable to open {s}: {s}", .{ by_label_dirname, @errorName(err) });
-        return try allocator.dupe(u8, device);
-    };
-    defer by_label_dir.close();
-    var by_label_iter = by_label_dir.iterate();
-    while (by_label_iter.next() catch |err| {
-        log.err("error iterating {s}: {s}", .{ by_label_dirname, @errorName(err) });
-        return try allocator.dupe(u8, device);
-    }) |entry| {
-        const device2_name = try fs.path.joinZ(allocator, &.{ by_label_dirname, entry.name });
-        defer allocator.free(device2_name);
-
-        var dev2_stat: linux.Stat = undefined;
-        errno = linux.stat(device2_name.ptr, &dev2_stat);
-        if (errno > 0) {
-            return try allocator.dupe(u8, device);
-        }
-
-        if (dev_stat.rdev == dev2_stat.rdev) {
-            return try fs.path.join(allocator, &.{ by_label_dirname, entry.name });
-        }
+    // `/dev/disk/by-label` is not preferred, as these labels can change.
+    if (checkDirForEqualDevice(allocator, dev_stat, "/dev/disk/by-label") catch null) |name| {
+        return name;
     }
 
     // TODO: check if device is a Stratis pool.
@@ -467,10 +406,8 @@ fn findStableDevPath(allocator: Allocator, device: []const u8) ![]const u8 {
 
 fn findSwapDevices(allocator: Allocator) ![][]const u8 {
     var devices = ArrayList([]const u8).init(allocator);
-    errdefer devices.deinit();
 
     const swap_info = try readFile(allocator, "/proc/swaps");
-    defer allocator.free(swap_info);
 
     var lines = mem.tokenize(u8, swap_info, "\n");
     _ = lines.next(); // Skip header line
@@ -480,7 +417,7 @@ fn findSwapDevices(allocator: Allocator) ![][]const u8 {
         const swap_type = fields.next().?;
 
         if (mem.eql(u8, swap_type, "partition")) {
-            const path = try findStableDevPath(allocator, swap_filename);
+            const path = try findStableDevPath(allocator, swap_filename) orelse try allocator.dupe(u8, swap_filename);
             try devices.append(path);
         } else if (mem.eql(u8, swap_type, "file")) {
             // Skip swap files, these are better to be
@@ -502,17 +439,6 @@ const Filesystem = struct {
         name: ?[]const u8 = null,
         device: ?[]const u8 = null,
     } = null,
-
-    pub fn deinit(self: @This(), allocator: Allocator) void {
-        allocator.free(self.mountpoint);
-        allocator.free(self.device);
-        allocator.free(self.fsType);
-        allocator.free(self.options);
-        if (self.luks) |luks| {
-            if (luks.name) |name| allocator.free(name);
-            if (luks.device) |device| allocator.free(device);
-        }
-    }
 };
 
 /// Check if `subdir` is a subdirectory of `dir`
@@ -533,16 +459,8 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
     var lines = mem.tokenizeScalar(u8, mount_info, '\n');
 
     var found_filesystems = std.StringHashMap([]const u8).init(allocator);
-    defer found_filesystems.deinit();
-
     var filesystems = ArrayList(Filesystem).init(allocator);
-    errdefer {
-        for (filesystems.items) |filesystem| filesystem.deinit(allocator);
-        filesystems.deinit();
-    }
-
     var found_luks_devices = std.StringHashMap(void).init(allocator);
-    defer found_luks_devices.deinit();
 
     while (lines.next()) |line| {
         var fields = mem.tokenizeAny(u8, line, " \t");
@@ -558,7 +476,6 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
         if (mem.eql(u8, path, "/")) path = "";
 
         const mountpoint_absolute = try mem.replaceOwned(u8, allocator, fields.next().?, "\\040", "");
-        defer allocator.free(mountpoint_absolute);
 
         // Check if mountpoint is directory
         const is_dir = blk: {
@@ -581,7 +498,6 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
         // Mount options
         var mount_options_strings = mem.tokenizeScalar(u8, fields.next().?, ',');
         var mount_options = ArrayList([]const u8).init(allocator);
-        defer mount_options.deinit();
         while (mount_options_strings.next()) |option| {
             try mount_options.append(option);
         }
@@ -605,14 +521,11 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
         const fs_type = fields.next().?;
         // Device name
         const device_raw = try mem.replaceOwned(u8, allocator, fields.next().?, "\\040", " ");
-        defer allocator.free(device_raw);
         var device: []const u8 = try mem.replaceOwned(u8, allocator, device_raw, "\\011", "\t");
-        defer allocator.free(device);
 
         // Superblock options
         var superblock_option_strings = mem.tokenizeScalar(u8, fields.next().?, ',');
         var superblock_options = ArrayList([]const u8).init(allocator);
-        defer superblock_options.deinit();
         while (superblock_option_strings.next()) |option| {
             try superblock_options.append(option);
         }
@@ -638,7 +551,6 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
         }
 
         var extra_options = ArrayList([]const u8).init(allocator);
-        defer extra_options.deinit();
 
         // Check if bind mount
         if (found_filesystems.get(device)) |b| {
@@ -663,10 +575,8 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
             const loop_number = device[9..endIndex];
 
             const backer_filename = try fmt.allocPrint(allocator, "/sys/block/loop{s}/loop/backing_file", .{loop_number});
-            defer allocator.free(backer_filename);
             const backer_contents = readFile(allocator, backer_filename) catch null;
             if (backer_contents) |backer| {
-                allocator.free(device);
                 device = backer;
                 try extra_options.append("loop");
             }
@@ -678,7 +588,7 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
 
         var filesystem = Filesystem{
             .mountpoint = try allocator.dupe(u8, mountpoint),
-            .device = try findStableDevPath(allocator, device),
+            .device = try findStableDevPath(allocator, device) orelse try allocator.dupe(u8, device),
             .fsType = fs_type,
             .options = try extra_options.toOwnedSlice(),
         };
@@ -686,7 +596,6 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
         const device_name = fs.path.basename(device);
         const is_luks = blk: {
             const filename = try fmt.allocPrintZ(allocator, "/sys/class/block/{s}/dm/uuid", .{device_name});
-            defer allocator.free(filename);
 
             var stat_buf: linux.Stat = undefined;
             const errno = linux.stat(filename, &stat_buf);
@@ -695,7 +604,6 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
             }
 
             const contents = readFile(allocator, filename) catch break :blk false;
-            defer allocator.free(contents);
 
             if (mem.startsWith(u8, contents, "CRYPT_LUKS")) {
                 break :blk true;
@@ -705,7 +613,6 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
         };
         if (is_luks) {
             const slave_device_dirname = try fmt.allocPrint(allocator, "/sys/class/block/{s}/slaves", .{device_name});
-            defer allocator.free(slave_device_dirname);
 
             var slave_device_dir = fs.openDirAbsolute(slave_device_dirname, .{ .iterate = true }) catch |err| blk: {
                 log.warn("unable to open {s}: {s}", .{ slave_device_dirname, @errorName(err) });
@@ -732,20 +639,14 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
 
             if (has_one_slave) {
                 const slave_device = try fs.path.join(allocator, &.{ "/dev", slave_name.? });
-                defer allocator.free(slave_device);
-
                 const dm_name_filename = try fmt.allocPrint(allocator, "/sys/class/block/{s}/dm/name", .{device_name});
-                defer allocator.free(device_name);
 
                 const contents = try readFile(allocator, dm_name_filename);
                 const dm_name = mem.trim(u8, contents, "\n");
 
-                const device_path = try findStableDevPath(allocator, slave_device);
+                const device_path = try findStableDevPath(allocator, slave_device) orelse try allocator.dupe(u8, slave_device);
 
-                if (found_luks_devices.get(dm_name)) |_| {
-                    allocator.free(device_path);
-                    allocator.free(dm_name);
-                } else {
+                if (!found_luks_devices.contains(dm_name)) {
                     try found_luks_devices.put(dm_name, {});
                     filesystem.luks = .{
                         .name = dm_name,
@@ -761,8 +662,8 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
     return try filesystems.toOwnedSlice();
 }
 
-// Convert array to a list of concatenated Nix string values
-// without dupes. Caller owns returned memory.
+/// Convert array to a list of concatenated Nix string values
+/// without dupes. Caller owns returned memory.
 fn nixStringList(allocator: Allocator, items: []const []const u8, sep: []const u8) ![]u8 {
     var temp = try allocator.dupe([]const u8, items);
     defer allocator.free(temp);
@@ -810,27 +711,16 @@ fn nixStringList(allocator: Allocator, items: []const []const u8, sep: []const u
 
 /// Generate hardware-configuration.nix text.
 /// Caller owns returned memory.
-// TODO: cleanup allocs properly
 fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, virt_type: VirtualizationType) ![]const u8 {
     const c = config.getConfig();
 
     var imports = ArrayList([]const u8).init(allocator);
-    defer imports.deinit();
-
     var initrd_available_modules = ArrayList([]const u8).init(allocator);
-    defer initrd_available_modules.deinit();
-
     var initrd_modules = ArrayList([]const u8).init(allocator);
-    defer initrd_modules.deinit();
-
     var kernel_modules = ArrayList([]const u8).init(allocator);
-    defer kernel_modules.deinit();
-
     var module_packages = ArrayList([]const u8).init(allocator);
-    defer module_packages.deinit();
 
     var attrs = ArrayList(KVPair).init(allocator);
-    defer attrs.deinit();
     if (c.init.extra_attrs) |extra_attrs| {
         var it = extra_attrs.iterator();
         while (it.next()) |kv| {
@@ -860,9 +750,6 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, virt_type:
         log.print("Fill in the nixpkgs.hostPlatform attribute in your configuration later.\n", .{});
         break :blk null;
     };
-    defer {
-        if (host_platform_result) |system| allocator.free(system.stdout.?);
-    }
 
     const host_platform = if (host_platform_result) |system| system.stdout.? else "";
     try attrs.append(KVPair{
@@ -893,7 +780,6 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, virt_type:
         var iter = dir.iterate();
         while (iter.next() catch null) |entry| {
             const name = try fs.path.join(allocator, &.{ pci_dirname, entry.name });
-            defer allocator.free(name);
             pciCheck(allocator, name, array_refs) catch return InitConfigError.ResourceAccessFailed;
         }
     }
@@ -909,7 +795,6 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, virt_type:
         var iter = dir.iterate();
         while (iter.next() catch null) |entry| {
             const name = try fs.path.join(allocator, &.{ usb_dirname, entry.name });
-            defer allocator.free(name);
             usbCheck(allocator, name, array_refs) catch return InitConfigError.ResourceAccessFailed;
         }
     }
@@ -925,7 +810,6 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, virt_type:
         var iter = dir.iterate();
         while (iter.next() catch null) |entry| {
             const path = try fs.path.join(allocator, &.{ block_dirname, entry.name, "device" });
-            defer allocator.free(path);
             const module = findModuleName(allocator, path) catch null;
             if (module) |m| {
                 try initrd_available_modules.append(m);
@@ -944,7 +828,6 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, virt_type:
         var iter = dir.iterate();
         while (iter.next() catch null) |entry| {
             const path = try fs.path.join(allocator, &.{ mmc_host_dirname, entry.name, "device" });
-            defer allocator.free(path);
             const module = findModuleName(allocator, path) catch null;
             if (module) |m| {
                 try initrd_available_modules.append(m);
@@ -1017,10 +900,6 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, virt_type:
         log.warn("error finding swap devices: {s}", .{@errorName(err)});
         break :blk try allocator.alloc([]u8, 0);
     };
-    defer {
-        for (swap_devices) |dev| allocator.free(dev);
-        allocator.free(swap_devices);
-    }
 
     var absolute_buf: [posix.PATH_MAX]u8 = undefined;
     const absolute_root = posix.realpath(args.root orelse "/", &absolute_buf) catch |err| {
@@ -1034,16 +913,8 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, virt_type:
         findFilesystems(allocator, root) catch try allocator.alloc(Filesystem, 0)
     else
         try allocator.alloc(Filesystem, 0);
-    defer {
-        for (filesystems) |*filesystem| filesystem.deinit(allocator);
-        allocator.free(filesystems);
-    }
 
     var networking_attrs = ArrayList([]const u8).init(allocator);
-    defer {
-        for (networking_attrs.items) |item| allocator.free(item);
-        networking_attrs.deinit();
-    }
 
     const net_dirname = "/sys/class/net";
     var net_dir = fs.openDirAbsolute(net_dirname, .{ .iterate = true }) catch |err| blk: {
@@ -1063,32 +934,17 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, virt_type:
 
     // Stringify everything!
     const imports_str = try concatStringsSep(allocator, imports.items, "\n    ");
-    defer allocator.free(imports_str);
     const initrd_available_modules_str = try nixStringList(allocator, initrd_available_modules.items, " ");
-    defer allocator.free(initrd_available_modules_str);
     const initrd_modules_str = try nixStringList(allocator, initrd_modules.items, " ");
-    defer allocator.free(initrd_modules_str);
     const kernel_modules_str = try nixStringList(allocator, kernel_modules.items, " ");
-    defer allocator.free(kernel_modules_str);
     const module_packages_str = try concatStringsSep(allocator, module_packages.items, " ");
-    defer allocator.free(module_packages_str);
 
     var swap_devices_str: []const u8 = undefined;
     if (swap_devices.len > 0) {
         const swap_device_strings = try allocator.alloc([]const u8, swap_devices.len);
-        defer allocator.free(swap_device_strings);
-
-        var i: usize = 0;
-        defer {
-            var j = i;
-            while (j != 0) : (j -= 1) {
-                allocator.free(swap_device_strings[j - 1]);
-            }
-        }
 
         for (swap_devices, swap_device_strings) |dev, *str| {
             str.* = try fmt.allocPrint(allocator, "{{device = \"{s}\";}}", .{dev});
-            i += 1;
         }
 
         const concated = try concatStringsSep(allocator, swap_device_strings, "\n    ");
@@ -1100,16 +956,13 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, virt_type:
     } else {
         swap_devices_str = try fmt.allocPrint(allocator, "", .{});
     }
-    defer allocator.free(swap_devices_str);
 
     var filesystems_str: []const u8 = undefined;
     if (filesystems.len > 0) {
         const fs_strings = try allocator.alloc([]const u8, filesystems.len);
-        defer allocator.free(fs_strings);
 
         for (filesystems, fs_strings) |filesystem, *str| {
             const options = try nixStringList(allocator, filesystem.options, " ");
-            defer allocator.free(options);
 
             if (options.len > 0) {
                 str.* = try fmt.allocPrint(allocator,
@@ -1134,20 +987,16 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, virt_type:
     } else {
         filesystems_str = try fmt.allocPrint(allocator, "", .{});
     }
-    defer allocator.free(filesystems_str);
 
     const networking_attrs_str = try concatStringsSep(allocator, networking_attrs.items, "");
-    defer allocator.free(networking_attrs_str);
 
     const extra_attrs_str = blk: {
         const strings = try allocator.alloc([]const u8, attrs.items.len);
-        defer allocator.free(strings);
         for (attrs.items, strings) |attr, *str| {
             str.* = try fmt.allocPrint(allocator, "  {s} = {s};", .{ attr.name, attr.value });
         }
         break :blk try concatStringsSep(allocator, strings, "\n");
     };
-    defer allocator.free(extra_attrs_str);
 
     return fmt.allocPrint(allocator, hw_config_template, .{
         imports_str,
@@ -1168,23 +1017,14 @@ fn generateConfigNix(allocator: Allocator, virt_type: VirtualizationType) ![]con
     const c = config.getConfig().init;
 
     var bootloader_config: []const u8 = undefined;
+
     const is_efi = blk: {
-        const efi_dirname = "/sys/firmware/efi/efivars";
-        var stat_buf: linux.Stat = undefined;
-        const errno = linux.stat(efi_dirname, &stat_buf);
-        if (errno > 0) {
-            break :blk false;
-        }
-        break :blk linux.S.ISDIR(stat_buf.mode);
+        fs.accessAbsolute("/sys/firmware/efi/efivars", .{}) catch break :blk false;
+        break :blk true;
     };
     const is_extlinux = blk: {
-        const extlinux_dirname = "/boot/extlinux";
-        var stat_buf: linux.Stat = undefined;
-        const errno = linux.stat(extlinux_dirname, &stat_buf);
-        if (errno > 0) {
-            break :blk false;
-        }
-        break :blk linux.S.ISDIR(stat_buf.mode);
+        fs.accessAbsolute("/boot/extlinux", .{}) catch break :blk false;
+        break :blk true;
     };
 
     if (is_efi) {
@@ -1241,7 +1081,6 @@ fn initConfig(allocator: Allocator, args: InitConfigCommand) !void {
 
     // Generate hardware-configuration.nix.
     const hw_config = try generateHwConfigNix(allocator, args, virt_type);
-    defer allocator.free(hw_config);
 
     if (args.show_hw_config) {
         const stdout = io.getStdOut().writer();
@@ -1254,14 +1093,12 @@ fn initConfig(allocator: Allocator, args: InitConfigCommand) !void {
 
     // Generate configuration.nix
     const config_str = try generateConfigNix(allocator, virt_type);
-    defer allocator.free(config_str);
 
     // Write configurations to disk.
     const root = args.root orelse "/";
     const dir = args.dir orelse "/etc/nixos";
 
     const hw_nix_filename = try fs.path.join(allocator, &.{ root, dir, "hardware-configuration.nix" });
-    defer allocator.free(hw_nix_filename);
 
     log.info("writing {s}", .{hw_nix_filename});
     const hw_nix_file = fs.createFileAbsolute(hw_nix_filename, .{}) catch |err| {
@@ -1288,7 +1125,6 @@ fn initConfig(allocator: Allocator, args: InitConfigCommand) !void {
     };
 
     const config_nix_filename = try fs.path.join(allocator, &.{ root, dir, "configuration.nix" });
-    defer allocator.free(config_nix_filename);
     if (fileExistsAbsolute(config_nix_filename)) {
         if (args.force) {
             log.warn("overwriting existing configuration.nix", .{});
@@ -1323,7 +1159,6 @@ fn initConfig(allocator: Allocator, args: InitConfigCommand) !void {
     };
 
     const flake_nix_filename = try fs.path.join(allocator, &.{ root, dir, "flake.nix" });
-    defer allocator.free(flake_nix_filename);
     if (fileExistsAbsolute(flake_nix_filename)) {
         if (args.force) {
             log.warn("overwriting existing flake.nix", .{});
@@ -1365,12 +1200,20 @@ fn initConfig(allocator: Allocator, args: InitConfigCommand) !void {
 }
 
 pub fn initConfigMain(allocator: Allocator, args: InitConfigCommand) u8 {
+    // This is primarily string building. Don't bother with proper
+    // cleanup, as that obscures the string building code.
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    const arena_alloc = arena.allocator();
+
     if (builtin.os.tag != .linux) {
         log.err("the init command is unsupported on non-Linux systems");
         return 3;
     }
 
-    initConfig(allocator, args) catch |err| {
+    initConfig(arena_alloc, args) catch |err| {
         switch (err) {
             InitConfigError.ResourceAccessFailed => return 4,
             InitConfigError.PermissionDenied => return 13,
