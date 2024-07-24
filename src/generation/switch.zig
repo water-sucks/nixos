@@ -168,37 +168,13 @@ pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchArgs, profil
     const current_profile_dirname = try fs.path.join(allocator, &.{ base_profile_dirname, profile_name });
     defer allocator.free(current_profile_dirname);
 
-    // Check if it exists
-    const generation_dirname = std.fs.realpathAlloc(allocator, profile_link) catch |err| {
-        switch (err) {
-            error.AccessDenied => {
-                log.err("failed to find generation {s}: permission denied", .{profile_link});
-                return GenerationSwitchError.PermissionDenied;
-            },
-            error.FileNotFound => log.err("failed to find generation {s}: no such file or directory", .{profile_link}),
-            error.SymLinkLoop => log.err("encountered symlink loop while determining realpath of {s}", .{profile_link}),
-            else => log.err("unexpected error encountered when determining realpath of {s}: {s}", .{ profile_link, @errorName(err) }),
-        }
+    // Check if generation exists. There are rare cases in which a Nix profile can
+    // point to a nonexistent store path, such as in the case that someone manually
+    // deletes stuff, but this shouldn't really happen much, if at all.
+    fs.cwd().access(profile_link, .{}) catch |err| {
+        log.err("unexpected error encountered opening {s}: {s}", .{ profile_link, @errorName(err) });
         return GenerationSwitchError.ResourceAccessFailed;
     };
-    defer allocator.free(generation_dirname);
-
-    var generation_dir = fs.openDirAbsolute(generation_dirname, .{}) catch |err| {
-        switch (err) {
-            error.AccessDenied => {
-                log.err("unable to open {s}: permission denied", .{generation_dirname});
-                return GenerationSwitchError.PermissionDenied;
-            },
-            error.DeviceBusy => log.err("unable to open {s}: device busy", .{generation_dirname}),
-            error.FileNotFound => log.err("unable to {s}: no such file or directory", .{generation_dirname}),
-            error.NotDir => log.err("{s} is not a directory", .{generation_dirname}),
-
-            error.SymLinkLoop => log.err("encountered symlink loop while opening {s}", .{generation_dirname}),
-            else => log.err("unexpected error encountered opening {s}: {s}", .{ generation_dirname, @errorName(err) }),
-        }
-        return GenerationSwitchError.ResourceAccessFailed;
-    };
-    defer generation_dir.close();
 
     log.info("activating generation {s}...", .{generation});
 

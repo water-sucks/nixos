@@ -29,7 +29,6 @@ const log = @import("log.zig");
 const utils = @import("utils.zig");
 const FlakeRef = utils.FlakeRef;
 const fileExistsAbsolute = utils.fileExistsAbsolute;
-const mkTmpDir = utils.mkTmpDir;
 const runCmd = utils.runCmd;
 
 pub const InstallCommand = struct {
@@ -167,6 +166,13 @@ pub const InstallCommand = struct {
             return ArgParseError.MissingRequiredArgument;
         }
 
+        if (parsed.root) |root| {
+            if (!fs.path.isAbsolute(root)) {
+                argError("--root must be an absolute path", .{});
+                return ArgParseError.InvalidArgument;
+            }
+        }
+
         return null;
     }
 
@@ -283,7 +289,7 @@ fn copyChannel(allocator: Allocator, mountpoint: []const u8, channel_dir: ?[]con
 
     if (channel_path == null) return;
 
-    var mountpoint_dir = fs.openDirAbsolute(mountpoint, .{}) catch |err| {
+    var mountpoint_dir = fs.cwd().openDir(mountpoint, .{}) catch |err| {
         log.err("unable to open mountpoint dir: {s}", .{@errorName(err)});
         return InstallError.CopyChannelFailed;
     };
@@ -340,10 +346,9 @@ fn nixBuildFlake(
     allocator: Allocator,
     flake_ref: FlakeRef,
     mountpoint: []const u8,
-    out_link: []const u8,
     options: Options,
     env_map: *process.EnvMap,
-) !void {
+) ![]const u8 {
     const target = try fmt.allocPrint(allocator, "{s}#nixosConfigurations.{s}.config.system.build.toplevel", .{ flake_ref.uri, flake_ref.system });
     defer allocator.free(target);
 
@@ -357,7 +362,7 @@ fn nixBuildFlake(
     try argv.appendSlice(&.{ "--extra-substituters", default_extra_substituters });
     try argv.appendSlice(options.build_options);
     try argv.appendSlice(options.lock_options);
-    try argv.appendSlice(&.{ "--out-link", out_link });
+    try argv.appendSlice(&.{ "--no-link", "--print-out-paths" });
 
     if (verbose) log.cmd(argv.items);
 
@@ -366,21 +371,23 @@ fn nixBuildFlake(
         .argv = argv.items,
         .env_map = env_map,
     }) catch return InstallError.NixBuildFailed;
+    errdefer if (result.stdout) |stdout| allocator.free(stdout);
 
     if (result.status != 0) {
         exit_status = result.status;
         return InstallError.NixBuildFailed;
     }
+
+    return try allocator.dupe(u8, result.stdout.?);
 }
 
 fn nixBuild(
     allocator: Allocator,
     config: []const u8,
     mountpoint: []const u8,
-    out_link: []const u8,
     options: Options,
     env_map: *process.EnvMap,
-) !void {
+) ![]const u8 {
     const nixos_config_argstr = try fmt.allocPrint(allocator, "nixos-config={s}", .{config});
     defer allocator.free(nixos_config_argstr);
 
@@ -388,12 +395,12 @@ fn nixBuild(
     defer argv.deinit();
 
     try argv.append("nix-build");
-    try argv.appendSlice(&.{ "--out-link", out_link });
     try argv.appendSlice(&.{ "--store", mountpoint });
     try argv.appendSlice(options.build_options);
     try argv.appendSlice(&.{ "--extra-substituters", default_extra_substituters });
     try argv.appendSlice(&.{ "<nixpkgs/nixos>", "-A", "system" });
     try argv.appendSlice(&.{ "-I", nixos_config_argstr });
+    try argv.append("--no-out-link");
 
     if (verbose) log.cmd(argv.items);
 
@@ -402,11 +409,14 @@ fn nixBuild(
         .argv = argv.items,
         .env_map = env_map,
     }) catch return InstallError.NixBuildFailed;
+    errdefer if (result.stdout) |stdout| allocator.free(stdout);
 
     if (result.status != 0) {
         exit_status = result.status;
         return InstallError.NixBuildFailed;
     }
+
+    return try allocator.dupe(u8, result.stdout.?);
 }
 
 fn setNixEnvProfile(allocator: Allocator, mountpoint: []const u8, build_options: []const []const u8, system: []const u8) !void {
@@ -523,18 +533,21 @@ fn install(allocator: Allocator, args: InstallCommand) InstallError!void {
         .lock_options = args.lock_options.items,
     };
 
-    var realpath_buf: [posix.PATH_MAX]u8 = undefined;
-    const mountpoint = posix.realpath(args.root orelse "/mnt", &realpath_buf) catch |err| {
-        log.err("unable to determine realpath of {s}: {s}", .{ args.root orelse "/mnt", @errorName(err) });
+    const root_arg = args.root orelse "/mnt";
+    var mountpoint_buf: [posix.PATH_MAX]u8 = undefined;
+    const mountpoint = utils.followSymlink(root_arg, &mountpoint_buf) catch |err| {
+        log.err("unable to determine real path of {s}: {s}", .{ root_arg, @errorName(err) });
         return InstallError.ConfigurationNotFound;
     };
 
     isValidMountpoint(mountpoint) catch return InstallError.InvalidMountpoint;
 
-    // Create temporary directory for building system in
+    // Create temporary directory for building system in.
+    // This will use the filesystem, to avoid any out of space errors
+    // if building off a tmpfs, netboot image or something similar.
     const tmpdir_base = try fs.path.join(allocator, &.{ mountpoint, "system" });
     defer allocator.free(tmpdir_base);
-    const tmpdir = mkTmpDir(allocator, tmpdir_base) catch |err| {
+    const tmpdir_name = utils.mkTmpDir(allocator, tmpdir_base) catch |err| {
         if (err == error.PermissionDenied) {
             return InstallError.PermissionDenied;
         } else if (err == error.OutOfMemory) {
@@ -542,19 +555,21 @@ fn install(allocator: Allocator, args: InstallCommand) InstallError!void {
         }
         return InstallError.ResourceCreationFailed;
     };
-    defer fs.deleteTreeAbsolute(tmpdir) catch {
+    defer fs.cwd().deleteTree(tmpdir_name) catch {
         log.warn("unable to remove temporary directory {s}, please remove manually", .{tmpdir_base});
     };
 
+    const out_link = try fs.path.join(allocator, &.{ tmpdir_name, "system" });
+    defer allocator.free(out_link);
+
     // Use this temporary directory for Nix-built artifacts
     var env_map = try process.getEnvMap(allocator);
-    if (env_map.get("TMPDIR") == null) {
-        try env_map.put("TMPDIR", tmpdir);
-    }
     defer env_map.deinit();
+    if (env_map.get("TMPDIR") == null) {
+        try env_map.put("TMPDIR", out_link);
+    }
 
-    const out_link = try fs.path.join(allocator, &.{ tmpdir, "system" });
-    defer allocator.free(out_link);
+    var result: []const u8 = undefined;
 
     // Find configuration and build it
     if (opts.flake) {
@@ -569,7 +584,7 @@ fn install(allocator: Allocator, args: InstallCommand) InstallError!void {
 
         if (args.system == null) {
             log.info("building the flake in {s}", .{ref.uri});
-            nixBuildFlake(allocator, ref, mountpoint, out_link, options, &env_map) catch |err| {
+            result = nixBuildFlake(allocator, ref, mountpoint, options, &env_map) catch |err| {
                 log.err("failed to build the system configuration", .{});
                 if (err == error.OutOfMemory) {
                     return InstallError.OutOfMemory;
@@ -587,10 +602,10 @@ fn install(allocator: Allocator, args: InstallCommand) InstallError!void {
         }
         const config_file = nixos_config_var orelse try fs.path.join(allocator, &.{ mountpoint, "/etc/nixos/configuration.nix" });
         defer if (nixos_config_var == null) allocator.free(config_file);
-        if (!fileExistsAbsolute(config_file)) {
+        fs.cwd().access(config_file, .{}) catch {
             log.err("configuration not found at {s}", .{config_file});
             return InstallError.ConfigurationNotFound;
-        }
+        };
 
         if (!args.no_copy_channel) {
             copyChannel(allocator, mountpoint, args.channel, args.build_options.items) catch |err| {
@@ -601,7 +616,7 @@ fn install(allocator: Allocator, args: InstallCommand) InstallError!void {
 
         if (args.system == null) {
             log.info("building the configuration in {s}", .{config_file});
-            nixBuild(allocator, config_file, mountpoint, out_link, options, &env_map) catch |err| {
+            result = nixBuild(allocator, config_file, mountpoint, options, &env_map) catch |err| {
                 log.err("failed to build the system configuration", .{});
                 if (err == error.OutOfMemory) {
                     return InstallError.OutOfMemory;
@@ -611,17 +626,15 @@ fn install(allocator: Allocator, args: InstallCommand) InstallError!void {
         }
     }
 
-    var link_buf: [posix.PATH_MAX]u8 = undefined;
-    const system = args.system orelse posix.readlink(out_link, &link_buf) catch |err| {
-        log.err("unable to readlink {s}: {s}", .{ out_link, @errorName(err) });
-        return InstallError.ResourceCreationFailed;
-    };
+    defer if (args.system == null) allocator.free(result);
+
+    const system = args.system orelse result;
 
     // Set initial system profile for install
     try setNixEnvProfile(allocator, mountpoint, args.build_options.items, system);
 
-    var mountpoint_dir = fs.openDirAbsolute(mountpoint, .{}) catch |err| {
-        log.err("unable to open mountpoint dir: {s}", .{@errorName(err)});
+    var mountpoint_dir = fs.cwd().openDir(mountpoint, .{}) catch |err| {
+        log.err("unable to open {s}: {s}", .{ mountpoint, @errorName(err) });
         return InstallError.ResourceCreationFailed;
     };
     defer mountpoint_dir.close();

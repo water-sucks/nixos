@@ -36,7 +36,7 @@ const FlakeRef = utils.FlakeRef;
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 const readFile = utils.readFile;
 const runCmd = utils.runCmd;
-const isExectuable = utils.isExecutable;
+const isExecutable = utils.isExecutable;
 
 pub const ApplyCommand = struct {
     dry: bool = false,
@@ -617,7 +617,7 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
     var result: []const u8 = undefined;
 
     var use_nom = args.use_nom or c.apply.use_nom;
-    const nom_found = isExectuable("nom");
+    const nom_found = isExecutable("nom");
     if (args.use_nom and !nom_found) {
         log.err("--use-nom was specified, but `nom` is not executable", .{});
         return ApplyError.NixBuildFailed;

@@ -278,19 +278,36 @@ pub fn mkTmpDir(allocator: Allocator, base: []const u8) ![]const u8 {
     const dirname = try mem.concat(allocator, u8, &.{ base, &random_string });
     errdefer allocator.free(dirname);
 
-    fs.makeDirAbsolute(dirname) catch |err| {
-        switch (err) {
-            error.AccessDenied => log.err("unable to create temporary directory {s}: permission denied", .{dirname}),
-            error.PathAlreadyExists => log.err("unable to create temporary directory {s}: path already exists", .{dirname}),
-            error.FileNotFound => log.err("unable to create temporary directory {s}: no such file or directory", .{dirname}),
-            error.NoSpaceLeft => log.err("unable to create temporary directory {s}: no space left on device", .{dirname}),
-            error.NotDir => log.err("{s} is not a directory", .{base}),
-            else => log.err("unexpected error creating temporary directory {s}: {s}", .{ dirname, @errorName(err) }),
-        }
+    fs.cwd().makeDir(dirname) catch |err| {
+        log.err("unexpected error creating temporary directory {s}: {s}", .{ dirname, @errorName(err) });
         return err;
     };
 
     return dirname;
+}
+
+/// Follow symlinks until a destination path is reached.
+pub fn followSymlink(path: []const u8, buf: []u8) ![]const u8 {
+    var current_path = path;
+    var intermediate_link_buf: [posix.PATH_MAX]u8 = undefined;
+
+    for (0..64) |_| {
+        const next_link = posix.readlink(current_path, &intermediate_link_buf) catch |err| {
+            switch (err) {
+                error.NotLink => return current_path,
+                else => return err,
+            }
+        };
+
+        if (mem.eql(u8, next_link, current_path)) {
+            return current_path;
+        }
+
+        @memcpy(buf, &intermediate_link_buf);
+        current_path = buf[0..(next_link.len)];
+    }
+
+    return error.TooManyLevelsOfSymlinks;
 }
 
 /// Check if a command is executable by looking it up
@@ -298,13 +315,9 @@ pub fn mkTmpDir(allocator: Allocator, base: []const u8) ![]const u8 {
 pub fn isExecutable(command: []const u8) bool {
     const path_var = posix.getenv("PATH") orelse return false;
 
-    var buf: [posix.PATH_MAX]u8 = undefined;
-
     var dirnames = mem.tokenizeScalar(u8, path_var, ':');
     while (dirnames.next()) |dirname| {
-        const real_dirname = posix.realpath(dirname, &buf) catch continue;
-
-        var dir = fs.openDirAbsolute(real_dirname, .{}) catch continue;
+        var dir = fs.cwd().openDir(dirname, .{}) catch continue;
         defer dir.close();
 
         dir.access(command, .{}) catch continue;

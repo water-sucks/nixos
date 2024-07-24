@@ -221,44 +221,36 @@ fn getResolvConfLocation(allocator: Allocator, mountpoint: []const u8) ![:0]cons
     const target_resolv_conf = try fs.path.join(allocator, &.{ mountpoint, Constants.resolv_conf });
     defer allocator.free(target_resolv_conf);
 
-    var created: bool = false;
-
-    var trc_handle: std.fs.File = blk: {
-        const file = fs.openFileAbsolute(target_resolv_conf, .{}) catch |err| {
-            if (err == error.FileNotFound) {
-                const new_file = try fs.createFileAbsolute(target_resolv_conf, .{});
-                created = true;
-                break :blk new_file;
-            } else {
-                return err;
-            }
-        };
-        break :blk file;
-    };
-    defer trc_handle.close();
-
-    if (created) {
-        return allocator.dupeZ(u8, target_resolv_conf);
-    }
-
-    const is_symlink = (try trc_handle.metadata()).kind() == .sym_link;
-    if (is_symlink) {
-        var path_buf: [posix.PATH_MAX]u8 = undefined;
-        const real_location = try posix.realpath(target_resolv_conf, &path_buf);
-
-        var path_builder = ArrayList([]const u8).init(allocator);
-        defer path_builder.deinit();
-
-        try path_builder.append(mountpoint);
-        if (!mem.startsWith(u8, real_location, "/")) {
-            try path_builder.append("etc");
+    fs.cwd().access(target_resolv_conf, .{}) catch |err| {
+        switch (err) {
+            error.FileNotFound => {
+                // Ensure target resolv.conf exists so that we can bind mmount over it.
+                const resolv_conf = try fs.cwd().createFile(target_resolv_conf, .{});
+                resolv_conf.close();
+                return try allocator.dupeZ(u8, target_resolv_conf);
+            },
+            else => return err,
         }
-        try path_builder.append(real_location);
+    };
 
-        return fs.path.joinZ(allocator, path_builder.items);
+    var path_buf: [posix.PATH_MAX]u8 = undefined;
+    const real_location = utils.followSymlink(target_resolv_conf, &path_buf) catch |err| {
+        switch (err) {
+            error.NotLink => return try allocator.dupeZ(u8, target_resolv_conf),
+            else => return err,
+        }
+    };
+
+    var path_builder = ArrayList([]const u8).init(allocator);
+    defer path_builder.deinit();
+
+    try path_builder.append(mountpoint);
+    if (!mem.startsWith(u8, real_location, "/")) {
+        try path_builder.append("etc");
     }
+    try path_builder.append(real_location);
 
-    return allocator.dupeZ(u8, target_resolv_conf);
+    return fs.path.joinZ(allocator, path_builder.items);
 }
 
 // Run the NixOS activation script for the specified system configuration.

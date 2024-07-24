@@ -84,6 +84,13 @@ pub const InitConfigCommand = struct {
             next_arg = argv.next();
         }
 
+        if (parsed.root) |root| {
+            if (!fs.path.isAbsolute(root)) {
+                argError("--root must be an absolute path", .{});
+                return ArgParseError.InvalidArgument;
+            }
+        }
+
         return null;
     }
 };
@@ -442,9 +449,8 @@ const Filesystem = struct {
 };
 
 /// Check if `subdir` is a subdirectory of `dir`
-fn is_subdir(subdir: []const u8, dir: []const u8) bool {
+fn isSubdir(subdir: []const u8, dir: []const u8) bool {
     // A dir is always in root, since dirs are absolute.
-    // // Intel 3945ABG network devices
     if (dir.len == 0 or mem.eql(u8, dir, "/")) return true;
     // If the dirs are the same, they are in each other.
     if (mem.eql(u8, subdir, dir)) return true;
@@ -489,7 +495,7 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
         };
         if (!is_dir) continue;
 
-        if (!is_subdir(mountpoint_absolute, root_dir)) continue;
+        if (!isSubdir(mountpoint_absolute, root_dir)) continue;
         const mountpoint = if (mem.eql(u8, mountpoint_absolute, root_dir))
             "/"
         else
@@ -503,10 +509,10 @@ fn findFilesystems(allocator: Allocator, root_dir: []const u8) ![]Filesystem {
         }
 
         // Skip special filesystems
-        if (is_subdir(mountpoint, "/proc") or
-            is_subdir(mountpoint, "/dev") or
-            is_subdir(mountpoint, "/sys") or
-            is_subdir(mountpoint, "/run") or
+        if (isSubdir(mountpoint, "/proc") or
+            isSubdir(mountpoint, "/dev") or
+            isSubdir(mountpoint, "/sys") or
+            isSubdir(mountpoint, "/run") or
             mem.eql(u8, mountpoint, "/var/lib/nfs/rpc_pipefs"))
         {
             continue;
@@ -901,12 +907,14 @@ fn generateHwConfigNix(allocator: Allocator, args: InitConfigCommand, virt_type:
         break :blk try allocator.alloc([]u8, 0);
     };
 
-    var absolute_buf: [posix.PATH_MAX]u8 = undefined;
-    const absolute_root = posix.realpath(args.root orelse "/", &absolute_buf) catch |err| {
-        log.err("unable to find realpath of root: {s}", .{@errorName(err)});
+    const root_arg = args.root orelse "/";
+
+    var real_root_buf: [posix.PATH_MAX]u8 = undefined;
+    const real_root = utils.followSymlink(root_arg, &real_root_buf) catch |err| {
+        log.err("unable to find real path of {s}: {s}", .{ root_arg, @errorName(err) });
         return InitConfigError.ResourceAccessFailed;
     };
-    const root = if (mem.eql(u8, absolute_root, "/")) "" else absolute_root;
+    const root = if (mem.eql(u8, real_root, "/")) "" else real_root;
 
     // Generate configuration entries for mounted filesystems
     const filesystems = if (!args.no_fs)
