@@ -222,11 +222,7 @@ pub fn fileExistsAbsolute(filename: []const u8) bool {
 /// Read file in its entirety into a string buffer.
 /// Caller owns returned memory.
 pub fn readFile(allocator: Allocator, path: []const u8) ![]const u8 {
-    const file = try fs.openFileAbsolute(path, .{});
-    defer file.close();
-
-    const contents = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
-    return contents;
+    return try fs.cwd().readFileAlloc(allocator, path, std.math.maxInt(usize));
 }
 
 /// Compare strings lexicographically to see if one is less than other.
