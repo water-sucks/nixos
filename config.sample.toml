@@ -1,4 +1,5 @@
-config_location = "/etc/nixos" # Where to look for configuration by default
+# Where to look for configuration by default
+config_location = "/etc/nixos"
 
 # Aliases for long commands that you don't want to type out. All arguments
 # after the aliases are passed as-is to the underlying command.
@@ -11,20 +12,30 @@ rollback = ["generation", "rollback"]
 
 # Configuration for the `apply` subcommand.
 [apply]
-specialisation = "" # Name of specialisation to use by default
-use_nom = false # Use `nix-output-monitor` as an alternative `nix build` front-end
+# Name of specialisation to use by default
+specialisation = ""
+# Use `nix-output-monitor` as an alternative `nix build` front-end
+use_nom = false
+# This only applies for flake configurations, and is always true in the
+# case of legacy configurations.
+imply_impure_with_tag = false
 
 # Configuration for the `enter` subcommand.
 [enter]
-mount_resolv_conf = true # Bind-mount the host `resolv.conf` inside the chroot for internet access
+# Bind-mount the host `resolv.conf` inside the chroot for internet access
+mount_resolv_conf = true
 
 # Configuration for the `init` subcommand. This is managed by `nixpkgs`, and
 # normally should not be touched unless you know what you are doing.
 [init]
-enable_xserver = false # Generate options to enable X11 display server
-desktop_config = "" # Configuration options for a desktop environment to include by default
-extra_config = "" # Extra configuration to append to `configuration.nix` as a string
+# Generate options to enable X11 display server
+enable_xserver = false
+# Configuration options for a desktop environment to include by default
+desktop_config = ""
+# Extra configuration to append to `configuration.nix` as a string
+extra_config = ""
 
-# Extra configuration to append to `configuration.nix`, as structured key-value pairs
+# Extra configuration to append to `configuration.nix`,
+# as structured key-value pairs
 [init.extra_attrs]
 hello = "\"world\""

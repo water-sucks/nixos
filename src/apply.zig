@@ -109,6 +109,8 @@ pub const ApplyCommand = struct {
     /// Parse arguments from the command line and construct a BuildArgs struct
     /// with the provided arguments. Caller owns a BuildArgs instance.
     pub fn parseArgs(args: *ArgIterator, parsed: *ApplyCommand) !?[]const u8 {
+        const c = config.getConfig();
+
         var next_arg: ?[]const u8 = args.next();
         while (next_arg) |arg| {
             if (argIs(arg, "--dry", "-d")) {
@@ -187,9 +189,11 @@ pub const ApplyCommand = struct {
                 break :blk false;
             };
 
-            if (!is_impure) {
+            if (!is_impure and !c.apply.imply_impure_with_tag) {
                 argError("--impure is required when using --tag for flake configurations", .{});
                 return ArgParseError.ConflictingOptions;
+            } else if (!is_impure and c.apply.imply_impure_with_tag) {
+                try parsed.build_options.append("--impure");
             }
         }
 
