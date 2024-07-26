@@ -19,9 +19,12 @@ const argError = argparse.argError;
 const argIs = argparse.argIs;
 const getNextArgs = argparse.getNextArgs;
 
+const Constants = @import("constants.zig");
+
 const log = @import("log.zig");
 
 const utils = @import("utils.zig");
+const ansi = utils.ansi;
 const FlakeRef = utils.FlakeRef;
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 
@@ -91,15 +94,71 @@ const flake_repl_expr =
     \\let
     \\  flake = builtins.getFlake "{s}";
     \\  system = flake.nixosConfigurations."{s}";
-    \\in (flake
-    \\  // {{
-    \\    inherit (system) config lib options pkgs;
-    \\  }})
+    \\  motd = ''
+    \\{s}'';
+    \\  scope =
+    \\    assert system._type or null == "configuration";
+    \\    assert system.class or "nixos" == "nixos";
+    \\      system._module.args
+    \\      // system._module.specialArgs
+    \\      // {{
+    \\        inherit (system) config options;
+    \\        inherit flake;
+    \\      }};
+    \\in
+    \\  builtins.seq scope builtins.trace motd scope
+;
+
+const flake_motd_template =
+    \\This Nix REPL has been automatically loaded with a NixOS configuration.
     \\
+    \\Configuration :: {s}{s}#{s}{s}
+    \\
+    \\The following values have been added to the toplevel scope:
+    \\  - {s}flake{s}   :: Flake inputs, outputs, and source information
+    \\  - {s}config{s}  :: Configured option values
+    \\  - {s}options{s} :: Option data and associated metadata
+    \\  - {s}pkgs{s}    :: {s}nixpkgs{s} package set
+    \\  - Any additional arguments in {s}_module.args{s} and {s}_module.specialArgs{s}
+    \\
+    \\Tab completion can be used to browse around all of these attributes.
+    \\
+    \\Use the {s}:r{s} command to reload the configuration after it has
+    \\been changed, assuming it is a mutable configuration.
+    \\
+    \\Use {s}:?{s} to see all available repl commands.
+    \\
+    \\{s}warning{s}: {s}nixos repl{s} does not enforce pure evaluation.
 ;
 
 fn execFlakeRepl(allocator: Allocator, ref: FlakeRef, includes: []const []const u8) !void {
-    const expr = try fmt.allocPrint(allocator, flake_repl_expr, .{ ref.uri, ref.system });
+    // zig fmt: off
+    const motd = if (Constants.use_color) try fmt.allocPrint(allocator, flake_motd_template, .{
+        ansi.CYAN,    ref.uri,    ref.system,   ansi.RESET,
+        ansi.MAGENTA, ansi.RESET,
+        ansi.MAGENTA, ansi.RESET,
+        ansi.MAGENTA, ansi.RESET,
+        ansi.MAGENTA, ansi.RESET, ansi.CYAN,    ansi.RESET,
+        ansi.MAGENTA, ansi.RESET, ansi.MAGENTA, ansi.RESET,
+        ansi.GREEN,   ansi.RESET,
+        ansi.GREEN,   ansi.RESET,
+        ansi.YELLOW,  ansi.RESET, ansi.CYAN, ansi.RESET,
+    }) else try fmt.allocPrint(allocator, flake_motd_template, .{
+        "", ref.uri, ref.system, "",
+        "",      "",
+        "",      "",
+        "",      "",
+        "",      "",         "", "",
+        "",      "",         "", "",
+        "",      "",
+        "",      "",
+        "",      "",         "", ""
+    });
+    // zig fmt: on
+
+    defer allocator.free(motd);
+
+    const expr = try fmt.allocPrint(allocator, flake_repl_expr, .{ ref.uri, ref.system, motd });
     defer allocator.free(expr);
 
     var argv = ArrayList([]const u8).init(allocator);
@@ -115,18 +174,61 @@ fn execFlakeRepl(allocator: Allocator, ref: FlakeRef, includes: []const []const 
 
 const legacy_repl_expr =
     \\let
-    \\  system = import <nixpkgs/nixos> {};
-    \\in {
-    \\  inherit (system) config lib options pkgs;
-    \\}
+    \\  system = import <nixpkgs/nixos> {{}};
+    \\  motd = ''
+    \\{s}'';
+    \\in
+    \\ builtins.seq system builtins.trace motd system
+;
+
+const legacy_motd_template =
+    \\This Nix REPL has been automatically loaded with this system's NixOS configuration.
     \\
+    \\The following values have been added to the toplevel scope:
+    \\  - {s}config{s}  :: Configured option values
+    \\  - {s}options{s} :: Option data and associated metadata
+    \\  - {s}pkgs{s}    :: {s}nixpkgs{s} package set
+    \\  - Any additional arguments in {s}_module.args{s} and {s}_module.specialArgs{s}
+    \\
+    \\Tab completion can be used to browse around all of these attributes.
+    \\
+    \\Use the {s}:r{s} command to reload the configuration after it has
+    \\been changed.
+    \\
+    \\Use {s}:?{s} to see all available repl commands.
 ;
 
 fn execLegacyRepl(allocator: Allocator, includes: []const []const u8, impure: bool) !void {
     var argv = ArrayList([]const u8).init(allocator);
     defer argv.deinit();
 
-    try argv.appendSlice(&.{ "nix", "repl", "--expr", legacy_repl_expr });
+    // zig fmt: off
+    const motd = if (Constants.use_color) try fmt.allocPrint(allocator, legacy_motd_template, .{
+        ansi.MAGENTA, ansi.RESET,
+        ansi.MAGENTA, ansi.RESET,
+        ansi.MAGENTA, ansi.RESET, ansi.CYAN,    ansi.RESET,
+        ansi.MAGENTA, ansi.RESET, ansi.MAGENTA, ansi.RESET,
+        ansi.GREEN,   ansi.RESET,
+        ansi.GREEN,   ansi.RESET,
+    }) else try fmt.allocPrint(allocator, flake_motd_template, .{
+        "", "",
+        "", "",
+        "", "", "", "",
+        "", "", "", "",
+        "", "",
+        "", "",
+        "", "",
+        "", "",
+        "", "",
+        "", "",
+        "", "",
+    });
+    // zig fmt: on
+
+    const expr = try fmt.allocPrint(allocator, legacy_repl_expr, .{motd});
+    defer allocator.free(expr);
+
+    try argv.appendSlice(&.{ "nix", "repl", "--expr", expr });
     for (includes) |path| {
         try argv.appendSlice(&.{ "-I", path });
     }
