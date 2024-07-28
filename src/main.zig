@@ -20,6 +20,7 @@ const manual = @import("manual.zig");
 const option = @import("option.zig");
 const repl = @import("repl.zig");
 
+const AliasesCommand = alias.AliasesCommand;
 const ApplyCommand = apply.ApplyCommand;
 const EnterCommand = enter.EnterCommand;
 const GenerationCommand = generation.GenerationCommand;
@@ -54,7 +55,7 @@ const MainArgs = struct {
     const Self = @This();
 
     const Subcommand = union(enum) {
-        aliases,
+        aliases: AliasesCommand,
         alias: []const []const u8,
         apply: ApplyCommand,
         enter: EnterCommand,
@@ -113,7 +114,7 @@ const MainArgs = struct {
                 return ArgParseError.InvalidArgument;
             } else if (result.subcommand == null) {
                 if (mem.eql(u8, arg, "aliases")) {
-                    result.subcommand = .aliases;
+                    result.subcommand = .{ .aliases = AliasesCommand{} };
                 } else if (mem.eql(u8, arg, "apply")) {
                     result.subcommand = .{ .apply = ApplyCommand.init(allocator) };
                 } else if (mem.eql(u8, arg, "enter")) {
@@ -170,7 +171,7 @@ const MainArgs = struct {
 
             if (result.subcommand != null) {
                 next_arg = switch (result.subcommand.?) {
-                    .aliases => |_| null,
+                    .aliases => |*sub_args| try AliasesCommand.parseArgs(argv, sub_args),
                     .alias => unreachable,
                     .apply => |*sub_args| try ApplyCommand.parseArgs(argv, sub_args),
                     .enter => |*sub_args| try EnterCommand.parseArgs(argv, sub_args),
@@ -262,8 +263,8 @@ pub fn main() !u8 {
     defer structured_args.deinit();
 
     const status = switch (structured_args.subcommand.?) {
-        .aliases => {
-            alias.printAliases();
+        .aliases => |args| {
+            alias.printAliases(args);
             return 0;
         },
         .alias => |resolved| {
