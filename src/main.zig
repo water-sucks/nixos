@@ -23,6 +23,7 @@ const repl = @import("repl.zig");
 const AliasesCommand = alias.AliasesCommand;
 const ApplyCommand = apply.ApplyCommand;
 const EnterCommand = enter.EnterCommand;
+const FeaturesCommand = features.FeaturesCommand;
 const GenerationCommand = generation.GenerationCommand;
 const InfoCommand = info.InfoCommand;
 const InitConfigCommand = init.InitConfigCommand;
@@ -59,8 +60,8 @@ const MainArgs = struct {
         alias: []const []const u8,
         apply: ApplyCommand,
         enter: EnterCommand,
+        features: FeaturesCommand,
         generation: GenerationCommand,
-        features,
         info: InfoCommand,
         init: InitConfigCommand,
         install: InstallCommand,
@@ -79,8 +80,8 @@ const MainArgs = struct {
         \\    aliases       List configured aliases
         \\    apply         Build/activate a NixOS configuration
         \\    enter         Chroot into a NixOS installation
-        \\    generation    Manage NixOS generations
         \\    features      Show information about features for debugging
+        \\    generation    Manage NixOS generations
         \\    info          Show info about the currently running generation
         \\    init          Initialize a configuration.nix file
         \\    install       Install a NixOS configuration and bootloader
@@ -120,7 +121,7 @@ const MainArgs = struct {
                 } else if (mem.eql(u8, arg, "enter")) {
                     result.subcommand = .{ .enter = EnterCommand.init(allocator) };
                 } else if (mem.eql(u8, arg, "features")) {
-                    result.subcommand = .features;
+                    result.subcommand = .{ .features = FeaturesCommand{} };
                 } else if (mem.eql(u8, arg, "generation")) {
                     result.subcommand = .{ .generation = GenerationCommand{} };
                 } else if (mem.eql(u8, arg, "info")) {
@@ -175,8 +176,8 @@ const MainArgs = struct {
                     .alias => unreachable,
                     .apply => |*sub_args| try ApplyCommand.parseArgs(argv, sub_args),
                     .enter => |*sub_args| try EnterCommand.parseArgs(argv, sub_args),
+                    .features => |*sub_args| try FeaturesCommand.parseArgs(argv, sub_args),
                     .generation => |*sub_args| try GenerationCommand.parseArgs(argv, sub_args),
-                    .features => null,
                     .info => |*sub_args| try InfoCommand.parseArgs(argv, sub_args),
                     .init => |*sub_args| try InitConfigCommand.parseArgs(argv, sub_args),
                     .install => |*sub_args| try InstallCommand.parseArgs(argv, sub_args),
@@ -277,8 +278,8 @@ pub fn main() !u8 {
         },
         .apply => |args| apply.applyMain(allocator, args),
         .enter => |args| enter.enterMain(allocator, args),
-        .features => {
-            features.printFeatures();
+        .features => |args| {
+            features.printFeatures(args);
             return 0;
         },
         .generation => |args| generation.generationMain(allocator, args),
