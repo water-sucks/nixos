@@ -1,0 +1,40 @@
+name: Feature Request
+description: Make a request for new functionality or enhancements to existing features
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: Feature Description
+      description: |
+        A concise description of what functionality you would like to see.
+
+        Include details such as what problems this feature will solve. Keep
+        in mind the following food for thought:
+
+        - Are there existing tools that can do this? If so, how will this tool be able
+          to do this better?
+        - How complex of a feature will this be?
+        - How can we make sure that this does not contribute to feature creep? Keeping
+          ideas within the scope of this tool is **extremely** important.
+      placeholder: "I want a TUI menu for searching through NixOS options."
+    validations:
+      required: true
+  - type: dropdown
+    id: help
+    attributes:
+      label: "Help"
+      description: "Would you be able to implement this by submitting a pull request?"
+      options:
+        - "Yes"
+        - "Yes, but I don't know how to start; I would need guidance"
+        - "No"
+    validations:
+      required: true
+  - type: checkboxes
+    id: looked-through-existing-requests
+    attributes:
+      label: Issues
+      options:
+        - label: I have checked [existing issues](https://github.com/water-sucks/nixos/issues?q=is%3Aissue) and there are no existing ones with the same request.
+          required: true
