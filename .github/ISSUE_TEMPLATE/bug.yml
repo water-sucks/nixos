@@ -1,0 +1,54 @@
+name: Bug Report
+description: File a bug report
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A bug is when something (a feature, behavior, etc.) does not work in a
+        way that is otherwise expected. 
+
+        ### Look through existing issues before filing!
+
+        Please make an effort to look through the issue tracker before filing
+        any bugs. Duplicates only create more work when triaging.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What Happened?
+      description: "Explain what happened, in as much detail as necessary."
+      placeholder: "I encountered a bug, and this is what happened, in good detail."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How To Reproduce
+      description: |
+        How can one reproduce this bug? Include all relevant information, such as:
+
+        - Logs (ideally ran with `--verbose` if applicable)
+        - Operating system (i.e. the output from `nixos info -m`)
+        - Potentially problematic env variables
+      placeholder: |
+        This is how to reproduce it. I am running NixOS 24.11 (Vicuna) on the stable branch.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: "What behavior was expected to occur?"
+      placeholder: "I expected to be able to run ___ without a segmentation fault."
+    validations:
+      required: true
+  - type: textarea
+    id: compiled-features
+    attributes:
+      label: Features
+      description: |
+        Please run `nixos features` and paste the output here.
+        This will automatically formatted into code output.
+      render: shell
+    validations:
+      required: true
