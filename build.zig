@@ -14,7 +14,7 @@ const whitespace = std.ascii.whitespace;
 /// for the commit that gets tagged. Directly after the tagged commit,
 /// the version should be bumped and the "-dev" suffix added.
 /// Thanks to `riverwm` for this idea for version number management.
-const version = "0.9.0";
+const version = "0.10.0-dev";
 
 pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});

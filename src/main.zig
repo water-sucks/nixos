@@ -75,7 +75,7 @@ const MainArgs = struct {
         \\    nixos <COMMAND>
         \\
         \\Commands:
-        \\    alias         List configured aliases
+        \\    aliases       List configured aliases
         \\    apply         Build/activate a NixOS configuration
         \\    enter         Chroot into a NixOS installation
         \\    generation    Manage NixOS generations
@@ -112,7 +112,7 @@ const MainArgs = struct {
                 argError("unrecognised flag '{s}'", .{arg});
                 return ArgParseError.InvalidArgument;
             } else if (result.subcommand == null) {
-                if (mem.eql(u8, arg, "alias")) {
+                if (mem.eql(u8, arg, "aliases")) {
                     result.subcommand = .aliases;
                 } else if (mem.eql(u8, arg, "apply")) {
                     result.subcommand = .{ .apply = ApplyCommand.init(allocator) };
