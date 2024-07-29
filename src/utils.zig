@@ -333,7 +333,7 @@ pub fn execAsRoot(allocator: Allocator) !noreturn {
     const original_args = try process.argsAlloc(allocator);
     defer process.argsFree(allocator, original_args);
 
-    try argv.appendSlice(&.{ "sudo", "-E" });
+    try argv.append("sudo");
     try argv.appendSlice(original_args);
 
     var err = process.execve(allocator, argv.items, null);

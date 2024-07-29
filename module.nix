@@ -75,9 +75,12 @@ in {
       EOF
     '';
 
-    # Preserve NIXOS_CONFIG in sudo invocations of `nixos build`
     security.sudo.extraConfig = ''
+      # Preserve NIXOS_CONFIG and NIXOS_CLI_CONFIG in sudo invocations of
+      # `nixos apply`. This is required in order to keep ownership across
+      # automatic re-exec as root.
       Defaults env_keep += "NIXOS_CONFIG"
+      Defaults env_keep += "NIXOS_CLI_CONFIG"
     '';
   };
 }
