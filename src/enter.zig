@@ -28,7 +28,6 @@ const Constants = @import("constants.zig");
 const log = @import("log.zig");
 
 const utils = @import("utils.zig");
-const fileExistsAbsolute = utils.fileExistsAbsolute;
 const runCmd = utils.runCmd;
 
 const NIXOS_REEXEC = "_NIXOS_ENTER_REEXEC";
@@ -59,7 +58,7 @@ pub const EnterCommand = struct {
         \\Options:
         \\    -c, --command    Command to execute in Bash
         \\    -h, --help       Show this help menu
-        \\    -r, --root       Path to the NixOS system root to enter
+        \\    -r, --root       Path to the NixOS system root to enter (default: /mnt)
         \\    -s, --silent     Suppress all system activation output
         \\        --system     NixOS system configuration to activate
         \\    -v, --verbose    Show verbose logging
@@ -127,7 +126,7 @@ const EnterError = error{
 var verbose: bool = false;
 var exit_status: u8 = 0;
 
-inline fn checkMountError(dir: []const u8, errno: usize) !void {
+inline fn checkMountError(dir: [:0]const u8, errno: usize) !void {
     switch (posix.errno(errno)) {
         // unhandled: EFAULT, EINVAL, EMFILE, ENODEV, ENOTBLK, ENXIO
         .SUCCESS => {
@@ -210,9 +209,11 @@ fn bindMount(allocator: Allocator, mountpoint: []const u8, dir: []const u8) !voi
         }
     };
 
-    const root_dirname = posix.toPosixPath(dir) catch return EnterError.OutOfMemory;
-    const errno = linux.mount(&root_dirname, dirname.ptr, "", linux.MS.BIND | linux.MS.REC, 0);
-    try checkMountError(&root_dirname, errno);
+    const root_dirname = try allocator.dupeZ(u8, dir);
+    defer allocator.free(root_dirname);
+
+    const errno = linux.mount(root_dirname, dirname.ptr, "", linux.MS.BIND | linux.MS.REC, 0);
+    try checkMountError(root_dirname, errno);
 }
 
 // Get the location at which to bind-mount resolv.conf.
@@ -343,26 +344,30 @@ fn enter(allocator: Allocator, args: EnterCommand) EnterError!void {
     try checkMountError("/", errno);
 
     // Check if mountpoint is valid NixOS system
-    const root = args.root orelse "/mnt";
-    const mountpoint = try fs.path.resolve(allocator, &.{root});
-    const mountpoint_is_nixos = blk: {
-        const filename = try fs.path.join(allocator, &.{ root, Constants.etc_nixos });
-        defer allocator.free(filename);
-        break :blk fileExistsAbsolute(filename);
+    const mountpoint = args.root orelse "/mnt";
+    log.info("{s}", .{mountpoint});
+
+    var mountpoint_dir = fs.cwd().openDir(mountpoint, .{}) catch |err| {
+        log.err("unable to open {s}: {s}", .{ mountpoint, @errorName(err) });
+        return EnterError.MountFailed;
     };
-    if (!mountpoint_is_nixos) {
-        log.err("mountpoint {s} is not a valid NixOS system", .{root});
+    defer mountpoint_dir.close();
+
+    mountpoint_dir.access("etc/nixos", .{}) catch {
+        log.err("mountpoint {s} is not a valid NixOS system", .{mountpoint});
         return EnterError.UnsupportedOs;
-    }
+    };
 
     // Recursively bind mount current /dev and /proc to mountpoint
     if (verbose) log.info("bind-mounting /dev and /proc to {s}", .{mountpoint});
     try bindMount(allocator, mountpoint, "/dev");
     try bindMount(allocator, mountpoint, "/proc");
 
-    // Bind mount resolv.conf from current system to root if it exists
-    // and the corresponding option is enabled
-    if (c.enter.mount_resolv_conf and fileExistsAbsolute(Constants.resolv_conf)) {
+    if (c.enter.mount_resolv_conf) blk: {
+        // Bind mount resolv.conf from current system to root if it exists
+        // and the corresponding option is enabled
+        fs.cwd().access("/etc/resolv.conf", .{}) catch break :blk;
+
         if (verbose) log.info("bind-mounting {s} for Internet access", .{Constants.resolv_conf});
         const resolv_conf = getResolvConfLocation(allocator, mountpoint) catch |err| {
             log.err("failed to determine where to mount resolv.conf: {s}", .{@errorName(err)});
