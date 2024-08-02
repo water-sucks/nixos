@@ -1,4 +1,5 @@
 self: {
+  options,
   config,
   pkgs,
   lib,
@@ -53,10 +54,21 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
-    environment.systemPackages = let
-      optionsJSON = config.system.build.manual.optionsJSON;
-    in
-      [cfg.package] ++ lib.optionals cfg.prebuildOptionCache [optionsJSON];
+    environment.systemPackages = [cfg.package];
+
+    # While there is already an `options.json` that exists in the
+    # `config.system.build.manual.optionsJSON` attribute, this is
+    # not as full-featured, because it does not contain NixOS options
+    # that are not available in base `nixpkgs`. This does increase
+    # eval time, but that's a fine tradeoff in this case since it
+    # is able to be disabled.
+    environment.etc."nixos-cli/options-cache.json" = lib.mkIf cfg.prebuildOptionCache {
+      text = let
+        optionList' = lib.optionAttrSetToDocList options;
+        optionList = builtins.filter (v: v.visible && !v.internal) optionList';
+      in
+        builtins.toJSON optionList;
+    };
 
     environment.etc."nixos-cli/config.toml".source =
       tomlFormat.generate "nixos-cli-config.toml" cfg.config;

@@ -39,6 +39,7 @@ pub const OptionCommand = struct {
     json: bool = false,
     interactive: bool = false,
     includes: ArrayList([]const u8),
+    no_cache: bool = false,
 
     const Self = @This();
 
@@ -56,6 +57,7 @@ pub const OptionCommand = struct {
         \\    -i, --interactive       Show interactive search bar for options
         \\    -I, --include <PATH>    Add a path value to the Nix search path
         \\    -j, --json              Output option information in JSON format
+        \\    -n, --no-cache          Do not attempt to use cache
         \\
     ;
 
@@ -78,6 +80,8 @@ pub const OptionCommand = struct {
                 try parsed.includes.append(next);
             } else if (argIs(arg, "--json", "-j")) {
                 parsed.json = true;
+            } else if (argIs(arg, "--no-cache", "-n")) {
+                parsed.no_cache = true;
             } else {
                 if (parsed.option == null) {
                     parsed.option = arg;
@@ -107,8 +111,9 @@ pub const OptionCommand = struct {
     }
 };
 
-const NixosOptionFromFile = struct {
-    description: []const u8,
+const NixosOption = struct {
+    name: []const u8,
+    description: ?[]const u8 = null,
     type: []const u8,
     default: ?struct {
         _type: []const u8,
@@ -147,24 +152,58 @@ fn findNixosOptionFilepathLegacy(allocator: Allocator, includes: []const []const
     return try allocator.dupe(u8, result.stdout.?);
 }
 
-fn findNixosOptionFilepathFlake(allocator: Allocator, includes: []const []const u8) ![]const u8 {
-    var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
-    var flake_ref = utils.findFlakeRef() catch return OptionError.NoOptionCache;
-    flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return OptionError.NoOptionCache;
+const flake_options_cache_expr =
+    \\let
+    \\  flake = builtins.getFlake "{s}";
+    \\  system = flake.nixosConfigurations."{s}";
+    \\  inherit (system) pkgs;
+    \\  inherit (pkgs) lib;
+    \\
+    \\  optionsList' = lib.optionAttrSetToDocList system.options;
+    \\  optionsList = builtins.filter (v: v.visible && !v.internal) optionsList';
+    \\
+    \\  jsonFormat = pkgs.formats.json {{}};
+    \\in
+    \\  jsonFormat.generate "options-cache.json" optionsList
+;
+const legacy_options_cache_expr =
+    \\let
+    \\  system = import <nixpkgs/nixos> {};
+    \\  inherit (system) pkgs;
+    \\  inherit (pkgs) lib;
+    \\
+    \\  optionsList' = lib.optionAttrSetToDocList system.options;
+    \\  optionsList = builtins.filter (v: v.visible && !v.internal) optionsList';
+    \\
+    \\  jsonFormat = pkgs.formats.json {};
+    \\in
+    \\  jsonFormat.generate "options-cache.json" optionsList
+;
 
-    const option_attr = try fmt.allocPrint(allocator, "{s}#nixosConfigurations.{s}.config.system.build.manual.optionsJSON", .{
-        flake_ref.uri,
-        flake_ref.system,
-    });
-    defer allocator.free(option_attr);
+fn findNixosOptionFilepath(allocator: Allocator, includes: []const []const u8) ![]const u8 {
+    var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
+
+    const option_cache_expr: []const u8 = blk: {
+        if (opts.flake) {
+            var flake_ref = utils.findFlakeRef() catch return OptionError.NoOptionCache;
+            flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return OptionError.NoOptionCache;
+            break :blk try fmt.allocPrint(allocator, flake_options_cache_expr, .{
+                flake_ref.uri,
+                flake_ref.system,
+            });
+        }
+        break :blk try allocator.dupe(u8, legacy_options_cache_expr);
+    };
+    defer allocator.free(option_cache_expr);
 
     var argv = ArrayList([]const u8).init(allocator);
     defer argv.deinit();
 
-    try argv.appendSlice(&.{ "nix", "build", "--no-link", "--print-out-paths", option_attr });
+    try argv.appendSlice(&.{ "nix-build", "--no-out-link", "--expr", option_cache_expr });
     for (includes) |include| {
         try argv.appendSlice(&.{ "-I", include });
     }
+
     const result = runCmd(.{
         .allocator = allocator,
         .argv = argv.items,
@@ -180,7 +219,7 @@ fn findNixosOptionFilepathFlake(allocator: Allocator, includes: []const []const 
     return try allocator.dupe(u8, result.stdout.?);
 }
 
-fn loadOptionsFromFile(allocator: Allocator, filename: []const u8) !json.Parsed(json.ArrayHashMap(NixosOptionFromFile)) {
+fn loadOptionsFromFile(allocator: Allocator, filename: []const u8) !json.Parsed([]NixosOption) {
     var file = fs.openFileAbsolute(filename, .{}) catch |err| {
         log.err("cannot open options cache file at {s}: {s}", .{ filename, @errorName(err) });
         return err;
@@ -192,7 +231,7 @@ fn loadOptionsFromFile(allocator: Allocator, filename: []const u8) !json.Parsed(
     var json_reader = std.json.reader(allocator, buffered_reader.reader());
     defer json_reader.deinit();
 
-    const parsed = std.json.parseFromTokenSource(json.ArrayHashMap(NixosOptionFromFile), allocator, &json_reader, .{
+    const parsed = std.json.parseFromTokenSource([]NixosOption, allocator, &json_reader, .{
         .ignore_unknown_fields = true,
         .duplicate_field_behavior = .use_last,
     }) catch |err| {
@@ -203,69 +242,70 @@ fn loadOptionsFromFile(allocator: Allocator, filename: []const u8) !json.Parsed(
     return parsed;
 }
 
-fn displayOption(name: []const u8, opt: NixosOptionFromFile) void {
+fn displayOption(name: []const u8, opt: NixosOption) void {
     const stdout = io.getStdOut().writer();
 
-    // Descriptions more often than not have lots of newlines and spaces,
+    // A lot of attributes have lots of newlines and spaces,
     // especially trailing ones. This should be trimmed.
-    const description = mem.trim(u8, opt.description, "\n ");
-    const default = if (opt.default) |d| d.text else null;
+    const description = blk: {
+        if (opt.description) |d| {
+            break :blk mem.trim(u8, d, "\n ");
+        }
+
+        break :blk if (Constants.use_color)
+            ansi.ITALIC ++ "(none)" ++ ansi.RESET
+        else
+            "(none)";
+    };
+    const default = blk: {
+        if (opt.default) |d| {
+            break :blk mem.trim(u8, d.text, "\n ");
+        }
+        break :blk if (Constants.use_color)
+            ansi.ITALIC ++ "(none)" ++ ansi.RESET
+        else
+            "(none)";
+    };
+    const example = if (opt.example) |e| mem.trim(u8, e.text, "\n ") else null;
 
     if (Constants.use_color) {
         println(stdout, ansi.BOLD ++ "Name\n" ++ ansi.RESET ++ "{s}\n", .{name});
+        println(stdout, ansi.BOLD ++ "Description\n" ++ ansi.RESET ++ "{s}\n", .{description});
+        println(stdout, ansi.BOLD ++ "Type\n" ++ ansi.RESET ++ "{s}\n", .{opt.type});
+        println(stdout, ansi.BOLD ++ "Default\n" ++ ansi.RESET ++ "{s}\n", .{default});
+        if (example) |e| {
+            println(stdout, ansi.BOLD ++ "Example\n" ++ ansi.RESET ++ "{s}\n", .{e});
+        }
+        if (opt.declarations.len > 0) {
+            println(stdout, ansi.BOLD ++ "Declared In" ++ ansi.RESET, .{});
+            for (opt.declarations) |decl| {
+                println(stdout, ansi.ITALIC ++ "  - {s}" ++ ansi.RESET, .{decl});
+            }
+        }
+        if (opt.readOnly) {
+            println(stdout, ansi.RED ++ ansi.ITALIC ++ "\nThis option is read-only." ++ ansi.RESET, .{});
+        }
     } else {
         println(stdout, "Name\n{s}\n", .{name});
-    }
-
-    if (Constants.use_color) {
-        println(stdout, ansi.BOLD ++ "Description\n" ++ ansi.RESET ++ "{s}\n", .{description});
-    } else {
         println(stdout, "Description\n{s}\n", .{description});
-    }
-
-    if (Constants.use_color) {
-        println(stdout, ansi.BOLD ++ "Type\n" ++ ansi.RESET ++ "{s}\n", .{opt.type});
-    } else {
         println(stdout, "Type\n{s}\n", .{opt.type});
-    }
-
-    if (Constants.use_color) {
-        println(stdout, ansi.BOLD ++ "Default\n" ++ ansi.RESET ++ "{s}\n", .{default orelse "No default value."});
-    } else {
-        println(stdout, "Default\n{s}\n", .{default orelse "No default value."});
-    }
-
-    if (opt.example) |example| {
-        if (Constants.use_color) {
-            println(stdout, ansi.BOLD ++ "Example\n" ++ ansi.RESET ++ "{s}\n", .{example.text});
-        } else {
-            println(stdout, "Example\n{s}\n", .{example.text});
+        println(stdout, "Default\n{s}\n", .{default});
+        if (example) |e| {
+            println(stdout, "Example\n{s}\n", .{e});
         }
-    }
-
-    if (Constants.use_color) {
-        println(stdout, ansi.BOLD ++ "Declared In" ++ ansi.RESET, .{});
-    } else {
-        println(stdout, "Declared In", .{});
-    }
-
-    for (opt.declarations) |decl| {
-        if (Constants.use_color) {
-            println(stdout, ansi.ITALIC ++ "  - {s}" ++ ansi.RESET, .{decl});
-        } else {
-            println(stdout, "  - {s}", .{decl});
+        if (opt.declarations.len > 0) {
+            println(stdout, "Declared In", .{});
+            for (opt.declarations) |decl| {
+                println(stdout, "  - {s}", .{decl});
+            }
         }
-    }
-    if (opt.readOnly) {
-        if (Constants.use_color) {
-            println(stdout, ansi.RED ++ ansi.ITALIC ++ "\nThis option is read-only." ++ ansi.RESET, .{});
-        } else {
+        if (opt.readOnly) {
             println(stdout, "\nThis option is read-only.", .{});
         }
     }
 }
 
-const prebuilt_options_cache_filename = Constants.current_system ++ "/sw/share/doc/nixos/options.json";
+const prebuilt_options_cache_filename = Constants.current_system ++ "/etc/nixos-cli/options-cache.json";
 
 fn option(allocator: Allocator, args: OptionCommand) !void {
     if (!fileExistsAbsolute(Constants.etc_nixos)) {
@@ -280,40 +320,38 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
 
     var options_filename_alloc = false;
     const options_filename = blk: {
-        if (fileExistsAbsolute(prebuilt_options_cache_filename)) {
+        if (!args.no_cache and fileExistsAbsolute(prebuilt_options_cache_filename)) {
             break :blk prebuilt_options_cache_filename;
         }
-
-        const option_cache_realized_drv = if (opts.flake)
-            try findNixosOptionFilepathFlake(allocator, args.includes.items)
-        else
-            try findNixosOptionFilepathLegacy(allocator, args.includes.items);
-        defer allocator.free(option_cache_realized_drv);
-
         options_filename_alloc = true;
-        break :blk try fs.path.join(allocator, &.{ option_cache_realized_drv, "/share/doc/nixos/options.json" });
+        break :blk try findNixosOptionFilepath(allocator, args.includes.items);
     };
     defer if (options_filename_alloc) allocator.free(options_filename);
 
     var parsed_options = loadOptionsFromFile(allocator, options_filename) catch return OptionError.NoOptionCache;
     defer parsed_options.deinit();
 
-    const option_map = parsed_options.value.map;
+    // NOTE: Is this really faster than just using the slice directly?
+    // Need to benchmark.
+    var options_list = std.MultiArrayList(NixosOption){};
+    defer options_list.deinit(allocator);
+    try options_list.setCapacity(allocator, parsed_options.value.len);
+    for (parsed_options.value) |opt| {
+        options_list.appendAssumeCapacity(opt);
+    }
+
     const option_input = args.option.?;
-
-    var option_iter = option_map.iterator();
-
     const stdout = io.getStdOut().writer();
 
-    while (option_iter.next()) |kv| {
-        const key = kv.key_ptr.*;
-        const value = kv.value_ptr.*;
+    for (options_list.items(.name), 0..) |opt_name, i| {
+        const key = opt_name;
 
         if (mem.eql(u8, option_input, key)) {
+            const value = options_list.get(i);
             if (args.json) {
                 const output = .{
                     .name = key,
-                    .description = mem.trim(u8, value.description, "\n "),
+                    .description = if (value.description) |d| mem.trim(u8, d, "\n ") else null,
                     .type = value.type,
                     .default = if (value.default) |d| d.text else null,
                     .example = if (value.example) |e| e.text else null,
@@ -322,17 +360,18 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
                 };
 
                 json.stringify(output, .{ .whitespace = .indent_2 }, stdout) catch unreachable;
+                println(stdout, "", .{});
             } else {
                 displayOption(key, value);
             }
             return;
         }
     } else {
-        const candidate_filter_buf = try allocator.alloc(search.Candidate, option_map.count());
+        const candidate_filter_buf = try allocator.alloc(search.Candidate, options_list.len);
         defer allocator.free(candidate_filter_buf);
 
         const similar_options = blk: {
-            const raw_filtered = search.rankCandidates(candidate_filter_buf, option_map.keys(), &.{option_input}, false, true, true);
+            const raw_filtered = search.rankCandidates(candidate_filter_buf, options_list.items(.name), &.{option_input}, false, true, true);
             if (raw_filtered.len < 10) {
                 break :blk raw_filtered;
             }
@@ -356,6 +395,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
             };
 
             json.stringify(output, .{ .whitespace = .indent_2 }, stdout) catch unreachable;
+            println(stdout, "", .{});
         } else {
             log.err("{s}", .{error_message});
 
