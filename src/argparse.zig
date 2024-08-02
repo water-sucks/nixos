@@ -61,7 +61,7 @@ pub fn isFlag(arg: []const u8) bool {
 
 /// Get additional arguments for a flag or error out if
 /// they are not adequately provided.
-pub fn getNextArgs(args: *ArgIterator, name: []const u8, comptime amount: usize) ![]const []const u8 {
+pub inline fn getNextArgs(args: *ArgIterator, name: []const u8, comptime amount: usize) ![]const []const u8 {
     var collected_args: [amount][]const u8 = undefined;
 
     var i: usize = 0;
