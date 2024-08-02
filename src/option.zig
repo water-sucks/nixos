@@ -108,7 +108,7 @@ pub const OptionCommand = struct {
 };
 
 const NixosOptionFromFile = struct {
-    description: []const u8,
+    description: ?[]const u8 = null,
     type: []const u8,
     default: ?struct {
         _type: []const u8,
@@ -206,60 +206,61 @@ fn loadOptionsFromFile(allocator: Allocator, filename: []const u8) !json.Parsed(
 fn displayOption(name: []const u8, opt: NixosOptionFromFile) void {
     const stdout = io.getStdOut().writer();
 
-    // Descriptions more often than not have lots of newlines and spaces,
+    // A lot of attributes have lots of newlines and spaces,
     // especially trailing ones. This should be trimmed.
-    const description = mem.trim(u8, opt.description, "\n ");
-    const default = if (opt.default) |d| d.text else null;
+    const description = blk: {
+        if (opt.description) |d| {
+            break :blk mem.trim(u8, d, "\n ");
+        }
+
+        break :blk if (Constants.use_color)
+            ansi.ITALIC ++ "(none)" ++ ansi.RESET
+        else
+            "(none)";
+    };
+    const default = blk: {
+        if (opt.default) |d| {
+            break :blk mem.trim(u8, d.text, "\n ");
+        }
+        break :blk if (Constants.use_color)
+            ansi.ITALIC ++ "(none)" ++ ansi.RESET
+        else
+            "(none)";
+    };
+    const example = if (opt.example) |e| mem.trim(u8, e.text, "\n ") else null;
 
     if (Constants.use_color) {
         println(stdout, ansi.BOLD ++ "Name\n" ++ ansi.RESET ++ "{s}\n", .{name});
+        println(stdout, ansi.BOLD ++ "Description\n" ++ ansi.RESET ++ "{s}\n", .{description});
+        println(stdout, ansi.BOLD ++ "Type\n" ++ ansi.RESET ++ "{s}\n", .{opt.type});
+        println(stdout, ansi.BOLD ++ "Default\n" ++ ansi.RESET ++ "{s}\n", .{default});
+        if (example) |e| {
+            println(stdout, ansi.BOLD ++ "Example\n" ++ ansi.RESET ++ "{s}\n", .{e});
+        }
+        if (opt.declarations.len > 0) {
+            println(stdout, ansi.BOLD ++ "Declared In" ++ ansi.RESET, .{});
+            for (opt.declarations) |decl| {
+                println(stdout, ansi.ITALIC ++ "  - {s}" ++ ansi.RESET, .{decl});
+            }
+        }
+        if (opt.readOnly) {
+            println(stdout, ansi.RED ++ ansi.ITALIC ++ "\nThis option is read-only." ++ ansi.RESET, .{});
+        }
     } else {
         println(stdout, "Name\n{s}\n", .{name});
-    }
-
-    if (Constants.use_color) {
-        println(stdout, ansi.BOLD ++ "Description\n" ++ ansi.RESET ++ "{s}\n", .{description});
-    } else {
         println(stdout, "Description\n{s}\n", .{description});
-    }
-
-    if (Constants.use_color) {
-        println(stdout, ansi.BOLD ++ "Type\n" ++ ansi.RESET ++ "{s}\n", .{opt.type});
-    } else {
         println(stdout, "Type\n{s}\n", .{opt.type});
-    }
-
-    if (Constants.use_color) {
-        println(stdout, ansi.BOLD ++ "Default\n" ++ ansi.RESET ++ "{s}\n", .{default orelse "No default value."});
-    } else {
-        println(stdout, "Default\n{s}\n", .{default orelse "No default value."});
-    }
-
-    if (opt.example) |example| {
-        if (Constants.use_color) {
-            println(stdout, ansi.BOLD ++ "Example\n" ++ ansi.RESET ++ "{s}\n", .{example.text});
-        } else {
-            println(stdout, "Example\n{s}\n", .{example.text});
+        println(stdout, "Default\n{s}\n", .{default});
+        if (example) |e| {
+            println(stdout, "Example\n{s}\n", .{e});
         }
-    }
-
-    if (Constants.use_color) {
-        println(stdout, ansi.BOLD ++ "Declared In" ++ ansi.RESET, .{});
-    } else {
-        println(stdout, "Declared In", .{});
-    }
-
-    for (opt.declarations) |decl| {
-        if (Constants.use_color) {
-            println(stdout, ansi.ITALIC ++ "  - {s}" ++ ansi.RESET, .{decl});
-        } else {
-            println(stdout, "  - {s}", .{decl});
+        if (opt.declarations.len > 0) {
+            println(stdout, "Declared In", .{});
+            for (opt.declarations) |decl| {
+                println(stdout, "  - {s}", .{decl});
+            }
         }
-    }
-    if (opt.readOnly) {
-        if (Constants.use_color) {
-            println(stdout, ansi.RED ++ ansi.ITALIC ++ "\nThis option is read-only." ++ ansi.RESET, .{});
-        } else {
+        if (opt.readOnly) {
             println(stdout, "\nThis option is read-only.", .{});
         }
     }
@@ -313,7 +314,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
             if (args.json) {
                 const output = .{
                     .name = key,
-                    .description = mem.trim(u8, value.description, "\n "),
+                    .description = if (value.description) |d| mem.trim(u8, d, "\n ") else null,
                     .type = value.type,
                     .default = if (value.default) |d| d.text else null,
                     .example = if (value.example) |e| e.text else null,
@@ -322,6 +323,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
                 };
 
                 json.stringify(output, .{ .whitespace = .indent_2 }, stdout) catch unreachable;
+                println(stdout, "", .{});
             } else {
                 displayOption(key, value);
             }
@@ -356,6 +358,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
             };
 
             json.stringify(output, .{ .whitespace = .indent_2 }, stdout) catch unreachable;
+            println(stdout, "", .{});
         } else {
             log.err("{s}", .{error_message});
 
