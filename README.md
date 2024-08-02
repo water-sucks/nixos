@@ -15,6 +15,7 @@ NixOS CLI that mirrors or enhances the functionality of all current NixOS toolin
 - `nixos-version` → `nixos info`
 - `nixos-install` → `nixos install`
 - `nixos-info` → `nixos manual`
+- `nixos-option` → `nixos option`
 
 More to come in the future, see [TODO](#todo) for a list of commands that are
 planned to be implemented.
@@ -100,9 +101,10 @@ configuration is located in [`config.sample.toml`](./config.sample.toml).
   - ✅ `list`
   - ✅ `switch <number>`
   - ✅ `rollback`
-  - ➖ `diff` (a la [nvd](https://gitlab.com/khumba/nvd))
+  - ❌ `delete`
+  - ➖ `diff`
 - ✅ `manual`
-- ❌ `option`
+- ➖ `option`
 - ✅ `repl`
 
 ### Possible Future Commands
