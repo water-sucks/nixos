@@ -16,14 +16,16 @@ const log = @import("log.zig");
 const utils = @import("utils.zig");
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 
+const generationDelete = @import("generation/delete.zig");
 const generationDiff = @import("generation/diff.zig");
 const generationList = @import("generation/list.zig");
 const generationRollback = @import("generation/rollback.zig");
 const generationSwitch = @import("generation/switch.zig");
-const GenerationDiffArgs = generationDiff.GenerationDiffArgs;
-const GenerationListArgs = generationList.GenerationListArgs;
-const GenerationSwitchArgs = generationSwitch.GenerationSwitchArgs;
-const GenerationRollbackArgs = generationRollback.GenerationRollbackArgs;
+const GenerationDeleteCommand = generationDelete.GenerationDeleteCommand;
+const GenerationDiffCommand = generationDiff.GenerationDiffCommand;
+const GenerationListCommand = generationList.GenerationListCommand;
+const GenerationSwitchCommand = generationSwitch.GenerationSwitchCommand;
+const GenerationRollbackCommand = generationRollback.GenerationRollbackCommand;
 
 const GenerationError = error{};
 
@@ -31,11 +33,14 @@ pub const GenerationCommand = struct {
     profile: ?[]const u8 = null,
     subcommand: ?GenerationSubcommand = null,
 
+    const Self = @This();
+
     const GenerationSubcommand = union(enum) {
-        diff: GenerationDiffArgs,
-        list: GenerationListArgs,
-        rollback: GenerationRollbackArgs,
-        @"switch": GenerationSwitchArgs,
+        delete: GenerationDeleteCommand,
+        diff: GenerationDiffCommand,
+        list: GenerationListCommand,
+        rollback: GenerationRollbackCommand,
+        @"switch": GenerationSwitchCommand,
     };
 
     pub const usage =
@@ -45,6 +50,7 @@ pub const GenerationCommand = struct {
         \\    nixos generation [options] <COMMAND>
         \\
         \\Commands:
+        \\    delete              Delete generation(s) from this system
         \\    diff <FROM> <TO>    Show what packages were changed between two generations
         \\    list                List all NixOS generations in current profile
         \\    rollback            Activate the previous generation
@@ -58,7 +64,7 @@ pub const GenerationCommand = struct {
         \\
     ;
 
-    pub fn parseArgs(argv: *ArgIterator, parsed: *GenerationCommand) !?[]const u8 {
+    pub fn parseArgs(allocator: Allocator, argv: *ArgIterator, parsed: *GenerationCommand) !?[]const u8 {
         var next_arg: ?[]const u8 = argv.next();
         while (next_arg) |arg| {
             if (argIs(arg, "--help", "-h")) {
@@ -69,14 +75,16 @@ pub const GenerationCommand = struct {
             } else if (argparse.isFlag(arg)) {
                 return arg;
             } else if (parsed.subcommand == null) {
-                if (mem.eql(u8, arg, "diff")) {
-                    parsed.subcommand = .{ .diff = GenerationDiffArgs{} };
+                if (mem.eql(u8, arg, "delete")) {
+                    parsed.subcommand = .{ .delete = GenerationDeleteCommand.init(allocator) };
+                } else if (mem.eql(u8, arg, "diff")) {
+                    parsed.subcommand = .{ .diff = GenerationDiffCommand{} };
                 } else if (mem.eql(u8, arg, "list")) {
-                    parsed.subcommand = .{ .list = GenerationListArgs{} };
+                    parsed.subcommand = .{ .list = GenerationListCommand{} };
                 } else if (mem.eql(u8, arg, "rollback")) {
-                    parsed.subcommand = .{ .rollback = GenerationRollbackArgs{} };
+                    parsed.subcommand = .{ .rollback = GenerationRollbackCommand{} };
                 } else if (mem.eql(u8, arg, "switch")) {
-                    parsed.subcommand = .{ .@"switch" = GenerationSwitchArgs{} };
+                    parsed.subcommand = .{ .@"switch" = GenerationSwitchCommand{} };
                 } else {
                     return arg;
                 }
@@ -84,10 +92,11 @@ pub const GenerationCommand = struct {
 
             if (parsed.subcommand != null) {
                 next_arg = switch (parsed.subcommand.?) {
-                    .diff => |*sub_args| try GenerationDiffArgs.parseArgs(argv, sub_args),
-                    .list => |*sub_args| try GenerationListArgs.parseArgs(argv, sub_args),
-                    .rollback => |*sub_args| try GenerationRollbackArgs.parseArgs(argv, sub_args),
-                    .@"switch" => |*sub_args| try GenerationSwitchArgs.parseArgs(argv, sub_args),
+                    .delete => |*sub_args| try GenerationDeleteCommand.parseArgs(argv, sub_args),
+                    .diff => |*sub_args| try GenerationDiffCommand.parseArgs(argv, sub_args),
+                    .list => |*sub_args| try GenerationListCommand.parseArgs(argv, sub_args),
+                    .rollback => |*sub_args| try GenerationRollbackCommand.parseArgs(argv, sub_args),
+                    .@"switch" => |*sub_args| try GenerationSwitchCommand.parseArgs(argv, sub_args),
                 };
             } else {
                 next_arg = argv.next();
@@ -100,11 +109,19 @@ pub const GenerationCommand = struct {
         }
 
         return switch (parsed.subcommand.?) {
-            .diff => |*sub_args| try GenerationDiffArgs.parseArgs(argv, sub_args),
-            .list => |*sub_args| try GenerationListArgs.parseArgs(argv, sub_args),
-            .rollback => |*sub_args| try GenerationRollbackArgs.parseArgs(argv, sub_args),
-            .@"switch" => |*sub_args| try GenerationSwitchArgs.parseArgs(argv, sub_args),
+            .delete => |*sub_args| try GenerationDeleteCommand.parseArgs(argv, sub_args),
+            .diff => |*sub_args| try GenerationDiffCommand.parseArgs(argv, sub_args),
+            .list => |*sub_args| try GenerationListCommand.parseArgs(argv, sub_args),
+            .rollback => |*sub_args| try GenerationRollbackCommand.parseArgs(argv, sub_args),
+            .@"switch" => |*sub_args| try GenerationSwitchCommand.parseArgs(argv, sub_args),
         };
+    }
+
+    pub fn deinit(self: Self) void {
+        switch (self.subcommand.?) {
+            .delete => |args| args.deinit(),
+            else => {},
+        }
     }
 };
 
@@ -115,6 +132,7 @@ pub fn generationMain(allocator: Allocator, args: GenerationCommand) u8 {
     }
 
     return switch (args.subcommand.?) {
+        .delete => |_| 0,
         .diff => |sub_args| generationDiff.generationDiffMain(allocator, sub_args, args.profile),
         .list => |sub_args| generationList.generationListMain(allocator, args.profile, sub_args),
         .rollback => |sub_args| generationRollback.generationRollbackMain(allocator, sub_args, args.profile),

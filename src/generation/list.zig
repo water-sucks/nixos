@@ -25,7 +25,7 @@ const print = utils.print;
 const concatStringsSep = utils.concatStringsSep;
 const stringLessThan = utils.stringLessThan;
 
-pub const GenerationListArgs = struct {
+pub const GenerationListCommand = struct {
     json: bool = false,
 
     const usage =
@@ -40,7 +40,7 @@ pub const GenerationListArgs = struct {
         \\
     ;
 
-    pub fn parseArgs(argv: *ArgIterator, parsed: *GenerationListArgs) !?[]const u8 {
+    pub fn parseArgs(argv: *ArgIterator, parsed: *GenerationListCommand) !?[]const u8 {
         var next_arg = argv.next();
         while (next_arg) |arg| {
             if (argIs(arg, "--help", "-h")) {
@@ -64,7 +64,7 @@ const GenerationListError = error{
     ResourceAccessFailed,
 } || Allocator.Error;
 
-fn listGenerations(allocator: Allocator, profile_name: []const u8, args: GenerationListArgs) GenerationListError!void {
+fn listGenerations(allocator: Allocator, profile_name: []const u8, args: GenerationListCommand) GenerationListError!void {
     const profile_dirname = if (mem.eql(u8, profile_name, "system"))
         "/nix/var/nix/profiles"
     else
@@ -156,7 +156,7 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
     }
 }
 
-pub fn generationListMain(allocator: Allocator, profile: ?[]const u8, args: GenerationListArgs) u8 {
+pub fn generationListMain(allocator: Allocator, profile: ?[]const u8, args: GenerationListCommand) u8 {
     const profile_name = profile orelse "system";
 
     listGenerations(allocator, profile_name, args) catch |err| {

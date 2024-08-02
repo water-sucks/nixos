@@ -25,7 +25,7 @@ const runCmd = utils.runCmd;
 // Reusing specialization logic from `nixos apply`, because I'm lazy.
 const findSpecialization = @import("../apply.zig").findSpecialization;
 
-pub const GenerationRollbackArgs = struct {
+pub const GenerationRollbackCommand = struct {
     verbose: bool = false,
     dry: bool = false,
     specialization: ?[]const u8 = null,
@@ -44,7 +44,7 @@ pub const GenerationRollbackArgs = struct {
         \\
     ;
 
-    pub fn parseArgs(argv: *ArgIterator, parsed: *GenerationRollbackArgs) !?[]const u8 {
+    pub fn parseArgs(argv: *ArgIterator, parsed: *GenerationRollbackCommand) !?[]const u8 {
         var next_arg = argv.next();
         while (next_arg) |arg| {
             if (argIs(arg, "--dry", "-d")) {
@@ -118,7 +118,7 @@ fn runSwitchToConfiguration(
     }
 }
 
-fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackArgs, profile_name: []const u8) !void {
+fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackCommand, profile_name: []const u8) !void {
     verbose = args.verbose;
 
     if (linux.geteuid() != 0) {
@@ -165,7 +165,7 @@ fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackArgs, profil
     try runSwitchToConfiguration(allocator, stc, action);
 }
 
-pub fn generationRollbackMain(allocator: Allocator, args: GenerationRollbackArgs, profile: ?[]const u8) u8 {
+pub fn generationRollbackMain(allocator: Allocator, args: GenerationRollbackCommand, profile: ?[]const u8) u8 {
     const profile_name = profile orelse "system";
 
     rollbackGeneration(allocator, args, profile_name) catch |err| {
