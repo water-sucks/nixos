@@ -13,11 +13,16 @@ const getNextArgs = argparse.getNextArgs;
 
 const log = @import("../log.zig");
 
+const zeit = @import("zeit");
+
+const utils = @import("../utils.zig");
+const TimeSpan = utils.time.TimeSpan;
+
 pub const GenerationDeleteCommand = struct {
     all: bool = false,
     from: ?usize = null,
     to: ?usize = null,
-    older_than: ?[]const u8 = null,
+    older_than: ?TimeSpan = null,
     min: ?usize = null,
     keep: ArrayList(usize),
     remove: ArrayList(usize), // Positional args, not using an option
@@ -45,6 +50,8 @@ pub const GenerationDeleteCommand = struct {
         \\Values:
         \\    <GEN>       Generation number
         \\    <PERIOD>    systemd.time span (i.e. "30d 2h 1m")
+        \\
+        \\These flags and arguments can be combined ad-hoc, except for --all.
         \\
     ;
     // TODO: add manpage examples
@@ -78,8 +85,10 @@ pub const GenerationDeleteCommand = struct {
                 };
             } else if (argIs(arg, "--older-than", "-o")) {
                 const next = (try getNextArgs(argv, arg, 1))[0];
-                // TODO: parse systemd time spam
-                parsed.older_than = next;
+                parsed.older_than = TimeSpan.fromSlice(next) catch |err| {
+                    argError("'{s}' is not formatted correctly: {s}", .{ next, @errorName(err) });
+                    return ArgParseError.InvalidArgument;
+                };
             } else if (argIs(arg, "--to", "-t")) {
                 const next = (try getNextArgs(argv, arg, 1))[0];
                 parsed.to = try parseGenNumber(next);
@@ -126,7 +135,13 @@ pub fn generationDeleteMain(allocator: Allocator, args: GenerationDeleteCommand,
     }
     log.print("\n", .{});
 
-    log.info("older than: {?s}", .{args.older_than});
+    if (args.older_than) |time| {
+        const now = zeit.instant(.{ .source = .now }) catch unreachable;
+        const before_instant = zeit.instant(.{ .source = .{ .unix_nano = (now.timestamp - time.toEpochTime()) } }) catch unreachable;
+
+        const t = before_instant.time();
+        log.info("older than: {s} {d}, {d} {d}:{d}:{d}", .{ t.month.name(), t.day, t.year, t.hour, t.minute, t.second });
+    }
     log.info("from: {?d}", .{args.from});
     log.info("to: {?d}", .{args.to});
     log.info("min: {?d}", .{args.min});
