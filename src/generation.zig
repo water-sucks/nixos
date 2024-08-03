@@ -132,7 +132,7 @@ pub fn generationMain(allocator: Allocator, args: GenerationCommand) u8 {
     }
 
     return switch (args.subcommand.?) {
-        .delete => |_| 0,
+        .delete => |sub_args| generationDelete.generationDeleteMain(allocator, sub_args, args.profile),
         .diff => |sub_args| generationDiff.generationDiffMain(allocator, sub_args, args.profile),
         .list => |sub_args| generationList.generationListMain(allocator, args.profile, sub_args),
         .rollback => |sub_args| generationRollback.generationRollbackMain(allocator, sub_args, args.profile),
