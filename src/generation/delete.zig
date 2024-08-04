@@ -1,6 +1,9 @@
 const std = @import("std");
 const fmt = std.fmt;
+const fs = std.fs;
 const mem = std.mem;
+const posix = std.posix;
+const sort = std.sort;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const ArgIterator = std.process.ArgIterator;
@@ -11,11 +14,14 @@ const argError = argparse.argError;
 const argIs = argparse.argIs;
 const getNextArgs = argparse.getNextArgs;
 
+const Constants = @import("../constants.zig");
+
 const log = @import("../log.zig");
 
 const zeit = @import("zeit");
 
 const utils = @import("../utils.zig");
+const GenerationMetadata = utils.generation.GenerationMetadata;
 const TimeSpan = utils.time.TimeSpan;
 
 pub const GenerationDeleteCommand = struct {
@@ -51,7 +57,7 @@ pub const GenerationDeleteCommand = struct {
         \\    <GEN>       Generation number
         \\    <PERIOD>    systemd.time span (i.e. "30d 2h 1m")
         \\
-        \\These flags and arguments can be combined ad-hoc, except for --all.
+        \\These options and arguments can be combined ad-hoc.
         \\
     ;
     // TODO: add manpage examples
@@ -60,6 +66,13 @@ pub const GenerationDeleteCommand = struct {
         return fmt.parseInt(usize, candidate, 10) catch {
             argError("'{s}' is not a valid generation number", .{candidate});
             return ArgParseError.InvalidArgument;
+        };
+    }
+
+    pub fn init(allocator: Allocator) Self {
+        return GenerationDeleteCommand{
+            .keep = ArrayList(usize).init(allocator),
+            .remove = ArrayList(usize).init(allocator),
         };
     }
 
@@ -83,6 +96,10 @@ pub const GenerationDeleteCommand = struct {
                     argError("'{s}' is not a number", .{next});
                     return ArgParseError.InvalidArgument;
                 };
+                if (parsed.min == 0) {
+                    argError("--min must be at least 1", .{});
+                    return ArgParseError.InvalidArgument;
+                }
             } else if (argIs(arg, "--older-than", "-o")) {
                 const next = (try getNextArgs(argv, arg, 1))[0];
                 parsed.older_than = TimeSpan.fromSlice(next) catch |err| {
@@ -103,14 +120,43 @@ pub const GenerationDeleteCommand = struct {
             next_arg = argv.next();
         }
 
-        return null;
-    }
+        for (parsed.remove.items) |remove| {
+            for (parsed.keep.items) |keep| {
+                if (remove == keep) {
+                    argError("generation {d} cannot be both removed and kept", .{remove});
+                    return ArgParseError.ConflictingOptions;
+                }
+            }
+        }
 
-    pub fn init(allocator: Allocator) Self {
-        return GenerationDeleteCommand{
-            .keep = ArrayList(usize).init(allocator),
-            .remove = ArrayList(usize).init(allocator),
-        };
+        if (parsed.all) {
+            if (parsed.from != null) {
+                log.warn("--all was specified, ignoring --from", .{});
+            }
+            if (parsed.older_than != null) {
+                log.warn("--all was specified, ignoring --older-than", .{});
+            }
+            if (parsed.to != null) {
+                log.warn("--all was specified, ignoring --to", .{});
+            }
+            if (parsed.remove.items.len > 0) {
+                log.warn("--all was specified, ignoring positional arguments", .{});
+            }
+        }
+
+        if (!parsed.all and
+            parsed.from == null and
+            parsed.keep.items.len == 0 and
+            parsed.min == null and
+            parsed.older_than == null and
+            parsed.to == null and
+            parsed.remove.items.len == 0)
+        {
+            argError("no generations or deletion parameters were given", .{});
+            return ArgParseError.MissingRequiredArgument;
+        }
+
+        return null;
     }
 
     pub fn deinit(self: Self) void {
@@ -119,32 +165,310 @@ pub const GenerationDeleteCommand = struct {
     }
 };
 
+pub const GenerationDeleteError = error{
+    CurrentGenerationRequested,
+    ResourceAccessFailed,
+    InvalidParameter,
+} || Allocator.Error;
+
+fn printDeleteSummary(allocator: Allocator, generations: []GenerationMetadata) !void {
+    log.print("The following generations will be deleted:\n\n", .{});
+
+    const headers: []const []const u8 = &.{ "#", "Description", "Creation Date" };
+
+    var max_row_len = comptime blk: {
+        var tmp: []const usize = &[_]usize{};
+        for (headers) |header| {
+            tmp = tmp ++ [_]usize{header.len};
+        }
+        var new: [tmp.len]usize = undefined;
+        std.mem.copyForwards(usize, &new, tmp);
+        break :blk new;
+    };
+
+    var num_list = try ArrayList([]const u8).initCapacity(allocator, generations.len);
+    defer {
+        for (num_list.items) |num| allocator.free(num);
+        num_list.deinit();
+    }
+
+    var date_list = try ArrayList([]const u8).initCapacity(allocator, generations.len);
+    defer {
+        for (date_list.items) |date| allocator.free(date);
+        date_list.deinit();
+    }
+
+    for (generations) |gen| {
+        const t = gen.date.?;
+
+        const num = try fmt.allocPrint(allocator, "{d}", .{gen.generation.?});
+        num_list.appendAssumeCapacity(num);
+        const date = try fmt.allocPrint(allocator, "{d} {s} {d} {d:0>2}:{d:0>2}:{d:0>2}", .{ t.year, t.month.name(), t.day, t.hour, t.minute, t.second });
+        date_list.appendAssumeCapacity(date);
+
+        max_row_len[0] = @max(max_row_len[0], num.len);
+        max_row_len[1] = @max(max_row_len[1], (gen.description orelse "").len);
+        max_row_len[2] = @max(max_row_len[2], date.len);
+    }
+
+    for (headers, 0..) |header, j| {
+        var k: usize = 4 + max_row_len[j];
+
+        const start_idx = (max_row_len[j] / 2) - (header.len / 2);
+
+        var i: usize = 0;
+        while (i < start_idx) : (i += 1) {
+            log.print(" ", .{});
+            k -= 1;
+        }
+
+        log.print("{s}", .{header});
+        k -= header.len;
+
+        while (k > 0) : (k -= 1) {
+            log.print(" ", .{});
+        }
+    }
+    log.print("\n", .{});
+    for (max_row_len, 0..) |len, col| {
+        var lim = len + 4;
+        if (col == max_row_len.len - 1) {
+            lim -= 4;
+        }
+        var i: usize = 0;
+        while (i < lim) : (i += 1) {
+            log.print("-", .{});
+        }
+    }
+    log.print("\n", .{});
+
+    for (generations, num_list.items, date_list.items, 0..) |gen, num, date, idx| {
+        const row = [_][]const u8{ num, gen.description orelse "", date };
+        for (row, 0..) |col, j| {
+            log.print("{s}", .{col});
+            var k: usize = max_row_len[j] - col.len;
+            while (k > 0) {
+                log.print(" ", .{});
+                k -= 1;
+            }
+            if (j < row.len - 1) {
+                log.print(" :: ", .{});
+            }
+        }
+        if (idx < generations.len - 1) log.print("\n", .{});
+    }
+    log.print("\n\n", .{});
+}
+
+pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, profile: ?[]const u8) GenerationDeleteError!void {
+    const profile_name = profile orelse "system";
+    const profile_dirname = if (mem.eql(u8, profile_name, "system"))
+        "/nix/var/nix/profiles"
+    else
+        "/nix/var/nix/profiles/system-profiles";
+
+    var generations_dir = fs.cwd().openDir(profile_dirname, .{ .iterate = true }) catch |err| {
+        log.err("unable to open profile dir {s}: {s}", .{ profile_dirname, @errorName(err) });
+        return GenerationDeleteError.ResourceAccessFailed;
+    };
+    defer generations_dir.close();
+
+    var all_gen_numbers = ArrayList(usize).init(allocator);
+    defer all_gen_numbers.deinit();
+
+    var path_buf: [posix.PATH_MAX]u8 = undefined;
+    const current_generation_pathname = generations_dir.readLink(profile_name, &path_buf) catch |err| {
+        log.err("unable to find current generation for profile {s}: {s}", .{ profile_name, @errorName(err) });
+        return GenerationDeleteError.ResourceAccessFailed;
+    };
+    var current_gen_number: usize = undefined;
+
+    var gen_iter = generations_dir.iterate();
+    while (gen_iter.next() catch |err| {
+        log.err("unexpected error while reading profile directory: {s}", .{@errorName(err)});
+        return GenerationDeleteError.ResourceAccessFailed;
+    }) |entry| {
+        const prefix = try fmt.allocPrint(allocator, "{s}-", .{profile_name});
+        defer allocator.free(prefix);
+
+        if (mem.startsWith(u8, entry.name, prefix) and
+            mem.endsWith(u8, entry.name, "-link") and
+            prefix.len + 5 < entry.name.len)
+        {
+            const gen_number_slice = entry.name[(prefix.len)..mem.indexOf(u8, entry.name, "-link").?];
+            // If the number parsed is not an integer, it contains a dash
+            // and is from another profile, so it is skipped.
+            const gen_number = std.fmt.parseInt(usize, gen_number_slice, 10) catch continue;
+            try all_gen_numbers.append(gen_number);
+
+            if (mem.eql(u8, entry.name, current_generation_pathname)) {
+                current_gen_number = gen_number;
+            }
+        }
+    }
+    sort.block(usize, all_gen_numbers.items, {}, sort.asc(usize));
+
+    if (all_gen_numbers.items.len < 2) {
+        if (all_gen_numbers.items.len == 0) {
+            log.err("no generations exist for profile {s}", .{profile_name});
+        } else {
+            log.err("only one generations exists for profile {s}; deletion is impossible", .{profile_name});
+        }
+        return;
+    }
+
+    // Make sure there are enough generations that exist.
+    if (args.min) |min| {
+        if (min >= all_gen_numbers.items.len) {
+            log.err("there are {d} generations, but the expected minimum is {d}", .{ all_gen_numbers.items.len, min });
+            log.info("keeping all generations", .{});
+            return;
+        }
+    }
+
+    if (mem.indexOf(usize, args.remove.items, &.{current_gen_number}) != null) {
+        log.err("cannot remove generation {d}, this is the current generation!", .{current_gen_number});
+        return GenerationDeleteError.InvalidParameter;
+    }
+
+    var gens_to_remove_set = std.AutoHashMap(usize, void).init(allocator);
+    defer gens_to_remove_set.deinit();
+    for (args.remove.items) |remove| {
+        try gens_to_remove_set.put(remove, {});
+    }
+
+    var gens_to_keep_set = std.AutoHashMap(usize, void).init(allocator);
+    defer gens_to_keep_set.deinit();
+    for (args.keep.items) |keep| {
+        try gens_to_keep_set.put(keep, {});
+    }
+    try gens_to_keep_set.put(current_gen_number, {});
+
+    if (args.all) {
+        for (all_gen_numbers.items) |gen| {
+            try gens_to_remove_set.put(gen, {});
+        }
+    } else {
+        // Add ranges
+        if (args.from != null or args.to != null) {
+            const upper_bound = args.to orelse all_gen_numbers.items[all_gen_numbers.items.len - 1];
+            const lower_bound = args.from orelse all_gen_numbers.items[0];
+
+            if (lower_bound > upper_bound) {
+                log.err("lower bound '{d}' must be less than upper bound '{d}'", .{ lower_bound, upper_bound });
+                return GenerationDeleteError.InvalidParameter;
+            }
+
+            // Make sure that ranges are within generation bounds
+            if (upper_bound > all_gen_numbers.items[all_gen_numbers.items.len - 1] or upper_bound < all_gen_numbers.items[0]) {
+                log.err("upper bound '{d}' is not within the range of available generations", .{upper_bound});
+                return GenerationDeleteError.InvalidParameter;
+            }
+            if (lower_bound > all_gen_numbers.items[all_gen_numbers.items.len - 1] or lower_bound < all_gen_numbers.items[0]) {
+                log.err("lower bound '{d}' is not within the range of available generations", .{lower_bound});
+                return GenerationDeleteError.InvalidParameter;
+            }
+
+            for (all_gen_numbers.items) |gen| {
+                if (gen >= lower_bound and gen <= upper_bound) {
+                    try gens_to_remove_set.put(gen, {});
+                }
+            }
+        }
+
+        // Calulate generations before timestamp
+        if (args.older_than) |older_than| {
+            const now = zeit.instant(.{ .source = .now }) catch unreachable;
+            const before_instant = zeit.instant(.{ .source = .{ .unix_nano = (now.timestamp - older_than.toEpochTime()) } }) catch unreachable;
+
+            for (all_gen_numbers.items) |gen| {
+                if (gens_to_remove_set.contains(gen)) {
+                    continue;
+                }
+                const gen_name = try fmt.allocPrint(allocator, "system-{d}-link", .{gen});
+                defer allocator.free(gen_name);
+
+                const stat = generations_dir.statFile(gen_name) catch |err| {
+                    log.err("unable to stat {s}: {s}; skipping date check", .{ gen_name, @errorName(err) });
+                    continue;
+                };
+
+                if (stat.ctime < before_instant.timestamp) {
+                    try gens_to_remove_set.put(gen, {});
+                }
+            }
+        }
+    }
+
+    // Remove all members of gens_to_keep from gens_to_remove
+    var keep_iter = gens_to_keep_set.keyIterator();
+    while (keep_iter.next()) |keep| {
+        _ = gens_to_remove_set.remove(keep.*);
+    }
+
+    // Ensure that the minimum number of generations exists.
+    // Generations with higher numbers are prioritized.
+    var remaining_number_of_generations = all_gen_numbers.items.len - gens_to_remove_set.count();
+
+    if (args.min != null and remaining_number_of_generations < args.min.?) {
+        const min_required = args.min.?;
+
+        var j: usize = 0;
+        while (j < all_gen_numbers.items.len - 1) : (j += 1) {
+            const i = all_gen_numbers.items.len - 1 - j;
+            const gen = all_gen_numbers.items[i];
+
+            _ = gens_to_remove_set.remove(gen);
+
+            remaining_number_of_generations = all_gen_numbers.items.len - gens_to_remove_set.count();
+            if (remaining_number_of_generations == min_required) {
+                break;
+            }
+        }
+    }
+
+    if (gens_to_remove_set.count() == 0) {
+        log.warn("no generations were resolved for deletion from the given parameters", .{});
+        log.info("there is nothing to do; exiting", .{});
+        return;
+    }
+
+    var gens_to_remove_info = try ArrayList(GenerationMetadata).initCapacity(allocator, gens_to_remove_set.count());
+    defer {
+        for (gens_to_remove_info.items) |*gen| {
+            gen.deinit();
+        }
+        gens_to_remove_info.deinit();
+    }
+
+    var remove_iter = gens_to_remove_set.keyIterator();
+    while (remove_iter.next()) |gen_number| {
+        const gen_dirname = try fmt.allocPrint(allocator, "system-{d}-link", .{gen_number.*});
+        defer allocator.free(gen_dirname);
+        var gen_dir = generations_dir.openDir(gen_dirname, .{}) catch |err| {
+            log.err("unable to open generation {d} dir: {s}", .{ gen_number.*, @errorName(err) });
+            return GenerationDeleteError.ResourceAccessFailed;
+        };
+        defer gen_dir.close();
+
+        const gen_info = GenerationMetadata.getGenerationInfo(allocator, gen_dir, gen_number.*) catch return GenerationDeleteError.ResourceAccessFailed;
+        gens_to_remove_info.appendAssumeCapacity(gen_info);
+    }
+    sort.block(GenerationMetadata, gens_to_remove_info.items, {}, GenerationMetadata.lessThan);
+
+    try printDeleteSummary(allocator, gens_to_remove_info.items);
+    log.print("There will be {d} generations left on this machine.\n\n", .{remaining_number_of_generations});
+    log.print("Proceed? [y/n]: ", .{});
+}
+
 pub fn generationDeleteMain(allocator: Allocator, args: GenerationDeleteCommand, profile: ?[]const u8) u8 {
-    _ = allocator;
-    _ = profile;
-
-    log.info("remove", .{});
-    for (args.remove.items) |gen| {
-        log.print("{d} ", .{gen});
-    }
-    log.print("\n", .{});
-
-    log.info("keep", .{});
-    for (args.keep.items) |gen| {
-        log.print("{d} ", .{gen});
-    }
-    log.print("\n", .{});
-
-    if (args.older_than) |time| {
-        const now = zeit.instant(.{ .source = .now }) catch unreachable;
-        const before_instant = zeit.instant(.{ .source = .{ .unix_nano = (now.timestamp - time.toEpochTime()) } }) catch unreachable;
-
-        const t = before_instant.time();
-        log.info("older than: {s} {d}, {d} {d}:{d}:{d}", .{ t.month.name(), t.day, t.year, t.hour, t.minute, t.second });
-    }
-    log.info("from: {?d}", .{args.from});
-    log.info("to: {?d}", .{args.to});
-    log.info("min: {?d}", .{args.min});
+    generationDelete(allocator, args, profile) catch |err| {
+        return switch (err) {
+            GenerationDeleteError.ResourceAccessFailed => 3,
+            GenerationDeleteError.InvalidParameter => 2,
+            else => 1,
+        };
+    };
 
     return 0;
 }
