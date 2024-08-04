@@ -1,4 +1,5 @@
 const std = @import("std");
+const opts = @import("options");
 const fmt = std.fmt;
 const fs = std.fs;
 const io = std.io;
@@ -25,6 +26,7 @@ const zeit = @import("zeit");
 const utils = @import("../utils.zig");
 const GenerationMetadata = utils.generation.GenerationMetadata;
 const TimeSpan = utils.time.TimeSpan;
+const runCmd = utils.runCmd;
 
 pub const GenerationDeleteCommand = struct {
     all: bool = false,
@@ -176,6 +178,7 @@ pub const GenerationDeleteError = error{
     ResourceAccessFailed,
     InvalidParameter,
     PermissionDenied,
+    CommandFailed,
 } || Allocator.Error;
 
 fn printDeleteSummary(allocator: Allocator, generations: []GenerationMetadata) !void {
@@ -265,6 +268,39 @@ fn printDeleteSummary(allocator: Allocator, generations: []GenerationMetadata) !
         if (idx < generations.len - 1) log.print("\n", .{});
     }
     log.print("\n\n", .{});
+}
+
+var exit_status: u8 = 0;
+
+fn deleteGenerations(allocator: Allocator, generations: []GenerationMetadata, profile_dirname: []const u8) !void {
+    var argv = ArrayList([]const u8).init(allocator);
+    defer {
+        for (argv.items) |s| allocator.free(s);
+        argv.deinit();
+    }
+
+    try argv.append(try allocator.dupe(u8, "nix-env"));
+    try argv.append(try allocator.dupe(u8, "-p"));
+    try argv.append(try allocator.dupe(u8, profile_dirname));
+    try argv.append(try allocator.dupe(u8, "--delete-generations"));
+
+    for (generations) |gen| {
+        const num = try fmt.allocPrint(allocator, "{d}", .{gen.generation.?});
+        try argv.append(num);
+    }
+
+    log.cmd(argv.items);
+
+    const result = runCmd(.{
+        .allocator = allocator,
+        .argv = argv.items,
+        .stdout_type = .Ignore,
+    }) catch return GenerationDeleteError.CommandFailed;
+
+    if (result.status != 0) {
+        exit_status = result.status;
+        return GenerationDeleteError.CommandFailed;
+    }
 }
 
 pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, profile: ?[]const u8) GenerationDeleteError!void {
@@ -491,6 +527,19 @@ pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, pro
             return;
         }
     }
+
+    log.info("deleting generations", .{});
+
+    const full_profile_dirname = try fs.path.join(allocator, &.{ profile_dirname, profile_name });
+    defer allocator.free(full_profile_dirname);
+
+    try deleteGenerations(allocator, gens_to_remove_info.items, full_profile_dirname);
+
+    log.print("Success!\n", .{});
+    log.info("to free up disk space from these generations, run `{s}`", .{if (opts.flake) "nix store gc" else "nix-collect-garbage"});
+    if (!opts.flake) {
+        log.info("if using `nix-collect-garbage`, the `-d` option frees up generations, which you may not want", .{});
+    }
 }
 
 pub fn generationDeleteMain(allocator: Allocator, args: GenerationDeleteCommand, profile: ?[]const u8) u8 {
@@ -499,6 +548,7 @@ pub fn generationDeleteMain(allocator: Allocator, args: GenerationDeleteCommand,
             GenerationDeleteError.ResourceAccessFailed => 3,
             GenerationDeleteError.InvalidParameter => 2,
             GenerationDeleteError.PermissionDenied => 13,
+            GenerationDeleteError.CommandFailed => if (exit_status != 0) exit_status else 1,
             else => 1,
         };
     };
