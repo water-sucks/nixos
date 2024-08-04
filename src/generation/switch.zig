@@ -26,7 +26,7 @@ const runCmd = utils.runCmd;
 // from `nixos apply`, because I'm lazy.
 const findSpecialization = @import("../apply.zig").findSpecialization;
 
-pub const GenerationSwitchArgs = struct {
+pub const GenerationSwitchCommand = struct {
     verbose: bool = false,
     dry: bool = false,
     specialization: ?[]const u8 = null,
@@ -49,7 +49,7 @@ pub const GenerationSwitchArgs = struct {
         \\
     ;
 
-    pub fn parseArgs(argv: *ArgIterator, parsed: *GenerationSwitchArgs) !?[]const u8 {
+    pub fn parseArgs(argv: *ArgIterator, parsed: *GenerationSwitchCommand) !?[]const u8 {
         var next_arg = argv.next();
 
         while (next_arg) |arg| {
@@ -144,7 +144,7 @@ fn runSwitchToConfiguration(
     }
 }
 
-pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchArgs, profile_name: []const u8) GenerationSwitchError!void {
+pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchCommand, profile_name: []const u8) GenerationSwitchError!void {
     const generation = args.gen_number.?;
     verbose = args.verbose;
 
@@ -207,7 +207,7 @@ pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchArgs, profil
     try runSwitchToConfiguration(allocator, stc, action);
 }
 
-pub fn generationSwitchMain(allocator: Allocator, args: GenerationSwitchArgs, profile: ?[]const u8) u8 {
+pub fn generationSwitchMain(allocator: Allocator, args: GenerationSwitchCommand, profile: ?[]const u8) u8 {
     const profile_name = profile orelse "system";
 
     switchGeneration(allocator, args, profile_name) catch |err| {

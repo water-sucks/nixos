@@ -20,7 +20,7 @@ const utils = @import("../utils.zig");
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 const runCmd = utils.runCmd;
 
-pub const GenerationDiffArgs = struct {
+pub const GenerationDiffCommand = struct {
     before: usize = 0,
     after: usize = 0,
 
@@ -36,7 +36,7 @@ pub const GenerationDiffArgs = struct {
         \\
     ;
 
-    pub fn parseArgs(argv: *ArgIterator, parsed: *GenerationDiffArgs) !?[]const u8 {
+    pub fn parseArgs(argv: *ArgIterator, parsed: *GenerationDiffCommand) !?[]const u8 {
         var before_parsed = false;
         var after_parsed = false;
 
@@ -106,7 +106,7 @@ fn nixDiff(allocator: Allocator, before: []const u8, after: []const u8) !void {
     }
 }
 
-fn generationDiff(allocator: Allocator, args: GenerationDiffArgs, profile_name: []const u8) !void {
+fn generationDiff(allocator: Allocator, args: GenerationDiffCommand, profile_name: []const u8) !void {
     const base_profile_dirname = if (mem.eql(u8, profile_name, "system"))
         Constants.nix_profiles
     else
@@ -122,7 +122,7 @@ fn generationDiff(allocator: Allocator, args: GenerationDiffArgs, profile_name: 
     try nixDiff(allocator, before_dirname, after_dirname);
 }
 
-pub fn generationDiffMain(allocator: Allocator, args: GenerationDiffArgs, profile: ?[]const u8) u8 {
+pub fn generationDiffMain(allocator: Allocator, args: GenerationDiffCommand, profile: ?[]const u8) u8 {
     const profile_name = profile orelse "system";
 
     generationDiff(allocator, args, profile_name) catch |err| {
