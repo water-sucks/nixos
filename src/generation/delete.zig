@@ -1,7 +1,9 @@
 const std = @import("std");
 const fmt = std.fmt;
 const fs = std.fs;
+const io = std.io;
 const mem = std.mem;
+const linux = std.os.linux;
 const posix = std.posix;
 const sort = std.sort;
 const Allocator = std.mem.Allocator;
@@ -27,10 +29,11 @@ const TimeSpan = utils.time.TimeSpan;
 pub const GenerationDeleteCommand = struct {
     all: bool = false,
     from: ?usize = null,
-    to: ?usize = null,
-    older_than: ?TimeSpan = null,
-    min: ?usize = null,
     keep: ArrayList(usize),
+    min: ?usize = null,
+    older_than: ?TimeSpan = null,
+    to: ?usize = null,
+    yes: bool = false,
     remove: ArrayList(usize), // Positional args, not using an option
 
     const Self = @This();
@@ -52,6 +55,7 @@ pub const GenerationDeleteCommand = struct {
         \\    -m, --min <NUM>              Keep a minimum of <NUM> generations
         \\    -o, --older-than <PERIOD>    Delete all generations older than <PERIOD>
         \\    -t, --to <GEN>               Delete this generation
+        \\    -y, --yes                    Automatically confirm deletion of generations
         \\
         \\Values:
         \\    <GEN>       Generation number
@@ -109,6 +113,8 @@ pub const GenerationDeleteCommand = struct {
             } else if (argIs(arg, "--to", "-t")) {
                 const next = (try getNextArgs(argv, arg, 1))[0];
                 parsed.to = try parseGenNumber(next);
+            } else if (argIs(arg, "--yes", "-y")) {
+                parsed.yes = true;
             } else {
                 if (argparse.isFlag(arg)) {
                     return arg;
@@ -169,6 +175,7 @@ pub const GenerationDeleteError = error{
     CurrentGenerationRequested,
     ResourceAccessFailed,
     InvalidParameter,
+    PermissionDenied,
 } || Allocator.Error;
 
 fn printDeleteSummary(allocator: Allocator, generations: []GenerationMetadata) !void {
@@ -261,6 +268,13 @@ fn printDeleteSummary(allocator: Allocator, generations: []GenerationMetadata) !
 }
 
 pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, profile: ?[]const u8) GenerationDeleteError!void {
+    if (linux.geteuid() != 0) {
+        utils.execAsRoot(allocator) catch |err| {
+            log.err("unable to re-exec this command as root: {s}", .{@errorName(err)});
+            return GenerationDeleteError.PermissionDenied;
+        };
+    }
+
     const profile_name = profile orelse "system";
     const profile_dirname = if (mem.eql(u8, profile_name, "system"))
         "/nix/var/nix/profiles"
@@ -457,8 +471,26 @@ pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, pro
     sort.block(GenerationMetadata, gens_to_remove_info.items, {}, GenerationMetadata.lessThan);
 
     try printDeleteSummary(allocator, gens_to_remove_info.items);
-    log.print("There will be {d} generations left on this machine.\n\n", .{remaining_number_of_generations});
-    log.print("Proceed? [y/n]: ", .{});
+    log.print("There will be {d} generations left on this machine.\n", .{remaining_number_of_generations});
+
+    if (!args.yes) {
+        // This large buffer is to prevent users from seeing an error if they
+        // make an extremely large typo. People who are trying to buffer overflow
+        // are in for the error message though!
+        var input_buf: [100]u8 = undefined;
+        const stdin = io.getStdIn().reader();
+
+        log.print("Proceed? [y/n]: ", .{});
+        _ = stdin.readUntilDelimiter(&input_buf, '\n') catch |err| {
+            log.err("unable to read stdin for confirmation: {s}", .{@errorName(err)});
+            return GenerationDeleteError.ResourceAccessFailed;
+        };
+
+        if (std.ascii.toLower(input_buf[0]) != 'y') {
+            log.warn("confirmation was not given, exiting", .{});
+            return;
+        }
+    }
 }
 
 pub fn generationDeleteMain(allocator: Allocator, args: GenerationDeleteCommand, profile: ?[]const u8) u8 {
@@ -466,6 +498,7 @@ pub fn generationDeleteMain(allocator: Allocator, args: GenerationDeleteCommand,
         return switch (err) {
             GenerationDeleteError.ResourceAccessFailed => 3,
             GenerationDeleteError.InvalidParameter => 2,
+            GenerationDeleteError.PermissionDenied => 13,
             else => 1,
         };
     };
