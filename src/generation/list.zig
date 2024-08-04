@@ -25,8 +25,11 @@ const print = utils.print;
 const concatStringsSep = utils.concatStringsSep;
 const stringLessThan = utils.stringLessThan;
 
+const generationUI = @import("./ui.zig").generationUI;
+
 pub const GenerationListCommand = struct {
     json: bool = false,
+    interactive: bool = false,
 
     const usage =
         \\List all generations in a NixOS profile and their details.
@@ -35,8 +38,9 @@ pub const GenerationListCommand = struct {
         \\    nixos generation list [options]
         \\
         \\Options:
-        \\    -h, --help    Show this help menu
-        \\    -j, --json    Display format as JSON
+        \\    -h, --help           Show this help menu
+        \\    -i, --interactive    Show a TUI to look through generations
+        \\    -j, --json           Display format as JSON
         \\
     ;
 
@@ -46,6 +50,8 @@ pub const GenerationListCommand = struct {
             if (argIs(arg, "--help", "-h")) {
                 log.print("{s}", .{usage});
                 return ArgParseError.HelpInvoked;
+            } else if (argIs(arg, "--interactive", "-i")) {
+                parsed.interactive = true;
             } else if (argIs(arg, "--json", "-j")) {
                 parsed.json = true;
             } else {
@@ -53,6 +59,11 @@ pub const GenerationListCommand = struct {
             }
 
             next_arg = argv.next();
+        }
+
+        if (parsed.json and parsed.interactive) {
+            argError("--json and --interactive flags conflict", .{});
+            return ArgParseError.ConflictingOptions;
         }
 
         return null;
@@ -135,6 +146,11 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
 
             try generations.append(generation);
         }
+    }
+
+    if (args.interactive) {
+        generationUI(allocator, generations.items) catch {};
+        return;
     }
 
     // I like sorted output.
