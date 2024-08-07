@@ -92,19 +92,19 @@ pub const GenerationTUI = struct {
 
     pub fn update(self: *Self, allocator: Allocator, event: Event) !void {
         switch (event) {
-            .key_press => |key| {
+            .key_press => |key| blk: {
                 // Arrow keys and CTRL codes should work regardless of input mode
                 if (key.matches(vaxis.Key.up, .{})) {
                     self.gen_list_ctx.row -|= 1;
-                    return;
+                    break :blk;
                 } else if (key.matches(vaxis.Key.down, .{})) {
                     if (self.gen_list_ctx.row < self.gen_list.items.len - 1) {
                         self.gen_list_ctx.row +|= 1;
                     }
-                    return;
+                    break :blk;
                 } else if (key.matches('c', .{ .ctrl = true })) {
                     self.should_quit = true;
-                    return;
+                    break :blk;
                 }
 
                 if (self.mode == .input) {
