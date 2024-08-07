@@ -22,6 +22,7 @@ pub const GenerationTUI = struct {
     tty: vaxis.Tty,
     vx: vaxis.Vaxis,
     should_quit: bool = false,
+    mode: Mode,
 
     // Components
     search_input: TextInput,
@@ -31,6 +32,8 @@ pub const GenerationTUI = struct {
     gen_list_ctx: vaxis.widgets.Table.TableContext,
 
     const Self = @This();
+
+    const Mode = enum { normal, input };
 
     pub fn init(allocator: Allocator, gen_list: ArrayList(GenerationMetadata)) !Self {
         var tty = try vaxis.Tty.init();
@@ -55,6 +58,7 @@ pub const GenerationTUI = struct {
             .tty = tty,
             .vx = vx,
             .search_input = text_input,
+            .mode = .normal,
 
             .gen_list = gen_list,
             .gen_list_ctx = .{
@@ -89,16 +93,38 @@ pub const GenerationTUI = struct {
     pub fn update(self: *Self, allocator: Allocator, event: Event) !void {
         switch (event) {
             .key_press => |key| {
-                if (key.matches('c', .{ .ctrl = true })) {
-                    self.should_quit = true;
-                } else if (key.matchesAny(&.{ vaxis.Key.up, 'k' }, .{})) {
+                // Arrow keys and CTRL codes should work regardless of input mode
+                if (key.matches(vaxis.Key.up, .{})) {
                     self.gen_list_ctx.row -|= 1;
-                } else if (key.matchesAny(&.{ vaxis.Key.down, 'j' }, .{})) {
+                    return;
+                } else if (key.matches(vaxis.Key.down, .{})) {
                     if (self.gen_list_ctx.row < self.gen_list.items.len - 1) {
                         self.gen_list_ctx.row +|= 1;
                     }
+                    return;
+                } else if (key.matches('c', .{ .ctrl = true })) {
+                    self.should_quit = true;
+                    return;
+                }
+
+                if (self.mode == .input) {
+                    if (key.matches(vaxis.Key.escape, .{})) {
+                        self.mode = .normal;
+                    } else {
+                        try self.search_input.update(.{ .key_press = key });
+                    }
                 } else {
-                    try self.search_input.update(.{ .key_press = key });
+                    if (key.matchesAny(&.{ vaxis.Key.up, 'k' }, .{})) {
+                        self.gen_list_ctx.row -|= 1;
+                    } else if (key.matchesAny(&.{ vaxis.Key.down, 'j' }, .{})) {
+                        if (self.gen_list_ctx.row < self.gen_list.items.len - 1) {
+                            self.gen_list_ctx.row +|= 1;
+                        }
+                    } else if (key.matches('q', .{})) {
+                        self.should_quit = true;
+                    } else if (key.matches('/', .{})) {
+                        self.mode = .input;
+                    }
                 }
             },
             .winsize => |ws| try self.vx.resize(self.allocator, self.tty.anyWriter(), ws),
@@ -286,6 +312,47 @@ pub const GenerationTUI = struct {
         const title_win: vaxis.Window = main_win.child(.{ .height = .{ .limit = 1 } });
         const centered: vaxis.Window = vaxis.widgets.alignment.center(title_win, title_seg.text.len, 2);
         _ = try centered.printSegment(title_seg, .{});
+
+        const info_win: vaxis.Window = main_win.child(.{
+            .y_off = 2,
+            .height = .{ .limit = main_win.height - 2 },
+        });
+
+        const keybinds: []const []const []const u8 = &.{
+            &.{ "k, Up", "move up list" },
+            &.{ "j, Down", "move down list" },
+            &.{ "/", "search by description" },
+            &.{ "<Esc>", "exit input mode" },
+            &.{ "<Space>", "toggle selection" },
+            &.{ "d", "delete selections" },
+            &.{ "q, ^C", "quit" },
+        };
+
+        comptime var row_offset: usize = 0;
+        const desc_col_offset = blk: {
+            comptime var max: usize = 0;
+            inline for (keybinds) |keybind| {
+                max = @max(keybind[0].len, max);
+            }
+            break :blk max + 1;
+        };
+
+        inline for (keybinds) |keybind| {
+            const key_text = keybind[0];
+            const key_desc = keybind[1];
+
+            const key_seg: vaxis.Segment = .{ .text = key_text, .style = .{
+                .fg = .{ .index = 7 },
+            } };
+            const key_desc_seg: vaxis.Segment = .{
+                .text = " :: " ++ key_desc,
+            };
+
+            _ = try info_win.printSegment(key_seg, .{ .row_offset = row_offset, .col_offset = 1 });
+            _ = try info_win.printSegment(key_desc_seg, .{ .row_offset = row_offset, .col_offset = desc_col_offset });
+            row_offset += 1;
+        }
+        // var offset: usize = 0;
 
         return main_win;
     }
