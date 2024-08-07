@@ -173,7 +173,10 @@ pub const GenerationTUI = struct {
         const gen_list = self.gen_list.items;
         const ctx = self.gen_list_ctx;
 
-        const max_items = if (gen_list.len > table_win.height -| 1) table_win.height -| 1 else gen_list.len;
+        const max_items = if (gen_list.len > table_win.height -| 2)
+            table_win.height -| 2
+        else
+            gen_list.len;
         var end = ctx.start + max_items;
         if (end > gen_list.len) end = gen_list.len;
 
@@ -198,6 +201,13 @@ pub const GenerationTUI = struct {
 
             _ = try tile.printSegment(generation_segment, .{});
         }
+
+        const mode_win: vaxis.Window = main_win.child(.{
+            .y_off = main_win.height - 1,
+            .height = .{ .limit = 1 },
+        });
+        const mode_seg: vaxis.Segment = .{ .text = try fmt.allocPrint(allocator, "{s}", .{@tagName(self.mode)}) };
+        _ = try mode_win.printSegment(mode_seg, .{});
 
         return main_win;
     }
