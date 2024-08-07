@@ -148,13 +148,13 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
         }
     }
 
-    if (args.interactive) {
-        generationUI(allocator, generations.items) catch {};
-        return;
-    }
-
     // I like sorted output.
     mem.sort(GenerationMetadata, generations.items, {}, GenerationMetadata.lessThan);
+
+    if (args.interactive) {
+        generationUI(allocator, generations) catch {};
+        return;
+    }
 
     const stdout = io.getStdOut().writer();
 
