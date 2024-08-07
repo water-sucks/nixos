@@ -41,6 +41,15 @@ pub const GenerationTUI = struct {
 
         const text_input = TextInput.init(allocator, &vx.unicode);
 
+        const current_gen_idx = blk: {
+            for (gen_list.items, 0..) |gen, i| {
+                if (gen.current) {
+                    break :blk i;
+                }
+            }
+            unreachable;
+        };
+
         return GenerationTUI{
             .allocator = allocator,
             .tty = tty,
@@ -48,7 +57,10 @@ pub const GenerationTUI = struct {
             .search_input = text_input,
 
             .gen_list = gen_list,
-            .gen_list_ctx = .{ .selected_bg = .{ .index = 1 } },
+            .gen_list_ctx = .{
+                .selected_bg = .{ .index = 1 },
+                .row = current_gen_idx,
+            },
         };
     }
 
@@ -82,7 +94,9 @@ pub const GenerationTUI = struct {
                 } else if (key.matchesAny(&.{ vaxis.Key.up, 'k' }, .{})) {
                     self.gen_list_ctx.row -|= 1;
                 } else if (key.matchesAny(&.{ vaxis.Key.down, 'j' }, .{})) {
-                    self.gen_list_ctx.row +|= 1;
+                    if (self.gen_list_ctx.row < self.gen_list.items.len - 1) {
+                        self.gen_list_ctx.row +|= 1;
+                    }
                 } else {
                     try self.search_input.update(.{ .key_press = key });
                 }
@@ -100,7 +114,7 @@ pub const GenerationTUI = struct {
 
         _ = try self.drawGenerationTable(allocator);
         _ = try self.drawSearchBar();
-        _ = try self.drawGenerationData();
+        _ = try self.drawGenerationData(allocator);
         _ = try self.drawSelectedGenerations();
         _ = try self.drawKeybindList();
     }
@@ -138,11 +152,7 @@ pub const GenerationTUI = struct {
         if (end > gen_list.len) end = gen_list.len;
 
         // TODO: fix starting point for rendering
-        const selected_row = blk: {
-            var row = ctx.row;
-            if (row > gen_list.len - 1) row = gen_list.len - 1;
-            break :blk row;
-        };
+        const selected_row = ctx.row;
 
         for (gen_list[ctx.start..end], 0..) |data, i| {
             const tile = table_win.child(.{
@@ -187,7 +197,7 @@ pub const GenerationTUI = struct {
     }
 
     /// Print the information for a selected generation.
-    fn drawGenerationData(self: *Self) !vaxis.Window {
+    fn drawGenerationData(self: *Self, allocator: Allocator) !vaxis.Window {
         const root_win = self.vx.window();
 
         const main_win: vaxis.Window = root_win.child(.{
@@ -207,6 +217,21 @@ pub const GenerationTUI = struct {
         const title_bar_win: vaxis.Window = main_win.child(.{ .height = .{ .limit = 1 } });
         const centered: vaxis.Window = vaxis.widgets.alignment.center(title_bar_win, title_seg.text.len, 2);
         _ = try centered.printSegment(title_seg, .{});
+
+        const info_win: vaxis.Window = main_win.child(.{
+            .y_off = 2,
+            .height = .{ .limit = main_win.height - 2 },
+        });
+
+        const gen_info = self.gen_list.items[self.gen_list_ctx.row];
+
+        const gen_number_title_seg: vaxis.Segment = .{
+            .text = "Generation #",
+            .style = .{ .bold = true },
+        };
+        const gen_number_seg: vaxis.Segment = .{ .text = try fmt.allocPrint(allocator, "{d}", .{gen_info.generation.?}) };
+        _ = try info_win.printSegment(gen_number_title_seg, .{ .row_offset = 0, .col_offset = 3 });
+        _ = try info_win.printSegment(gen_number_seg, .{ .row_offset = 1, .col_offset = 3 });
 
         return main_win;
     }
