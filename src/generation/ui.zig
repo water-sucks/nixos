@@ -258,6 +258,21 @@ pub const GenerationTUI = struct {
         return search_bar_win;
     }
 
+    fn printInfoRows(win: vaxis.Window, title: []const u8, value: []const u8, row_offset: *usize) !void {
+        const gen_number_title_seg: vaxis.Segment = .{
+            .text = title,
+            .style = .{ .bold = true },
+        };
+        const gen_number_seg: vaxis.Segment = .{
+            .text = value,
+            .style = .{ .italic = true },
+        };
+        _ = try win.printSegment(gen_number_title_seg, .{ .row_offset = row_offset.*, .col_offset = 3 });
+        row_offset.* += 1;
+        _ = try win.printSegment(gen_number_seg, .{ .row_offset = row_offset.*, .col_offset = 3 });
+        row_offset.* += 2;
+    }
+
     /// Print the information for a selected generation.
     fn drawGenerationData(self: *Self, allocator: Allocator) !vaxis.Window {
         const root_win = self.vx.window();
@@ -287,13 +302,28 @@ pub const GenerationTUI = struct {
 
         const gen_info = self.gen_list.items[self.gen_list_ctx.row];
 
-        const gen_number_title_seg: vaxis.Segment = .{
-            .text = "Generation #",
-            .style = .{ .bold = true },
-        };
-        const gen_number_seg: vaxis.Segment = .{ .text = try fmt.allocPrint(allocator, "{d}", .{gen_info.generation.?}) };
-        _ = try info_win.printSegment(gen_number_title_seg, .{ .row_offset = 0, .col_offset = 3 });
-        _ = try info_win.printSegment(gen_number_seg, .{ .row_offset = 1, .col_offset = 3 });
+        var row_offset: usize = 0;
+
+        const gen_number_value = try fmt.allocPrint(allocator, "{d}{s}", .{ gen_info.generation.?, if (gen_info.current) " (current)" else "" });
+        try printInfoRows(info_win, "Generation #", gen_number_value, &row_offset);
+
+        const creation_date_value = if (gen_info.date) |date|
+            try fmt.allocPrint(allocator, "{s} {d:0>2}, {d} {d:0>2}:{d:0>2}:{d:0>2}", .{ date.month.name(), date.day, date.year, date.hour, date.minute, date.second })
+        else
+            "(unknown)";
+        try printInfoRows(info_win, "Creation Date", creation_date_value, &row_offset);
+
+        try printInfoRows(info_win, "Description", gen_info.description orelse "(none)", &row_offset);
+        try printInfoRows(info_win, "NixOS Version", gen_info.nixos_version orelse "(unknown)", &row_offset);
+        try printInfoRows(info_win, "Nixpkgs Revision", gen_info.nixpkgs_revision orelse "(unknown)", &row_offset);
+        try printInfoRows(info_win, "Configuration Revision", gen_info.configuration_revision orelse "(unknown)", &row_offset);
+        try printInfoRows(info_win, "Kernel Version", gen_info.kernel_version orelse "(unknown)", &row_offset);
+
+        const specialisations_value = if (gen_info.specialisations != null and gen_info.specialisations.?.len > 0)
+            try utils.concatStringsSep(allocator, gen_info.specialisations.?, ", ")
+        else
+            "(none)";
+        try printInfoRows(info_win, "Specialisations", specialisations_value, &row_offset);
 
         return main_win;
     }
