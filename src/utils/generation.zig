@@ -113,6 +113,8 @@ pub const GenerationMetadata = struct {
             const ctime = zeit.instant(.{ .source = .{ .unix_nano = stat.ctime } }) catch break :blk;
 
             const local_tz = zeit.local(allocator) catch break :blk;
+            defer local_tz.deinit();
+
             result.date = ctime.in(&local_tz).time();
         }
 
