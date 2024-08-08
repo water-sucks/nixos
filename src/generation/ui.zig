@@ -11,6 +11,7 @@ const TextInput = vaxis.widgets.TextInput;
 
 const utils = @import("../utils.zig");
 const GenerationMetadata = utils.generation.GenerationMetadata;
+const CandidateStruct = utils.search.CandidateStruct;
 
 const Event = union(enum) {
     key_press: vaxis.Key,
@@ -30,6 +31,8 @@ pub const GenerationTUI = struct {
     // Generation state
     gen_list: ArrayList(GenerationMetadata),
     gen_list_ctx: vaxis.widgets.Table.TableContext,
+    candidate_filter_buf: []CandidateStruct(GenerationMetadata),
+    filtered_gen_list: []CandidateStruct(GenerationMetadata),
 
     const Self = @This();
 
@@ -39,10 +42,17 @@ pub const GenerationTUI = struct {
         var tty = try vaxis.Tty.init();
         errdefer tty.deinit();
 
-        const vx = try vaxis.init(allocator, .{});
+        var vx = try vaxis.init(allocator, .{});
         errdefer vx.deinit(allocator, tty.anyWriter());
 
-        const text_input = TextInput.init(allocator, &vx.unicode);
+        var text_input = TextInput.init(allocator, &vx.unicode);
+        errdefer text_input.deinit();
+
+        const candidate_filter_buf = try allocator.alloc(CandidateStruct(GenerationMetadata), gen_list.items.len);
+        errdefer allocator.free(candidate_filter_buf);
+
+        // This is to render the initial generation list.
+        const initial_filtered_gen_slice = utils.search.rankCandidatesStruct(GenerationMetadata, "description", candidate_filter_buf, gen_list.items, &.{}, true, true);
 
         const current_gen_idx = blk: {
             for (gen_list.items, 0..) |gen, i| {
@@ -65,6 +75,8 @@ pub const GenerationTUI = struct {
                 .selected_bg = .{ .index = 1 },
                 .row = current_gen_idx,
             },
+            .candidate_filter_buf = candidate_filter_buf,
+            .filtered_gen_list = initial_filtered_gen_slice,
         };
     }
 
@@ -98,7 +110,7 @@ pub const GenerationTUI = struct {
                     self.gen_list_ctx.row -|= 1;
                     break :blk;
                 } else if (key.matches(vaxis.Key.down, .{})) {
-                    if (self.gen_list_ctx.row < self.gen_list.items.len - 1) {
+                    if (self.gen_list_ctx.row < self.filtered_gen_list.len - 1) {
                         self.gen_list_ctx.row +|= 1;
                     }
                     break :blk;
@@ -112,6 +124,18 @@ pub const GenerationTUI = struct {
                         self.mode = .normal;
                     } else {
                         try self.search_input.update(.{ .key_press = key });
+                        // TODO: debounce?
+                        // TODO: split tokens so that they work better
+                        const search_query = self.search_input.buf.items;
+                        self.filtered_gen_list = utils.search.rankCandidatesStruct(
+                            GenerationMetadata,
+                            "description",
+                            self.candidate_filter_buf,
+                            self.gen_list.items,
+                            if (search_query.len > 0) &.{search_query} else &.{},
+                            true,
+                            true,
+                        );
                     }
                 } else {
                     if (key.matchesAny(&.{ vaxis.Key.up, 'k' }, .{})) {
@@ -170,7 +194,7 @@ pub const GenerationTUI = struct {
             .height = .{ .limit = main_win.height - 2 },
         });
 
-        const gen_list = self.gen_list.items;
+        const gen_list = self.filtered_gen_list;
         const ctx = self.gen_list_ctx;
 
         const max_items = if (gen_list.len > table_win.height -| 2)
@@ -184,6 +208,8 @@ pub const GenerationTUI = struct {
         const selected_row = ctx.row;
 
         for (gen_list[ctx.start..end], 0..) |data, i| {
+            const gen = data.value;
+
             const tile = table_win.child(.{
                 .x_off = 3,
                 .y_off = i,
@@ -192,9 +218,9 @@ pub const GenerationTUI = struct {
             });
 
             const generation_segment: vaxis.Segment = .{
-                .text = try fmt.allocPrint(allocator, "{d}", .{data.generation.?}),
+                .text = try fmt.allocPrint(allocator, "{d}", .{gen.generation.?}),
                 .style = .{
-                    .fg = if (data.current) .{ .index = 2 } else .{ .index = 7 },
+                    .fg = if (gen.current) .{ .index = 2 } else .{ .index = 7 },
                     .bg = if (selected_row == i) .{ .index = 6 } else .{ .index = 0 },
                 },
             };
@@ -368,6 +394,7 @@ pub const GenerationTUI = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        self.allocator.free(self.candidate_filter_buf);
         self.search_input.deinit();
         self.vx.deinit(self.allocator, self.tty.anyWriter());
         self.tty.deinit();
