@@ -124,24 +124,31 @@ pub const GenerationTUI = struct {
                         self.mode = .normal;
                     } else {
                         try self.search_input.update(.{ .key_press = key });
-                        // TODO: debounce?
-                        // TODO: split tokens so that they work better
+
                         const search_query = self.search_input.buf.items;
-                        self.filtered_gen_list = utils.search.rankCandidatesStruct(
-                            GenerationMetadata,
-                            "description",
-                            self.candidate_filter_buf,
-                            self.gen_list.items,
-                            if (search_query.len > 0) &.{search_query} else &.{},
-                            true,
-                            true,
-                        );
+                        const tokens: []const []const u8 = toks: {
+                            var items = ArrayList([]const u8).init(allocator);
+                            errdefer items.deinit();
+
+                            var iter = mem.tokenizeScalar(u8, search_query, ' ');
+                            while (iter.next()) |token| {
+                                try items.append(token);
+                            }
+
+                            break :toks try items.toOwnedSlice();
+                        };
+
+                        self.filtered_gen_list = utils.search.rankCandidatesStruct(GenerationMetadata, "description", self.candidate_filter_buf, self.gen_list.items, tokens, true, true);
+                        self.gen_list_ctx.row = if (self.filtered_gen_list.len == 0)
+                            0
+                        else
+                            self.filtered_gen_list.len - 1;
                     }
                 } else {
                     if (key.matchesAny(&.{ vaxis.Key.up, 'k' }, .{})) {
                         self.gen_list_ctx.row -|= 1;
                     } else if (key.matchesAny(&.{ vaxis.Key.down, 'j' }, .{})) {
-                        if (self.gen_list_ctx.row < self.gen_list.items.len - 1) {
+                        if (self.gen_list_ctx.row < self.filtered_gen_list.len - 1) {
                             self.gen_list_ctx.row +|= 1;
                         }
                     } else if (key.matches('q', .{})) {
@@ -195,7 +202,7 @@ pub const GenerationTUI = struct {
         });
 
         const gen_list = self.filtered_gen_list;
-        const ctx = self.gen_list_ctx;
+        var ctx = self.gen_list_ctx;
 
         const max_items = if (gen_list.len > table_win.height -| 2)
             table_win.height -| 2
@@ -203,8 +210,20 @@ pub const GenerationTUI = struct {
             gen_list.len;
         var end = ctx.start + max_items;
         if (end > gen_list.len) end = gen_list.len;
+        ctx.start = tableStart: {
+            if (ctx.row == 0)
+                break :tableStart 0;
+            if (ctx.row < ctx.start)
+                break :tableStart ctx.start - (ctx.start - ctx.row);
+            if (ctx.row >= gen_list.len - 1)
+                ctx.row = gen_list.len - 1;
+            if (ctx.row >= end)
+                break :tableStart ctx.start + (ctx.row - end + 1);
+            break :tableStart ctx.start;
+        };
+        end = ctx.start + max_items;
+        if (end > gen_list.len) end = gen_list.len;
 
-        // TODO: fix starting point for rendering
         const selected_row = ctx.row;
 
         for (gen_list[ctx.start..end], 0..) |data, i| {
@@ -221,7 +240,7 @@ pub const GenerationTUI = struct {
                 .text = try fmt.allocPrint(allocator, "{d}", .{gen.generation.?}),
                 .style = .{
                     .fg = if (gen.current) .{ .index = 2 } else .{ .index = 7 },
-                    .bg = if (selected_row == i) .{ .index = 6 } else .{ .index = 0 },
+                    .bg = if (ctx.start + i == selected_row) .{ .index = 6 } else .{ .index = 0 },
                 },
             };
 
@@ -300,7 +319,16 @@ pub const GenerationTUI = struct {
             .height = .{ .limit = main_win.height - 2 },
         });
 
-        const gen_info = self.gen_list.items[self.gen_list_ctx.row];
+        if (self.filtered_gen_list.len == 0) {
+            const no_selected_gen_seg: vaxis.Segment = .{
+                .text = "No generations found",
+                .style = .{ .italic = true },
+            };
+            _ = try info_win.printSegment(no_selected_gen_seg, .{ .col_offset = 3 });
+            return main_win;
+        }
+
+        const gen_info = self.filtered_gen_list[self.gen_list_ctx.row].value;
 
         var row_offset: usize = 0;
 
@@ -418,7 +446,6 @@ pub const GenerationTUI = struct {
             _ = try info_win.printSegment(key_desc_seg, .{ .row_offset = row_offset, .col_offset = desc_col_offset });
             row_offset += 1;
         }
-        // var offset: usize = 0;
 
         return main_win;
     }
