@@ -29,7 +29,7 @@ pub const GenerationTUI = struct {
     search_input: TextInput,
 
     // Generation state
-    gen_list: ArrayList(GenerationMetadata),
+    gen_list: []const GenerationMetadata,
     gen_list_ctx: vaxis.widgets.Table.TableContext,
     candidate_filter_buf: []CandidateStruct(GenerationMetadata),
     filtered_gen_list: []CandidateStruct(GenerationMetadata),
@@ -38,7 +38,7 @@ pub const GenerationTUI = struct {
 
     const Mode = enum { normal, input };
 
-    pub fn init(allocator: Allocator, gen_list: ArrayList(GenerationMetadata)) !Self {
+    pub fn init(allocator: Allocator, gen_list: []const GenerationMetadata) !Self {
         var tty = try vaxis.Tty.init();
         errdefer tty.deinit();
 
@@ -48,14 +48,14 @@ pub const GenerationTUI = struct {
         var text_input = TextInput.init(allocator, &vx.unicode);
         errdefer text_input.deinit();
 
-        const candidate_filter_buf = try allocator.alloc(CandidateStruct(GenerationMetadata), gen_list.items.len);
+        const candidate_filter_buf = try allocator.alloc(CandidateStruct(GenerationMetadata), gen_list.len);
         errdefer allocator.free(candidate_filter_buf);
 
         // This is to render the initial generation list.
-        const initial_filtered_gen_slice = utils.search.rankCandidatesStruct(GenerationMetadata, "description", candidate_filter_buf, gen_list.items, &.{}, true, true);
+        const initial_filtered_gen_slice = utils.search.rankCandidatesStruct(GenerationMetadata, "description", candidate_filter_buf, gen_list, &.{}, true, true);
 
         const current_gen_idx = blk: {
-            for (gen_list.items, 0..) |gen, i| {
+            for (gen_list, 0..) |gen, i| {
                 if (gen.current) {
                     break :blk i;
                 }
@@ -138,7 +138,7 @@ pub const GenerationTUI = struct {
                             break :toks try items.toOwnedSlice();
                         };
 
-                        self.filtered_gen_list = utils.search.rankCandidatesStruct(GenerationMetadata, "description", self.candidate_filter_buf, self.gen_list.items, tokens, true, true);
+                        self.filtered_gen_list = utils.search.rankCandidatesStruct(GenerationMetadata, "description", self.candidate_filter_buf, self.gen_list, tokens, true, true);
                         self.gen_list_ctx.row = if (self.filtered_gen_list.len == 0)
                             0
                         else
@@ -458,7 +458,7 @@ pub const GenerationTUI = struct {
     }
 };
 
-pub fn generationUI(allocator: Allocator, generations: ArrayList(GenerationMetadata)) !void {
+pub fn generationUI(allocator: Allocator, generations: []GenerationMetadata) !void {
     var app = try GenerationTUI.init(allocator, generations);
     defer app.deinit();
 

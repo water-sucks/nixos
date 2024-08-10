@@ -323,40 +323,18 @@ pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, pro
     };
     defer generations_dir.close();
 
-    var all_gen_numbers = ArrayList(usize).init(allocator);
+    const all_gens_info = utils.generation.gatherGenerationsFromProfile(allocator, profile_name) catch return GenerationDeleteError.ResourceAccessFailed;
+    defer {
+        for (all_gens_info) |*gen| gen.deinit();
+        allocator.free(all_gens_info);
+    }
+
+    var all_gen_numbers = try ArrayList(usize).initCapacity(allocator, all_gens_info.len);
     defer all_gen_numbers.deinit();
 
-    var path_buf: [posix.PATH_MAX]u8 = undefined;
-    const current_generation_pathname = generations_dir.readLink(profile_name, &path_buf) catch |err| {
-        log.err("unable to find current generation for profile {s}: {s}", .{ profile_name, @errorName(err) });
-        return GenerationDeleteError.ResourceAccessFailed;
-    };
-    var current_gen_number: usize = undefined;
-
-    var gen_iter = generations_dir.iterate();
-    while (gen_iter.next() catch |err| {
-        log.err("unexpected error while reading profile directory: {s}", .{@errorName(err)});
-        return GenerationDeleteError.ResourceAccessFailed;
-    }) |entry| {
-        const prefix = try fmt.allocPrint(allocator, "{s}-", .{profile_name});
-        defer allocator.free(prefix);
-
-        if (mem.startsWith(u8, entry.name, prefix) and
-            mem.endsWith(u8, entry.name, "-link") and
-            prefix.len + 5 < entry.name.len)
-        {
-            const gen_number_slice = entry.name[(prefix.len)..mem.indexOf(u8, entry.name, "-link").?];
-            // If the number parsed is not an integer, it contains a dash
-            // and is from another profile, so it is skipped.
-            const gen_number = std.fmt.parseInt(usize, gen_number_slice, 10) catch continue;
-            try all_gen_numbers.append(gen_number);
-
-            if (mem.eql(u8, entry.name, current_generation_pathname)) {
-                current_gen_number = gen_number;
-            }
-        }
+    for (all_gens_info) |gen| {
+        all_gen_numbers.appendAssumeCapacity(gen.generation.?);
     }
-    sort.block(usize, all_gen_numbers.items, {}, sort.asc(usize));
 
     if (all_gen_numbers.items.len < 2) {
         if (all_gen_numbers.items.len == 0) {
@@ -376,9 +354,15 @@ pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, pro
         }
     }
 
-    if (mem.indexOf(usize, args.remove.items, &.{current_gen_number}) != null) {
-        log.err("cannot remove generation {d}, this is the current generation!", .{current_gen_number});
-        return GenerationDeleteError.InvalidParameter;
+    var current_gen_number: usize = undefined;
+    for (all_gens_info) |gen| {
+        if (gen.current) {
+            current_gen_number = gen.generation.?;
+            if (mem.indexOf(usize, args.remove.items, &.{current_gen_number}) != null) {
+                log.err("cannot remove generation {d}, this is the current generation!", .{current_gen_number});
+                return GenerationDeleteError.InvalidParameter;
+            }
+        }
     }
 
     var gens_to_remove_set = std.AutoHashMap(usize, void).init(allocator);
@@ -484,25 +468,16 @@ pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, pro
     }
 
     var gens_to_remove_info = try ArrayList(GenerationMetadata).initCapacity(allocator, gens_to_remove_set.count());
-    defer {
-        for (gens_to_remove_info.items) |*gen| {
-            gen.deinit();
-        }
-        gens_to_remove_info.deinit();
-    }
+    defer gens_to_remove_info.deinit();
 
     var remove_iter = gens_to_remove_set.keyIterator();
     while (remove_iter.next()) |gen_number| {
-        const gen_dirname = try fmt.allocPrint(allocator, "system-{d}-link", .{gen_number.*});
-        defer allocator.free(gen_dirname);
-        var gen_dir = generations_dir.openDir(gen_dirname, .{}) catch |err| {
-            log.err("unable to open generation {d} dir: {s}", .{ gen_number.*, @errorName(err) });
-            return GenerationDeleteError.ResourceAccessFailed;
-        };
-        defer gen_dir.close();
-
-        const gen_info = GenerationMetadata.getGenerationInfo(allocator, gen_dir, gen_number.*) catch return GenerationDeleteError.ResourceAccessFailed;
-        gens_to_remove_info.appendAssumeCapacity(gen_info);
+        for (all_gens_info) |gen| {
+            if (gen.generation.? == gen_number.*) {
+                gens_to_remove_info.appendAssumeCapacity(gen);
+                break;
+            }
+        } else unreachable;
     }
     sort.block(GenerationMetadata, gens_to_remove_info.items, {}, GenerationMetadata.lessThan);
 

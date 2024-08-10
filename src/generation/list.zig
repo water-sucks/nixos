@@ -76,81 +76,7 @@ const GenerationListError = error{
 } || Allocator.Error;
 
 fn listGenerations(allocator: Allocator, profile_name: []const u8, args: GenerationListCommand) GenerationListError!void {
-    const profile_dirname = if (mem.eql(u8, profile_name, "system"))
-        "/nix/var/nix/profiles"
-    else
-        "/nix/var/nix/profiles/system-profiles";
-
-    var generations: ArrayList(GenerationMetadata) = ArrayList(GenerationMetadata).init(allocator);
-    defer generations.deinit();
-    defer {
-        for (generations.items) |*generation| {
-            defer generation.deinit();
-        }
-    }
-
-    var generations_dir = fs.openDirAbsolute(profile_dirname, .{ .iterate = true }) catch |err| {
-        log.err("unexpected error encountered opening {s}: {s}", .{ profile_dirname, @errorName(err) });
-        return GenerationListError.ResourceAccessFailed;
-    };
-
-    var path_buf: [posix.PATH_MAX]u8 = undefined;
-
-    const current_generation_dirname = try fs.path.join(allocator, &.{ profile_dirname, profile_name });
-    defer allocator.free(current_generation_dirname);
-
-    // Check if generation is the current generation
-    const current_system_name = posix.readlink(current_generation_dirname, &path_buf) catch |err| {
-        log.err("unable to readlink {s}: {s}", .{ current_generation_dirname, @errorName(err) });
-        return GenerationListError.ResourceAccessFailed;
-    };
-
-    var iter = generations_dir.iterate();
-    while (iter.next() catch |err| {
-        log.err("unexpected error while reading profile directory: {s}", .{@errorName(err)});
-        return GenerationListError.ResourceAccessFailed;
-    }) |entry| {
-        const prefix = try fmt.allocPrint(allocator, "{s}-", .{profile_name});
-        defer allocator.free(prefix);
-
-        // I hate no regexes in this language. Big sad.
-        // This works around the fact that multiple profile
-        // names can share the same prefix.
-        if (mem.startsWith(u8, entry.name, prefix) and
-            mem.endsWith(u8, entry.name, "-link") and
-            prefix.len + 5 < entry.name.len)
-        {
-            const gen_number_slice = entry.name[(prefix.len)..mem.indexOf(u8, entry.name, "-link").?];
-
-            // If the number parsed is not an integer, it contains a dash
-            // and is from another profile, so it is skipped.
-            // Also, might as well pass this to the generation info
-            // function and avoid extra work re-parsing the number.
-            const generation_number = std.fmt.parseInt(usize, gen_number_slice, 10) catch continue;
-
-            const generation_dirname = try fs.path.join(allocator, &.{ profile_dirname, entry.name });
-            defer allocator.free(generation_dirname);
-
-            var generation_dir = fs.openDirAbsolute(generation_dirname, .{}) catch |err| {
-                log.err("unexpected error encountered opening {s}: {s}", .{ generation_dirname, @errorName(err) });
-                return GenerationListError.ResourceAccessFailed;
-            };
-            defer generation_dir.close();
-
-            var generation = try GenerationMetadata.getGenerationInfo(allocator, generation_dir, generation_number);
-            errdefer generation.deinit();
-
-            if (mem.eql(u8, current_system_name, entry.name)) {
-                generation.current = true;
-            }
-
-            try generations.append(generation);
-        }
-    }
-
-    // I like sorted output.
-    mem.sort(GenerationMetadata, generations.items, {}, GenerationMetadata.lessThan);
-
+    const generations = utils.generation.gatherGenerationsFromProfile(allocator, profile_name) catch return GenerationListError.ResourceAccessFailed;
     if (args.interactive) {
         generationUI(allocator, generations) catch {};
         return;
@@ -159,14 +85,14 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
     const stdout = io.getStdOut().writer();
 
     if (args.json) {
-        std.json.stringify(generations.items, .{ .whitespace = .indent_2 }, stdout) catch unreachable;
+        std.json.stringify(generations, .{ .whitespace = .indent_2 }, stdout) catch unreachable;
         print(stdout, "\n", .{});
         return;
     }
 
-    for (generations.items, 0..) |gen, i| {
+    for (generations, 0..) |gen, i| {
         gen.prettyPrint(.{ .color = Constants.use_color }, stdout) catch unreachable;
-        if (i != generations.items.len - 1) {
+        if (i != generations.len - 1) {
             print(stdout, "\n", .{});
         }
     }
