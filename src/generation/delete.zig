@@ -181,7 +181,7 @@ pub const GenerationDeleteError = error{
     CommandFailed,
 } || Allocator.Error;
 
-fn printDeleteSummary(allocator: Allocator, generations: []GenerationMetadata) !void {
+pub fn printDeleteSummary(allocator: Allocator, generations: []GenerationMetadata) !void {
     log.print("The following generations will be deleted:\n\n", .{});
 
     const headers: []const []const u8 = &.{ "#", "Description", "Creation Date" };
@@ -272,7 +272,7 @@ fn printDeleteSummary(allocator: Allocator, generations: []GenerationMetadata) !
 
 var exit_status: u8 = 0;
 
-fn deleteGenerations(allocator: Allocator, generations: []GenerationMetadata, profile_dirname: []const u8) !void {
+pub fn deleteGenerations(allocator: Allocator, generations: []GenerationMetadata, profile_dirname: []const u8) !void {
     var argv = ArrayList([]const u8).init(allocator);
     defer {
         for (argv.items) |s| allocator.free(s);

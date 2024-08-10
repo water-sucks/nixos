@@ -76,11 +76,11 @@ const GenerationListError = error{
 } || Allocator.Error;
 
 fn listGenerations(allocator: Allocator, profile_name: []const u8, args: GenerationListCommand) GenerationListError!void {
-    const generations = utils.generation.gatherGenerationsFromProfile(allocator, profile_name) catch return GenerationListError.ResourceAccessFailed;
     if (args.interactive) {
-        generationUI(allocator, generations) catch {};
-        return;
+        generationUI(allocator, profile_name) catch return GenerationListError.ResourceAccessFailed;
     }
+
+    const generations = utils.generation.gatherGenerationsFromProfile(allocator, profile_name) catch return GenerationListError.ResourceAccessFailed;
 
     const stdout = io.getStdOut().writer();
 

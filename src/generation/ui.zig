@@ -10,8 +10,13 @@ const vaxis = @import("vaxis");
 const TextInput = vaxis.widgets.TextInput;
 
 const utils = @import("../utils.zig");
+const ansi = utils.ansi;
 const GenerationMetadata = utils.generation.GenerationMetadata;
 const CandidateStruct = utils.search.CandidateStruct;
+
+const delete_cmd = @import("../generation/delete.zig");
+const printDeleteSummary = delete_cmd.printDeleteSummary;
+const deleteGenerations = delete_cmd.deleteGenerations;
 
 const Event = union(enum) {
     key_press: vaxis.Key,
@@ -33,10 +38,15 @@ pub const GenerationTUI = struct {
     gen_list_ctx: vaxis.widgets.Table.TableContext,
     candidate_filter_buf: []CandidateStruct(GenerationMetadata),
     filtered_gen_list: []CandidateStruct(GenerationMetadata),
+    gens_to_delete: ArrayList(GenerationMetadata),
 
     const Self = @This();
 
     const Mode = enum { normal, input };
+    const EndAction = union(enum) {
+        delete: []GenerationMetadata,
+        exit,
+    };
 
     pub fn init(allocator: Allocator, gen_list: []const GenerationMetadata) !Self {
         var tty = try vaxis.Tty.init();
@@ -53,6 +63,9 @@ pub const GenerationTUI = struct {
 
         // This is to render the initial generation list.
         const initial_filtered_gen_slice = utils.search.rankCandidatesStruct(GenerationMetadata, "description", candidate_filter_buf, gen_list, &.{}, true, true);
+
+        var gens_to_delete = ArrayList(GenerationMetadata).init(allocator);
+        errdefer gens_to_delete.deinit();
 
         const current_gen_idx = blk: {
             for (gen_list, 0..) |gen, i| {
@@ -77,10 +90,11 @@ pub const GenerationTUI = struct {
             },
             .candidate_filter_buf = candidate_filter_buf,
             .filtered_gen_list = initial_filtered_gen_slice,
+            .gens_to_delete = gens_to_delete,
         };
     }
 
-    pub fn run(self: *Self) !void {
+    pub fn run(self: *Self) !EndAction {
         var loop: vaxis.Loop(Event) = .{ .tty = &self.tty, .vaxis = &self.vx };
         try loop.init();
 
@@ -90,6 +104,8 @@ pub const GenerationTUI = struct {
         try self.vx.enterAltScreen(self.tty.anyWriter());
         try self.vx.queryTerminal(self.tty.anyWriter(), 1 * std.time.ns_per_s);
 
+        var end_action: EndAction = undefined;
+
         while (!self.should_quit) {
             // NOTE: This is an arena for drawing stuff, do not remove. This
             // serves a different purpose than the existing self.allocator.
@@ -98,11 +114,18 @@ pub const GenerationTUI = struct {
             const event_alloc = event_arena.allocator();
 
             const event = loop.nextEvent();
-            try self.update(event_alloc, event);
+            const action = try self.update(event_alloc, event);
+            if (action) |a| {
+                end_action = a;
+            }
         }
+
+        return end_action;
     }
 
-    pub fn update(self: *Self, allocator: Allocator, event: Event) !void {
+    pub fn update(self: *Self, allocator: Allocator, event: Event) !?EndAction {
+        var end_action: ?EndAction = null;
+
         switch (event) {
             .key_press => |key| blk: {
                 // Arrow keys and CTRL codes should work regardless of input mode
@@ -116,6 +139,7 @@ pub const GenerationTUI = struct {
                     break :blk;
                 } else if (key.matches('c', .{ .ctrl = true })) {
                     self.should_quit = true;
+                    end_action = .exit;
                     break :blk;
                 }
 
@@ -151,10 +175,26 @@ pub const GenerationTUI = struct {
                         if (self.gen_list_ctx.row < self.filtered_gen_list.len - 1) {
                             self.gen_list_ctx.row +|= 1;
                         }
+                    } else if (key.matches(vaxis.Key.space, .{})) {
+                        if (self.filtered_gen_list.len == 0) break :blk;
+                        const toggled_gen = self.filtered_gen_list[self.gen_list_ctx.row].value;
+
+                        for (self.gens_to_delete.items, 0..) |gen_to_delete, i| {
+                            if (gen_to_delete.generation.? == toggled_gen.generation.?) {
+                                _ = self.gens_to_delete.swapRemove(i);
+                                break;
+                            }
+                        } else {
+                            try self.gens_to_delete.append(toggled_gen);
+                        }
                     } else if (key.matches('q', .{})) {
                         self.should_quit = true;
+                        end_action = .exit;
                     } else if (key.matches('/', .{})) {
                         self.mode = .input;
+                    } else if (key.matches('d', .{})) {
+                        self.should_quit = true;
+                        end_action = .{ .delete = try self.gens_to_delete.toOwnedSlice() };
                     }
                 }
             },
@@ -163,6 +203,8 @@ pub const GenerationTUI = struct {
 
         try self.draw(allocator);
         try self.vx.render(self.tty.anyWriter());
+
+        return end_action;
     }
 
     fn draw(self: *Self, allocator: Allocator) !void {
@@ -172,7 +214,7 @@ pub const GenerationTUI = struct {
         _ = try self.drawGenerationTable(allocator);
         _ = try self.drawSearchBar();
         _ = try self.drawGenerationData(allocator);
-        _ = try self.drawSelectedGenerations();
+        _ = try self.drawSelectedGenerations(allocator);
         _ = try self.drawKeybindList();
     }
 
@@ -230,7 +272,6 @@ pub const GenerationTUI = struct {
             const gen = data.value;
 
             const tile = table_win.child(.{
-                .x_off = 3,
                 .y_off = i,
                 .width = .{ .limit = table_win.width },
                 .height = .{ .limit = 1 },
@@ -244,7 +285,19 @@ pub const GenerationTUI = struct {
                 },
             };
 
-            _ = try tile.printSegment(generation_segment, .{});
+            const deletion_toggled = blk: {
+                for (self.gens_to_delete.items) |gen_to_delete| {
+                    if (gen.generation.? == gen_to_delete.generation.?) {
+                        break :blk true;
+                    }
+                }
+                break :blk false;
+            };
+
+            _ = try tile.printSegment(generation_segment, .{ .col_offset = 3 });
+            if (deletion_toggled) {
+                _ = try tile.printSegment(.{ .text = "*" }, .{ .col_offset = 1 });
+            }
         }
 
         const mode_win: vaxis.Window = main_win.child(.{
@@ -358,7 +411,7 @@ pub const GenerationTUI = struct {
 
     /// Draw the selected generations to delete (to make it easier
     /// to grok without looking at the generation list markings)
-    fn drawSelectedGenerations(self: *Self) !vaxis.Window {
+    fn drawSelectedGenerations(self: *Self, allocator: Allocator) !vaxis.Window {
         const root = self.vx.window();
 
         const main_win: vaxis.Window = root.child(.{
@@ -380,6 +433,22 @@ pub const GenerationTUI = struct {
         const title_win: vaxis.Window = main_win.child(.{ .height = .{ .limit = 1 } });
         const centered: vaxis.Window = vaxis.widgets.alignment.center(title_win, title_seg.text.len, 2);
         _ = try centered.printSegment(title_seg, .{});
+
+        const info_win: vaxis.Window = main_win.child(.{
+            .y_off = 2,
+            .height = .{ .limit = main_win.height - 2 },
+        });
+
+        const selected_gens = self.gens_to_delete.items;
+
+        const selected_gens_str = blk: {
+            var gen_number_strs = try ArrayList([]const u8).initCapacity(allocator, selected_gens.len);
+            for (selected_gens) |gen| {
+                gen_number_strs.appendAssumeCapacity(try fmt.allocPrint(allocator, "{d}", .{gen.generation.?}));
+            }
+            break :blk try utils.concatStringsSep(allocator, gen_number_strs.items, ", ");
+        };
+        _ = try info_win.printSegment(.{ .text = selected_gens_str }, .{ .wrap = .word });
 
         return main_win;
     }
@@ -451,6 +520,7 @@ pub const GenerationTUI = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        self.gens_to_delete.deinit();
         self.allocator.free(self.candidate_filter_buf);
         self.search_input.deinit();
         self.vx.deinit(self.allocator, self.tty.anyWriter());
@@ -458,9 +528,56 @@ pub const GenerationTUI = struct {
     }
 };
 
-pub fn generationUI(allocator: Allocator, generations: []GenerationMetadata) !void {
+fn deleteGenerationsAction(allocator: Allocator, generations: []GenerationMetadata, remaining: usize) !void {
+    try printDeleteSummary(allocator, generations);
+    log.print("There will be {d} generations left on this machine.\n", .{remaining});
+
+    const confirm = utils.confirmationInput() catch return;
+    if (!confirm) {
+        log.warn("confirmation was not given, not proceeding", .{});
+        return;
+    }
+
+    log.info("TODO: delete generations", .{});
+}
+
+pub fn generationUI(allocator: Allocator, profile_name: []const u8) !void {
+    var generations = utils.generation.gatherGenerationsFromProfile(allocator, profile_name) catch return error.ResourceAccessFailed;
+    defer {
+        for (generations) |*gen| gen.deinit();
+        allocator.free(generations);
+    }
+
     var app = try GenerationTUI.init(allocator, generations);
     defer app.deinit();
 
-    try app.run();
+    while (true) {
+        const action = try app.run();
+
+        switch (action) {
+            .exit => break,
+            .delete => |gens_to_delete| {
+                defer allocator.free(gens_to_delete);
+                mem.sort(GenerationMetadata, gens_to_delete, {}, GenerationMetadata.lessThan);
+
+                app.deinit();
+
+                // If there is a better, more cross-platform way to clear the screen,
+                // let's do that instead. This will work for now.
+                log.print(ansi.CLEAR ++ ansi.MV_TOP_LEFT, .{});
+
+                const remaining = generations.len - gens_to_delete.len;
+                deleteGenerationsAction(allocator, gens_to_delete, remaining) catch {};
+
+                log.info("returning to main window", .{});
+                std.time.sleep(1_000_000_000);
+
+                for (generations) |*gen| gen.deinit();
+                allocator.free(generations);
+                generations = utils.generation.gatherGenerationsFromProfile(allocator, profile_name) catch return error.ResourceAccessFailed;
+
+                app = try GenerationTUI.init(allocator, generations);
+            },
+        }
+    }
 }
