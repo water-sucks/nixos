@@ -78,6 +78,7 @@ const GenerationListError = error{
 fn listGenerations(allocator: Allocator, profile_name: []const u8, args: GenerationListCommand) GenerationListError!void {
     if (args.interactive) {
         generationUI(allocator, profile_name) catch return GenerationListError.ResourceAccessFailed;
+        return;
     }
 
     const generations = utils.generation.gatherGenerationsFromProfile(allocator, profile_name) catch return GenerationListError.ResourceAccessFailed;

@@ -1,6 +1,7 @@
 const std = @import("std");
 const fmt = std.fmt;
 const mem = std.mem;
+const process = std.process;
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
 
@@ -11,12 +12,9 @@ const TextInput = vaxis.widgets.TextInput;
 
 const utils = @import("../utils.zig");
 const ansi = utils.ansi;
+const runCmd = utils.runCmd;
 const GenerationMetadata = utils.generation.GenerationMetadata;
 const CandidateStruct = utils.search.CandidateStruct;
-
-const delete_cmd = @import("../generation/delete.zig");
-const printDeleteSummary = delete_cmd.printDeleteSummary;
-const deleteGenerations = delete_cmd.deleteGenerations;
 
 const Event = union(enum) {
     key_press: vaxis.Key,
@@ -528,17 +526,58 @@ pub const GenerationTUI = struct {
     }
 };
 
-fn deleteGenerationsAction(allocator: Allocator, generations: []GenerationMetadata, remaining: usize) !void {
-    try printDeleteSummary(allocator, generations);
-    log.print("There will be {d} generations left on this machine.\n", .{remaining});
+fn deleteGenerationsAction(allocator: Allocator, generations: []GenerationMetadata, profile_name: []const u8) !bool {
+    // Since I'm lazy, deleting generations will be done by shelling
+    // out to `nixos generation delete`, rather than using the Zig
+    // code itself.
+    // It's easier to keep output consistent during development this way.
 
-    const confirm = utils.confirmationInput() catch return;
-    if (!confirm) {
-        log.warn("confirmation was not given, not proceeding", .{});
-        return;
+    const original_args = try process.argsAlloc(allocator);
+    defer process.argsFree(allocator, original_args);
+
+    var argv = ArrayList([]const u8).init(allocator);
+    defer {
+        for (argv.items) |arg| allocator.free(arg);
+        argv.deinit();
     }
 
-    log.info("TODO: delete generations", .{});
+    try argv.append(try allocator.dupe(u8, original_args[0]));
+    try argv.append(try allocator.dupe(u8, "generation"));
+    try argv.append(try allocator.dupe(u8, "delete"));
+    try argv.append(try allocator.dupe(u8, "-p"));
+    try argv.append(try allocator.dupe(u8, profile_name));
+
+    for (generations) |gen| {
+        try argv.append(try fmt.allocPrint(allocator, "{d}", .{gen.generation.?}));
+    }
+
+    log.info("deleting generations", .{});
+    log.cmd(argv.items);
+
+    const result = runCmd(.{
+        .allocator = allocator,
+        .argv = argv.items,
+        .stdin_type = .Inherit,
+    }) catch |err| {
+        log.err("unable to execute `nixos generation delete`: {s}", .{@errorName(err)});
+        return false;
+    };
+    allocator.free(result.stdout.?);
+
+    if (result.status != 0) {
+        log.err("command exited with status {d}", .{result.status});
+        return false;
+    }
+
+    return true;
+}
+
+fn reload(allocator: Allocator, app: *GenerationTUI, generations: *[]GenerationMetadata, profile_name: []const u8) !void {
+    for (generations.*) |*gen| gen.deinit();
+    allocator.free(generations.*);
+    generations.* = utils.generation.gatherGenerationsFromProfile(allocator, profile_name) catch return error.ResourceAccessFailed;
+
+    app.* = try GenerationTUI.init(allocator, generations.*);
 }
 
 pub fn generationUI(allocator: Allocator, profile_name: []const u8) !void {
@@ -562,21 +601,14 @@ pub fn generationUI(allocator: Allocator, profile_name: []const u8) !void {
 
                 app.deinit();
 
-                // If there is a better, more cross-platform way to clear the screen,
-                // let's do that instead. This will work for now.
                 log.print(ansi.CLEAR ++ ansi.MV_TOP_LEFT, .{});
 
-                const remaining = generations.len - gens_to_delete.len;
-                deleteGenerationsAction(allocator, gens_to_delete, remaining) catch {};
+                const success = deleteGenerationsAction(allocator, gens_to_delete, profile_name) catch false;
 
                 log.info("returning to main window", .{});
-                std.time.sleep(1_000_000_000);
+                std.time.sleep(if (success) 1_000_000_000 else 3_000_000_000);
 
-                for (generations) |*gen| gen.deinit();
-                allocator.free(generations);
-                generations = utils.generation.gatherGenerationsFromProfile(allocator, profile_name) catch return error.ResourceAccessFailed;
-
-                app = try GenerationTUI.init(allocator, generations);
+                try reload(allocator, &app, &generations, profile_name);
             },
         }
     }
