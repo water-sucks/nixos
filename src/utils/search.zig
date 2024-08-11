@@ -1,10 +1,18 @@
 const std = @import("std");
+const mem = std.mem;
 const zf = @import("zf");
 
 pub const Candidate = struct {
     str: []const u8,
     rank: f64 = 0,
 };
+
+pub fn CandidateStruct(comptime T: type) type {
+    return struct {
+        value: T,
+        rank: f64 = 0,
+    };
+}
 
 pub fn rankCandidates(
     ranked: []Candidate,
@@ -32,6 +40,73 @@ pub fn rankCandidates(
     if (!keep_order) {
         std.sort.block(Candidate, ranked[0..index], {}, sortCandidates);
     }
+
+    return ranked[0..index];
+}
+
+pub fn rankCandidatesStruct(
+    comptime T: type,
+    comptime field_name: []const u8,
+    ranked: []CandidateStruct(T),
+    candidates: []const T,
+    tokens: []const []const u8,
+    // keep_order: bool,
+    plain: bool,
+    case_sensitive: bool,
+) []CandidateStruct(T) {
+    switch (@typeInfo(T)) {
+        .Struct => |struct_info| {
+            if (!@hasField(T, field_name)) {
+                @compileError(@typeName(T) ++ " has no field named " ++ field_name);
+            }
+            _ = struct_info;
+
+            // comptime var bruh: bool = false;
+            // inline for (struct_info.fields) |f| {
+            //     if (mem.eql(u8, f.name[0..], field_name)) {
+            //         bruh = true;
+            //         // if (@TypeOf(f.type) != []const u8) {
+            //         //     // @compileError("field type must be []const u8, got " ++ @typeName(f.type));
+            //         // }
+            //         break;
+            //     } else {}
+            // }
+
+            // if (!bruh) {
+            //     @compileError("no field found in struct type " ++ @typeName(T) ++ " with name " ++ field_name);
+            // }
+        },
+        else => @compileError("rankCandidatesStruct must take a struct type"),
+    }
+
+    if (tokens.len == 0) {
+        for (candidates, 0..) |candidate, index| {
+            ranked[index] = .{ .value = candidate };
+        }
+        return ranked;
+    }
+
+    var index: usize = 0;
+    for (candidates) |candidate| {
+        const candidate_str: []const u8 = blk: {
+            if (@TypeOf(@field(candidate, field_name)) == ?[]const u8) {
+                break :blk @field(candidate, field_name) orelse "";
+            } else {
+                break :blk @field(candidate, field_name);
+            }
+        };
+
+        if (zf.rank(candidate_str, tokens, case_sensitive, plain)) |rank| {
+            ranked[index] = .{ .value = candidate, .rank = rank };
+            index += 1;
+        }
+    }
+
+    // TODO: keep order param
+
+    // if (!keep_order) {
+    //     std.sort.block(Candidate, ranked[0..index], {}, sortCandidates);
+    // }
 
     return ranked[0..index];
 }

@@ -20,3 +20,6 @@ pub const RESET = "\x1B[0m";
 pub const BOLD = "\x1B[1m";
 pub const ITALIC = "\x1B[3m";
 pub const UNDERLINE = "\x1B[4m";
+
+pub const CLEAR = "\x1B[2J";
+pub const MV_TOP_LEFT = "\x1B[H";

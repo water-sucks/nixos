@@ -3,8 +3,10 @@ const fmt = std.fmt;
 const fs = std.fs;
 const json = std.json;
 const mem = std.mem;
+const posix = std.posix;
 const sort = std.sort;
 const Allocator = mem.Allocator;
+const ArrayList = std.ArrayList;
 
 const log = @import("../log.zig");
 
@@ -113,6 +115,8 @@ pub const GenerationMetadata = struct {
             const ctime = zeit.instant(.{ .source = .{ .unix_nano = stat.ctime } }) catch break :blk;
 
             const local_tz = zeit.local(allocator) catch break :blk;
+            defer local_tz.deinit();
+
             result.date = ctime.in(&local_tz).time();
         }
 
@@ -335,3 +339,85 @@ pub const GenerationMetadata = struct {
         try out.endObject();
     }
 };
+
+pub fn gatherGenerationsFromProfile(allocator: Allocator, profile_name: []const u8) ![]GenerationMetadata {
+    const profile_dirname = if (mem.eql(u8, profile_name, "system"))
+        "/nix/var/nix/profiles"
+    else
+        "/nix/var/nix/profiles/system-profiles";
+
+    var generations: ArrayList(GenerationMetadata) = ArrayList(GenerationMetadata).init(allocator);
+    errdefer {
+        for (generations.items) |*generation| {
+            generation.deinit();
+        }
+        generations.deinit();
+    }
+
+    var generations_dir = fs.cwd().openDir(profile_dirname, .{ .iterate = true }) catch |err| {
+        log.err("unexpected error encountered opening {s}: {s}", .{ profile_dirname, @errorName(err) });
+        return err;
+    };
+    defer generations_dir.close();
+
+    var path_buf: [posix.PATH_MAX]u8 = undefined;
+
+    const current_generation_dirname = try fs.path.join(allocator, &.{ profile_dirname, profile_name });
+    defer allocator.free(current_generation_dirname);
+
+    // Check if generation is the current generation
+    const current_system_name = posix.readlink(current_generation_dirname, &path_buf) catch |err| {
+        log.err("unable to readlink {s}: {s}", .{ current_generation_dirname, @errorName(err) });
+        return err;
+    };
+
+    var iter = generations_dir.iterate();
+    while (iter.next() catch |err| {
+        log.err("unexpected error while reading profile directory: {s}", .{@errorName(err)});
+        return err;
+    }) |entry| {
+        const prefix = try fmt.allocPrint(allocator, "{s}-", .{profile_name});
+        defer allocator.free(prefix);
+
+        // I hate no regexes in this language. Big sad.
+        // This works around the fact that multiple profile
+        // names can share the same prefix.
+        if (mem.startsWith(u8, entry.name, prefix) and
+            mem.endsWith(u8, entry.name, "-link") and
+            prefix.len + 5 < entry.name.len)
+        {
+            const gen_number_slice = entry.name[(prefix.len)..mem.indexOf(u8, entry.name, "-link").?];
+
+            // If the number parsed is not an integer, it contains a dash
+            // and is from another profile, so it is skipped.
+            // Also, might as well pass this to the generation info
+            // function and avoid extra work re-parsing the number.
+            const generation_number = std.fmt.parseInt(usize, gen_number_slice, 10) catch continue;
+
+            const generation_dirname = try fs.path.join(allocator, &.{ profile_dirname, entry.name });
+            defer allocator.free(generation_dirname);
+
+            // Skipping generations with `continue` is not a good idea.
+            // Many places in the code rely on the assumption that there
+            // is *always* one current generation.
+            var generation_dir = fs.openDirAbsolute(generation_dirname, .{}) catch |err| {
+                log.err("unexpected error encountered opening {s}: {s}", .{ generation_dirname, @errorName(err) });
+                return err;
+            };
+            defer generation_dir.close();
+
+            var generation = try GenerationMetadata.getGenerationInfo(allocator, generation_dir, generation_number);
+            errdefer generation.deinit();
+
+            if (mem.eql(u8, current_system_name, entry.name)) {
+                generation.current = true;
+            }
+
+            try generations.append(generation);
+        }
+    }
+
+    mem.sort(GenerationMetadata, generations.items, {}, GenerationMetadata.lessThan);
+
+    return try generations.toOwnedSlice();
+}

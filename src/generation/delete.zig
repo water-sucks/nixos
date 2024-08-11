@@ -181,7 +181,7 @@ pub const GenerationDeleteError = error{
     CommandFailed,
 } || Allocator.Error;
 
-fn printDeleteSummary(allocator: Allocator, generations: []GenerationMetadata) !void {
+pub fn printDeleteSummary(allocator: Allocator, generations: []GenerationMetadata) !void {
     log.print("The following generations will be deleted:\n\n", .{});
 
     const headers: []const []const u8 = &.{ "#", "Description", "Creation Date" };
@@ -272,7 +272,7 @@ fn printDeleteSummary(allocator: Allocator, generations: []GenerationMetadata) !
 
 var exit_status: u8 = 0;
 
-fn deleteGenerations(allocator: Allocator, generations: []GenerationMetadata, profile_dirname: []const u8) !void {
+pub fn deleteGenerations(allocator: Allocator, generations: []GenerationMetadata, profile_dirname: []const u8) !void {
     var argv = ArrayList([]const u8).init(allocator);
     defer {
         for (argv.items) |s| allocator.free(s);
@@ -323,40 +323,18 @@ pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, pro
     };
     defer generations_dir.close();
 
-    var all_gen_numbers = ArrayList(usize).init(allocator);
+    const all_gens_info = utils.generation.gatherGenerationsFromProfile(allocator, profile_name) catch return GenerationDeleteError.ResourceAccessFailed;
+    defer {
+        for (all_gens_info) |*gen| gen.deinit();
+        allocator.free(all_gens_info);
+    }
+
+    var all_gen_numbers = try ArrayList(usize).initCapacity(allocator, all_gens_info.len);
     defer all_gen_numbers.deinit();
 
-    var path_buf: [posix.PATH_MAX]u8 = undefined;
-    const current_generation_pathname = generations_dir.readLink(profile_name, &path_buf) catch |err| {
-        log.err("unable to find current generation for profile {s}: {s}", .{ profile_name, @errorName(err) });
-        return GenerationDeleteError.ResourceAccessFailed;
-    };
-    var current_gen_number: usize = undefined;
-
-    var gen_iter = generations_dir.iterate();
-    while (gen_iter.next() catch |err| {
-        log.err("unexpected error while reading profile directory: {s}", .{@errorName(err)});
-        return GenerationDeleteError.ResourceAccessFailed;
-    }) |entry| {
-        const prefix = try fmt.allocPrint(allocator, "{s}-", .{profile_name});
-        defer allocator.free(prefix);
-
-        if (mem.startsWith(u8, entry.name, prefix) and
-            mem.endsWith(u8, entry.name, "-link") and
-            prefix.len + 5 < entry.name.len)
-        {
-            const gen_number_slice = entry.name[(prefix.len)..mem.indexOf(u8, entry.name, "-link").?];
-            // If the number parsed is not an integer, it contains a dash
-            // and is from another profile, so it is skipped.
-            const gen_number = std.fmt.parseInt(usize, gen_number_slice, 10) catch continue;
-            try all_gen_numbers.append(gen_number);
-
-            if (mem.eql(u8, entry.name, current_generation_pathname)) {
-                current_gen_number = gen_number;
-            }
-        }
+    for (all_gens_info) |gen| {
+        all_gen_numbers.appendAssumeCapacity(gen.generation.?);
     }
-    sort.block(usize, all_gen_numbers.items, {}, sort.asc(usize));
 
     if (all_gen_numbers.items.len < 2) {
         if (all_gen_numbers.items.len == 0) {
@@ -376,9 +354,15 @@ pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, pro
         }
     }
 
-    if (mem.indexOf(usize, args.remove.items, &.{current_gen_number}) != null) {
-        log.err("cannot remove generation {d}, this is the current generation!", .{current_gen_number});
-        return GenerationDeleteError.InvalidParameter;
+    var current_gen_number: usize = undefined;
+    for (all_gens_info) |gen| {
+        if (gen.current) {
+            current_gen_number = gen.generation.?;
+            if (mem.indexOf(usize, args.remove.items, &.{current_gen_number}) != null) {
+                log.err("cannot remove generation {d}, this is the current generation!", .{current_gen_number});
+                return GenerationDeleteError.InvalidParameter;
+            }
+        }
     }
 
     var gens_to_remove_set = std.AutoHashMap(usize, void).init(allocator);
@@ -484,25 +468,16 @@ pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, pro
     }
 
     var gens_to_remove_info = try ArrayList(GenerationMetadata).initCapacity(allocator, gens_to_remove_set.count());
-    defer {
-        for (gens_to_remove_info.items) |*gen| {
-            gen.deinit();
-        }
-        gens_to_remove_info.deinit();
-    }
+    defer gens_to_remove_info.deinit();
 
     var remove_iter = gens_to_remove_set.keyIterator();
     while (remove_iter.next()) |gen_number| {
-        const gen_dirname = try fmt.allocPrint(allocator, "system-{d}-link", .{gen_number.*});
-        defer allocator.free(gen_dirname);
-        var gen_dir = generations_dir.openDir(gen_dirname, .{}) catch |err| {
-            log.err("unable to open generation {d} dir: {s}", .{ gen_number.*, @errorName(err) });
-            return GenerationDeleteError.ResourceAccessFailed;
-        };
-        defer gen_dir.close();
-
-        const gen_info = GenerationMetadata.getGenerationInfo(allocator, gen_dir, gen_number.*) catch return GenerationDeleteError.ResourceAccessFailed;
-        gens_to_remove_info.appendAssumeCapacity(gen_info);
+        for (all_gens_info) |gen| {
+            if (gen.generation.? == gen_number.*) {
+                gens_to_remove_info.appendAssumeCapacity(gen);
+                break;
+            }
+        } else unreachable;
     }
     sort.block(GenerationMetadata, gens_to_remove_info.items, {}, GenerationMetadata.lessThan);
 
@@ -510,20 +485,12 @@ pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, pro
     log.print("There will be {d} generations left on this machine.\n", .{remaining_number_of_generations});
 
     if (!args.yes) {
-        // This large buffer is to prevent users from seeing an error if they
-        // make an extremely large typo. People who are trying to buffer overflow
-        // are in for the error message though!
-        var input_buf: [100]u8 = undefined;
-        const stdin = io.getStdIn().reader();
-
-        log.print("Proceed? [y/n]: ", .{});
-        _ = stdin.readUntilDelimiter(&input_buf, '\n') catch |err| {
+        const confirm = utils.confirmationInput() catch |err| {
             log.err("unable to read stdin for confirmation: {s}", .{@errorName(err)});
             return GenerationDeleteError.ResourceAccessFailed;
         };
-
-        if (std.ascii.toLower(input_buf[0]) != 'y') {
-            log.warn("confirmation was not given, exiting", .{});
+        if (!confirm) {
+            log.warn("confirmation was not given, not proceeding", .{});
             return;
         }
     }
