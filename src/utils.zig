@@ -15,6 +15,8 @@ const EnvMap = process.EnvMap;
 
 const config = @import("config.zig");
 
+const Constants = @import("constants.zig");
+
 const log = @import("./log.zig");
 
 /// Print to a writer, ignoring errors.
@@ -395,14 +397,19 @@ pub fn verifyLegacyConfigurationExists(allocator: Allocator, verbose: bool) !voi
     }
 }
 
-pub fn confirmationInput() !bool {
+pub fn confirmationInput(prompt: []const u8) !bool {
     // This large buffer is to prevent users from seeing an error if they
     // make an extremely large typo. People who are trying to buffer overflow
     // are in for the error message though!
     var input_buf: [100]u8 = undefined;
     const stdin = io.getStdIn().reader();
 
-    log.print("Proceed? [y/n]: ", .{});
+    if (Constants.use_color) {
+        log.print(ansi.GREEN ++ "|> {s}?" ++ ansi.RESET ++ "\n[y/n]: ", .{prompt});
+    } else {
+        log.print("|> {s}?\n[y/n]: ", .{prompt});
+    }
+
     const input = stdin.readUntilDelimiter(&input_buf, '\n') catch |err| {
         log.err("unable to read stdin for confirmation: {s}", .{@errorName(err)});
         return err;

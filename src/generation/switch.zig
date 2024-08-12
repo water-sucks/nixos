@@ -14,6 +14,8 @@ const argIs = argparse.argIs;
 const getNextArgs = argparse.getNextArgs;
 const ArgParseError = argparse.ArgParseError;
 
+const config = @import("../config.zig");
+
 const Constants = @import("../constants.zig");
 
 const log = @import("../log.zig");
@@ -30,6 +32,7 @@ pub const GenerationSwitchCommand = struct {
     verbose: bool = false,
     dry: bool = false,
     specialization: ?[]const u8 = null,
+    yes: bool = false,
     gen_number: ?[]const u8 = null,
 
     const usage =
@@ -46,6 +49,7 @@ pub const GenerationSwitchCommand = struct {
         \\    -h, --help              Show this help menu
         \\    -s, --specialisation    Activate the given specialisation
         \\    -v, --verbose           Show verbose logging
+        \\    -y, --yes               Automatically confirm activation
         \\
     ;
 
@@ -63,6 +67,8 @@ pub const GenerationSwitchCommand = struct {
                 parsed.specialization = next;
             } else if (argIs(arg, "--verbose", "-v")) {
                 parsed.verbose = true;
+            } else if (argIs(arg, "--yes", "-y")) {
+                parsed.yes = true;
             } else if (argparse.isFlag(arg)) {
                 return arg;
             } else {
@@ -148,6 +154,8 @@ pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchCommand, pro
     const generation = args.gen_number.?;
     verbose = args.verbose;
 
+    const c = config.getConfig();
+
     if (linux.geteuid() != 0) {
         utils.execAsRoot(allocator) catch |err| {
             log.err("unable to re-exec this command as root: {s}", .{@errorName(err)});
@@ -176,7 +184,32 @@ pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchCommand, pro
         return GenerationSwitchError.ResourceAccessFailed;
     };
 
-    log.info("activating generation {s}...", .{generation});
+    log.step("Comparing changes...", .{});
+    const diff_cmd_status = utils.generation.diff(allocator, Constants.current_system, profile_link, verbose) catch |err| blk: {
+        log.warn("diff command failed to run: {s}", .{@errorName(err)});
+        break :blk 0;
+    };
+    if (diff_cmd_status != 0) {
+        log.warn("diff command exited with status {d}", .{diff_cmd_status});
+    }
+
+    // Ask for confirmation, if needed
+    if (!args.yes and !c.no_confirm) {
+        const prompt = try fmt.allocPrint(allocator, "Activate generation {s}", .{generation});
+        defer allocator.free(prompt);
+
+        log.print("\n", .{});
+        const confirm = utils.confirmationInput(prompt) catch |err| {
+            log.err("unable to read stdin for confirmation: {s}", .{@errorName(err)});
+            return GenerationSwitchError.ResourceAccessFailed;
+        };
+        if (!confirm) {
+            log.warn("confirmation was not given, not proceeding with activation", .{});
+            return;
+        }
+    }
+
+    log.step("Activating generation {s}...", .{generation});
 
     // Switch generation profile
     setNixEnvProfile(allocator, current_profile_dirname, generation, args.dry) catch {
