@@ -80,9 +80,8 @@ are actively supported.
 ## Configuration
 
 This can be configured using the NixOS module (the preferred way), which
-generates a file at `/etc/nixos-cli/config.toml`. An absolute path to a
-configuration file can also be specified using the `NIXOS_CLI_CONFIG`
-environment variable.
+generates a file at `/etc/nixos-cli/config.toml`. A path to a configuration
+file can also be specified using the `NIXOS_CLI_CONFIG` environment variable.
 
 A sample configuration file with all available options, along with some example
 configuration is located in [`config.sample.toml`](./config.sample.toml).
@@ -97,18 +96,29 @@ configuration is located in [`config.sample.toml`](./config.sample.toml).
 - ✅ `info`
 - ✅ `init`
 - ➖ `install`
-- ➖ `generation`
+- ✅ `generation`
   - ✅ `list`
-  - ✅ `switch <number>`
+  - ✅ `switch`
   - ✅ `rollback`
-  - ❌ `delete`
-  - ➖ `diff`
+  - ✅ `delete`
+  - ✅ `diff`
 - ✅ `manual`
 - ➖ `option`
 - ✅ `repl`
 
+### Roadmap
+
+- ❌ CLI completion
+- ❌ Documentation (via man pages)
+- ❌ Options search (a la https://search.nixos.org)
+- ❌ Remote installation (a la [`nixos-anywhere`](https;//github.com/numtide/nixos-anywhere))
+- ❌ Remote application of configurations
+- ❌ Container management (Maybe? This is lower priority.)
+
+Check the [issues] page for more on this; this is just a high-level overview.
+
 ### Possible Future Commands
 
 I would like for this to become a standard NixOS tool, which means that I want
-to cater to potentially many interests. If you would like for any subcommands
+to cater to potentially many interests. If you would like for any commands
 to be implemented that you think fit this project, please file an issue.
