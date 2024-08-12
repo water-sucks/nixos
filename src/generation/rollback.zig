@@ -82,19 +82,19 @@ const GenerationRollbackError = error{
 var exit_status: u8 = 0;
 var verbose: bool = false;
 
-pub fn setNixEnvProfile(allocator: Allocator, profile_dirname: []const u8, dry: bool) !void {
-    var argv = ArrayList([]const u8).init(allocator);
-    defer argv.deinit();
+pub fn setNixEnvProfile(allocator: Allocator, profile_dirname: []const u8, dry: bool, gen_number: usize) !void {
+    const gen_number_str = try fmt.allocPrint(allocator, "{d}", .{gen_number});
+    defer allocator.free(gen_number_str);
 
-    try argv.appendSlice(&.{ "nix-env", "--profile", profile_dirname, "--rollback" });
+    const argv = &.{ "nix-env", "--profile", profile_dirname, "--switch-generation", gen_number_str };
 
-    if (verbose) log.cmd(argv.items);
+    if (verbose) log.cmd(argv);
 
     if (dry) return;
 
     const result = runCmd(.{
         .allocator = allocator,
-        .argv = argv.items,
+        .argv = argv,
     }) catch return GenerationRollbackError.SetNixProfileFailed;
 
     if (result.status != 0) {
@@ -133,14 +133,41 @@ fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackCommand, pro
         };
     }
 
-    const profile_dirname = if (mem.eql(u8, profile_name, "system"))
-        try fmt.allocPrint(allocator, Constants.nix_profiles ++ "/system", .{})
+    const base_profile_dirname = if (mem.eql(u8, profile_name, "system"))
+        Constants.nix_profiles
     else
-        try fs.path.join(allocator, &.{ Constants.nix_system_profiles, profile_name });
+        Constants.nix_system_profiles;
+    const profile_dirname = try fs.path.join(allocator, &.{ base_profile_dirname, profile_name });
     defer allocator.free(profile_dirname);
 
+    // While it is possible to use the `rollback` command, we still need
+    // to find the previous generation number ourselves in order to run
+    // `nvd` or `nix store diff-closures` properly.
+    const gen_list = utils.generation.gatherGenerationsFromProfile(allocator, profile_name) catch return GenerationRollbackError.ResourceAccessFailed;
+    defer allocator.free(gen_list);
+
+    const current_gen_idx = blk: {
+        for (gen_list, 0..) |gen, i| {
+            if (gen.current) break :blk i;
+        }
+
+        log.err("no current generation detected in generations list", .{});
+        return GenerationRollbackError.ResourceAccessFailed;
+    };
+
+    if (current_gen_idx == 0) {
+        log.err("no generation older than the current one ({d}) exists", .{gen_list[current_gen_idx].generation.?});
+        return GenerationRollbackError.ResourceAccessFailed;
+    }
+
+    const prev_gen = gen_list[current_gen_idx - 1];
+    const prev_gen_number = prev_gen.generation.?;
+
+    const prev_gen_dirname = try fmt.allocPrint(allocator, "{s}/{s}-{d}-link", .{ base_profile_dirname, profile_name, prev_gen_number });
+    defer allocator.free(prev_gen_dirname);
+
     log.step("Comparing changes...", .{});
-    const diff_cmd_status = utils.generation.diff(allocator, Constants.current_system, profile_dirname, verbose) catch |err| blk: {
+    const diff_cmd_status = utils.generation.diff(allocator, Constants.current_system, prev_gen_dirname, verbose) catch |err| blk: {
         log.warn("diff command failed to run: {s}", .{@errorName(err)});
         break :blk 0;
     };
@@ -164,7 +191,7 @@ fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackCommand, pro
     log.step("Activating previous generation...", .{});
 
     // Rollback and set generation profile
-    setNixEnvProfile(allocator, profile_dirname, args.dry) catch |err| {
+    setNixEnvProfile(allocator, profile_dirname, args.dry, prev_gen_number) catch |err| {
         log.err("failed to set system profile with nix-env", .{});
         return err;
     };
