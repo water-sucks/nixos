@@ -702,6 +702,15 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
         return;
     }
 
+    log.step("Comparing changes...", .{});
+    const diff_cmd_status = utils.generation.diff(allocator, Constants.current_system, result, verbose) catch |err| blk: {
+        log.warn("diff command failed to run: {s}", .{@errorName(err)});
+        break :blk 0;
+    };
+    if (diff_cmd_status != 0) {
+        log.warn("diff command exited with status {d}", .{diff_cmd_status});
+    }
+
     // Ask for confirmation, if needed
     if (!args.yes and !args.dry) {
         const confirm = utils.confirmationInput("Activate this configuration") catch |err| {

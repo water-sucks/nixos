@@ -421,3 +421,22 @@ pub fn gatherGenerationsFromProfile(allocator: Allocator, profile_name: []const 
 
     return try generations.toOwnedSlice();
 }
+
+/// Show a diff between two generation closures to the user.
+pub fn diff(allocator: Allocator, before: []const u8, after: []const u8, verbose: bool) !u8 {
+    // TODO: grab config value for use_nvd and use it here to
+    // determine what `argv` is.
+
+    // By default, run `nix store diff-closures`.
+    const argv = &.{ "nix", "store", "diff-closures", before, after };
+
+    if (verbose) log.cmd(argv);
+
+    const result = try utils.runCmd(.{
+        .allocator = allocator,
+        .argv = argv,
+        .stdout_type = .Inherit,
+    });
+
+    return result.status;
+}

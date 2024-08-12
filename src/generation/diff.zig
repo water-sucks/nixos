@@ -85,27 +85,6 @@ const GenerationDiffError = error{CommandFailed} || Allocator.Error;
 
 var exit_status: u8 = 0;
 
-fn nixDiff(allocator: Allocator, before: []const u8, after: []const u8) !void {
-    const argv: []const []const u8 = &.{
-        "nix",
-        "store",
-        "diff-closures",
-        before,
-        after,
-    };
-
-    const result = runCmd(.{
-        .allocator = allocator,
-        .argv = argv,
-        .stdout_type = .Inherit,
-    }) catch return GenerationDiffError.CommandFailed;
-
-    if (result.status != 0) {
-        exit_status = result.status;
-        return GenerationDiffError.CommandFailed;
-    }
-}
-
 fn generationDiff(allocator: Allocator, args: GenerationDiffCommand, profile_name: []const u8) !void {
     const base_profile_dirname = if (mem.eql(u8, profile_name, "system"))
         Constants.nix_profiles
@@ -118,8 +97,14 @@ fn generationDiff(allocator: Allocator, args: GenerationDiffCommand, profile_nam
     const after_dirname = try fmt.allocPrint(allocator, "{s}/{s}-{d}-link", .{ base_profile_dirname, profile_name, args.after });
     defer allocator.free(after_dirname);
 
-    // TODO: replace with custom libnixstore implementation
-    try nixDiff(allocator, before_dirname, after_dirname);
+    const status = utils.generation.diff(allocator, before_dirname, after_dirname, false) catch |err| {
+        log.err("diff command failed to run: {s}", .{@errorName(err)});
+        return GenerationDiffError.CommandFailed;
+    };
+    if (status != 0) {
+        exit_status = status;
+        return GenerationDiffError.CommandFailed;
+    }
 }
 
 pub fn generationDiffMain(allocator: Allocator, args: GenerationDiffCommand, profile: ?[]const u8) u8 {
