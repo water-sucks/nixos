@@ -303,6 +303,20 @@ pub fn deleteGenerations(allocator: Allocator, generations: []GenerationMetadata
     }
 }
 
+fn regenerateBootMenu(allocator: Allocator) !void {
+    const argv = &.{ Constants.current_system ++ "/bin/switch-to-configuration", "boot" };
+
+    const result = runCmd(.{
+        .allocator = allocator,
+        .argv = argv,
+        .stdout_type = .Inherit,
+    }) catch return GenerationDeleteError.CommandFailed;
+    if (result.status != 0) {
+        exit_status = result.status;
+        return GenerationDeleteError.CommandFailed;
+    }
+}
+
 pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, profile: ?[]const u8) GenerationDeleteError!void {
     if (linux.geteuid() != 0) {
         utils.execAsRoot(allocator) catch |err| {
@@ -495,12 +509,16 @@ pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, pro
         }
     }
 
-    log.info("deleting generations", .{});
+    log.step("Deleting generations...", .{});
 
     const full_profile_dirname = try fs.path.join(allocator, &.{ profile_dirname, profile_name });
     defer allocator.free(full_profile_dirname);
 
     try deleteGenerations(allocator, gens_to_remove_info.items, full_profile_dirname);
+
+    log.step("Regenerating boot menu entries...", .{});
+
+    try regenerateBootMenu(allocator);
 
     log.print("Success!\n", .{});
     log.info("to free up disk space from these generations, run `{s}`", .{if (opts.flake) "nix store gc" else "nix-collect-garbage"});
