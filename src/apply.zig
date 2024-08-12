@@ -53,6 +53,7 @@ pub const ApplyCommand = struct {
     use_nom: bool = false,
     vm: bool = false,
     vm_with_bootloader: bool = false,
+    yes: bool = false,
 
     build_options: ArrayList([]const u8),
     flake_options: ArrayList([]const u8),
@@ -93,6 +94,7 @@ pub const ApplyCommand = struct {
         \\    -v, --verbose                  Show verbose logging
         \\        --vm                       Build a script that starts a NixOS VM
         \\        --vm-with-bootloader       Build a script that starts a NixOS VM through the configured bootloader
+        \\    -y, --yes                      Automatically confirm activation
         \\
         \\This command also forwards Nix options passed here to all relevant Nix invocations.
         \\Check the Nix manual page for more details on what options are available.
@@ -150,6 +152,8 @@ pub const ApplyCommand = struct {
                 parsed.vm = true;
             } else if (argIs(arg, "--vm-with-bootloader", null)) {
                 parsed.vm_with_bootloader = true;
+            } else if (argIs(arg, "--yes", "-y")) {
+                parsed.yes = true;
             } else if (argIn(arg, &.{ "--quiet", "--print-build-logs", "-L", "--no-build-output", "-Q", "--show-trace", "--keep-going", "-k", "--keep-failed", "-K", "--fallback", "--refresh", "--repair", "--impure", "--offline", "--no-net" })) {
                 try parsed.build_options.append(arg);
             } else if (argIn(arg, &.{ "-I", "--max-jobs", "-j", "--cores", "--builders", "--log-format" })) {
@@ -235,6 +239,7 @@ pub const ApplyError = error{
     NixBuildFailed,
     PermissionDenied,
     ResourceCreationFailed,
+    ResourceAccessFailed,
     SetNixProfileFailed,
     SwitchToConfigurationFailed,
     UnknownSpecialization,
@@ -697,6 +702,18 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
         return;
     }
 
+    // Ask for confirmation, if needed
+    if (!args.yes and !args.dry) {
+        const confirm = utils.confirmationInput("Activate this configuration") catch |err| {
+            log.err("unable to read stdin for confirmation: {s}", .{@errorName(err)});
+            return ApplyError.ResourceAccessFailed;
+        };
+        if (!confirm) {
+            log.warn("confirmation was not given, not proceeding with activation", .{});
+            return;
+        }
+    }
+
     // Set nix-env profile, if needed
     if (!args.dry) {
         if (verbose) {
@@ -767,6 +784,7 @@ pub fn applyMain(allocator: Allocator, args: ApplyCommand) u8 {
             },
             ApplyError.PermissionDenied => return 13,
             ApplyError.ResourceCreationFailed => return 4,
+            ApplyError.ResourceAccessFailed => return 3,
             Allocator.Error.OutOfMemory => {
                 log.err("out of memory, cannot continue", .{});
                 return 1;

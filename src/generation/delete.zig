@@ -499,7 +499,7 @@ pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, pro
     log.print("There will be {d} generations left on this machine.\n", .{remaining_number_of_generations});
 
     if (!args.yes) {
-        const confirm = utils.confirmationInput() catch |err| {
+        const confirm = utils.confirmationInput("Proceed") catch |err| {
             log.err("unable to read stdin for confirmation: {s}", .{@errorName(err)});
             return GenerationDeleteError.ResourceAccessFailed;
         };
