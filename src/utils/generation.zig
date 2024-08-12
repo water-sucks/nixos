@@ -8,6 +8,10 @@ const sort = std.sort;
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
 
+const config = @import("../config.zig");
+
+const Constants = @import("../constants.zig");
+
 const log = @import("../log.zig");
 
 const utils = @import("../utils.zig");
@@ -424,11 +428,26 @@ pub fn gatherGenerationsFromProfile(allocator: Allocator, profile_name: []const 
 
 /// Show a diff between two generation closures to the user.
 pub fn diff(allocator: Allocator, before: []const u8, after: []const u8, verbose: bool) !u8 {
-    // TODO: grab config value for use_nvd and use it here to
-    // determine what `argv` is.
+    const c = config.getConfig();
+
+    const use_nvd = blk: {
+        if (c.use_nvd) {
+            // Make sure `nvd` is executable first
+            if (!utils.isExecutable("nvd")) {
+                log.warn("use_nvd is specified in config, but `nvd` is not executable", .{});
+                log.warn("falling back to `nix store diff-closures`", .{});
+                break :blk false;
+            }
+            break :blk true;
+        }
+        break :blk false;
+    };
 
     // By default, run `nix store diff-closures`.
-    const argv = &.{ "nix", "store", "diff-closures", before, after };
+    const argv: []const []const u8 = if (use_nvd)
+        &.{ "nvd", "diff", before, after }
+    else
+        &.{ "nix", "store", "diff-closures", before, after };
 
     if (verbose) log.cmd(argv);
 

@@ -33,6 +33,7 @@ pub const Config = struct {
         extra_attrs: ?toml.Table = null,
         extra_config: ?[]const u8 = null,
     } = .{},
+    use_nvd: bool = false,
 };
 
 var config_value: ?toml.Parsed(Config) = null;

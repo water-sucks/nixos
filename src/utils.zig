@@ -15,6 +15,8 @@ const EnvMap = process.EnvMap;
 
 const config = @import("config.zig");
 
+const Constants = @import("constants.zig");
+
 const log = @import("./log.zig");
 
 /// Print to a writer, ignoring errors.
@@ -402,7 +404,12 @@ pub fn confirmationInput(prompt: []const u8) !bool {
     var input_buf: [100]u8 = undefined;
     const stdin = io.getStdIn().reader();
 
-    log.print("{s}? [y/n]: ", .{prompt});
+    if (Constants.use_color) {
+        log.print(ansi.GREEN ++ "|> {s}?" ++ ansi.RESET ++ "\n[y/n]: ", .{prompt});
+    } else {
+        log.print("|> {s}?\n[y/n]: ", .{prompt});
+    }
+
     const input = stdin.readUntilDelimiter(&input_buf, '\n') catch |err| {
         log.err("unable to read stdin for confirmation: {s}", .{@errorName(err)});
         return err;

@@ -1,5 +1,8 @@
 # Where to look for configuration by default
 config_location = "/etc/nixos"
+# Use `nvd` (https://gitlab.com/khumba/nvd) instead of
+# `nix store diff-closures` when showing closure diffs
+use_nvd = false
 
 # Aliases for long commands that you don't want to type out. All arguments
 # after the aliases are passed as-is to the underlying command.

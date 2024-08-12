@@ -150,9 +150,8 @@ fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackCommand, pro
 
     // Ask for confirmation, if needed
     if (!args.yes) {
-        const prompt = try fmt.allocPrint(allocator, "Activate previous generation", .{});
-        defer allocator.free(prompt);
-        const confirm = utils.confirmationInput(prompt) catch |err| {
+        log.print("\n", .{});
+        const confirm = utils.confirmationInput("Activate previous generation") catch |err| {
             log.err("unable to read stdin for confirmation: {s}", .{@errorName(err)});
             return GenerationRollbackError.ResourceAccessFailed;
         };

@@ -193,6 +193,8 @@ pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchCommand, pro
     if (!args.yes) {
         const prompt = try fmt.allocPrint(allocator, "Activate generation {s}", .{generation});
         defer allocator.free(prompt);
+
+        log.print("\n", .{});
         const confirm = utils.confirmationInput(prompt) catch |err| {
             log.err("unable to read stdin for confirmation: {s}", .{@errorName(err)});
             return GenerationSwitchError.ResourceAccessFailed;

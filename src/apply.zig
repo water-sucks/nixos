@@ -713,6 +713,7 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
 
     // Ask for confirmation, if needed
     if (!args.yes and !args.dry) {
+        log.print("\n", .{});
         const confirm = utils.confirmationInput("Activate this configuration") catch |err| {
             log.err("unable to read stdin for confirmation: {s}", .{@errorName(err)});
             return ApplyError.ResourceAccessFailed;
