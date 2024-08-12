@@ -29,6 +29,7 @@ pub const GenerationRollbackCommand = struct {
     verbose: bool = false,
     dry: bool = false,
     specialization: ?[]const u8 = null,
+    yes: bool = false,
 
     const usage =
         \\Rollback to the previous NixOS generation.
@@ -41,6 +42,7 @@ pub const GenerationRollbackCommand = struct {
         \\    -h, --help              Show this help menu
         \\    -s, --specialisation    Activate the given specialisation
         \\    -v, --verbose           Show verbose logging
+        \\    -y, --yes               Automatically confirm activation
         \\
     ;
 
@@ -57,6 +59,8 @@ pub const GenerationRollbackCommand = struct {
                 parsed.specialization = next;
             } else if (argIs(arg, "--verbose", "-v")) {
                 parsed.verbose = true;
+            } else if (argIs(arg, "--yes", "-y")) {
+                parsed.yes = true;
             } else {
                 return arg;
             }
@@ -70,6 +74,7 @@ pub const GenerationRollbackCommand = struct {
 
 const GenerationRollbackError = error{
     PermissionDenied,
+    ResourceAccessFailed,
     SetNixProfileFailed,
     SwitchToConfigurationFailed,
 } || Allocator.Error;
@@ -134,13 +139,36 @@ fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackCommand, pro
         try fs.path.join(allocator, &.{ Constants.nix_system_profiles, profile_name });
     defer allocator.free(profile_dirname);
 
+    log.step("Comparing changes...", .{});
+    const diff_cmd_status = utils.generation.diff(allocator, Constants.current_system, profile_dirname, verbose) catch |err| blk: {
+        log.warn("diff command failed to run: {s}", .{@errorName(err)});
+        break :blk 0;
+    };
+    if (diff_cmd_status != 0) {
+        log.warn("diff command exited with status {d}", .{diff_cmd_status});
+    }
+
+    // Ask for confirmation, if needed
+    if (!args.yes) {
+        const prompt = try fmt.allocPrint(allocator, "Activate previous generation", .{});
+        defer allocator.free(prompt);
+        const confirm = utils.confirmationInput(prompt) catch |err| {
+            log.err("unable to read stdin for confirmation: {s}", .{@errorName(err)});
+            return GenerationRollbackError.ResourceAccessFailed;
+        };
+        if (!confirm) {
+            log.warn("confirmation was not given, not proceeding with activation", .{});
+            return;
+        }
+    }
+
+    log.step("Activating previous generation...", .{});
+
     // Rollback and set generation profile
     setNixEnvProfile(allocator, profile_dirname, args.dry) catch |err| {
         log.err("failed to set system profile with nix-env", .{});
         return err;
     };
-
-    log.info("activating generation...", .{});
 
     // Switch to configuration
     const specialization = args.specialization orelse findSpecialization(allocator) catch blk: {
@@ -171,6 +199,7 @@ pub fn generationRollbackMain(allocator: Allocator, args: GenerationRollbackComm
     rollbackGeneration(allocator, args, profile_name) catch |err| {
         switch (err) {
             GenerationRollbackError.PermissionDenied => return 13,
+            GenerationRollbackError.ResourceAccessFailed => return 3,
             GenerationRollbackError.SetNixProfileFailed, GenerationRollbackError.SwitchToConfigurationFailed => {
                 return if (exit_status != 0) exit_status else 1;
             },
