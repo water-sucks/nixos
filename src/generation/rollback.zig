@@ -14,6 +14,8 @@ const argIs = argparse.argIs;
 const getNextArgs = argparse.getNextArgs;
 const ArgParseError = argparse.ArgParseError;
 
+const config = @import("../config.zig");
+
 const Constants = @import("../constants.zig");
 
 const log = @import("../log.zig");
@@ -126,6 +128,8 @@ fn runSwitchToConfiguration(
 fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackCommand, profile_name: []const u8) !void {
     verbose = args.verbose;
 
+    const c = config.getConfig();
+
     if (linux.geteuid() != 0) {
         utils.execAsRoot(allocator) catch |err| {
             log.err("unable to re-exec this command as root: {s}", .{@errorName(err)});
@@ -176,7 +180,7 @@ fn rollbackGeneration(allocator: Allocator, args: GenerationRollbackCommand, pro
     }
 
     // Ask for confirmation, if needed
-    if (!args.yes) {
+    if (!args.yes and !c.no_confirm) {
         log.print("\n", .{});
         const confirm = utils.confirmationInput("Activate previous generation") catch |err| {
             log.err("unable to read stdin for confirmation: {s}", .{@errorName(err)});

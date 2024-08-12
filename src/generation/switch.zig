@@ -14,6 +14,8 @@ const argIs = argparse.argIs;
 const getNextArgs = argparse.getNextArgs;
 const ArgParseError = argparse.ArgParseError;
 
+const config = @import("../config.zig");
+
 const Constants = @import("../constants.zig");
 
 const log = @import("../log.zig");
@@ -152,6 +154,8 @@ pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchCommand, pro
     const generation = args.gen_number.?;
     verbose = args.verbose;
 
+    const c = config.getConfig();
+
     if (linux.geteuid() != 0) {
         utils.execAsRoot(allocator) catch |err| {
             log.err("unable to re-exec this command as root: {s}", .{@errorName(err)});
@@ -190,7 +194,7 @@ pub fn switchGeneration(allocator: Allocator, args: GenerationSwitchCommand, pro
     }
 
     // Ask for confirmation, if needed
-    if (!args.yes) {
+    if (!args.yes and !c.no_confirm) {
         const prompt = try fmt.allocPrint(allocator, "Activate generation {s}", .{generation});
         defer allocator.free(prompt);
 

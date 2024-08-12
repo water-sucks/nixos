@@ -33,6 +33,7 @@ pub const Config = struct {
         extra_attrs: ?toml.Table = null,
         extra_config: ?[]const u8 = null,
     } = .{},
+    no_confirm: bool = false,
     use_nvd: bool = false,
 };
 
