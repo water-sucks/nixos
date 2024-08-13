@@ -306,6 +306,27 @@ pub fn deleteGenerations(allocator: Allocator, generations: []GenerationMetadata
 fn regenerateBootMenu(allocator: Allocator) !void {
     const argv = &.{ Constants.current_system ++ "/bin/switch-to-configuration", "boot" };
 
+    log.cmd(argv);
+
+    const result = runCmd(.{
+        .allocator = allocator,
+        .argv = argv,
+        .stdout_type = .Inherit,
+    }) catch return GenerationDeleteError.CommandFailed;
+    if (result.status != 0) {
+        exit_status = result.status;
+        return GenerationDeleteError.CommandFailed;
+    }
+}
+
+fn collectGarbage(allocator: Allocator) !void {
+    const argv = if (opts.flake)
+        &.{ "nix", "store", "gc" }
+    else
+        &.{"nix-collect-garbage"};
+
+    log.cmd(argv);
+
     const result = runCmd(.{
         .allocator = allocator,
         .argv = argv,
@@ -520,11 +541,15 @@ pub fn generationDelete(allocator: Allocator, args: GenerationDeleteCommand, pro
 
     try regenerateBootMenu(allocator);
 
+    log.step("Collecting garbage...", .{});
+
+    try collectGarbage(allocator);
+
     log.print("Success!\n", .{});
-    log.info("to free up disk space from these generations, run `{s}`", .{if (opts.flake) "nix store gc" else "nix-collect-garbage"});
-    if (!opts.flake) {
-        log.info("if using `nix-collect-garbage`, the `-d` option frees up generations, which you may not want", .{});
-    }
+    // log.info("to free up disk space from these generations, run `{s}`", .{if (opts.flake) "nix store gc" else "nix-collect-garbage"});
+    // if (!opts.flake) {
+    //     log.info("if using `nix-collect-garbage`, the `-d` option frees up generations, which you may not want", .{});
+    // }
 }
 
 pub fn generationDeleteMain(allocator: Allocator, args: GenerationDeleteCommand, profile: ?[]const u8) u8 {
