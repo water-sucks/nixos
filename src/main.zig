@@ -36,11 +36,10 @@ const config = @import("config.zig");
 const log = @import("log.zig");
 
 const argparse = @import("argparse.zig");
+const ArgParseError = argparse.ArgParseError;
 const argError = argparse.argError;
 const argIs = argparse.argIs;
-const App = argparse.App;
-const ArgParseError = argparse.ArgParseError;
-const Command = argparse.Command;
+const getNextArgs = argparse.getNextArgs;
 
 const Constants = @import("constants.zig");
 
@@ -50,8 +49,9 @@ const utils = @import("utils.zig");
 const println = utils.println;
 
 const MainArgs = struct {
-    subcommand: ?Subcommand = null,
     allocator: Allocator,
+    config_values: ArrayList([]const u8),
+    subcommand: ?Subcommand = null,
 
     const Self = @This();
 
@@ -90,25 +90,32 @@ const MainArgs = struct {
         \\    repl          Start a Nix REPL with system configuration loaded
         \\
         \\Options:
-        \\    -h, --help       Show this help menu
-        \\        --version    Print version information
+        \\    -c, --config <KEY>=<VALUE>    Set a configuration value
+        \\    -h, --help                    Show this help menu
+        \\    -v, --version                 Print version information
         \\
         \\For more information about a command and its options, add --help after.
         \\
     ;
 
     pub fn parseArgs(allocator: Allocator, argv: *ArgIterator) !MainArgs {
-        var result: MainArgs = MainArgs{ .allocator = allocator };
+        var result: MainArgs = MainArgs{
+            .allocator = allocator,
+            .config_values = ArrayList([]const u8).init(allocator),
+        };
         errdefer result.deinit();
 
         const c = config.getConfig();
 
         var next_arg: ?[]const u8 = argv.next();
         while (next_arg) |arg| {
-            if (argparse.argIs(arg, "--help", "-h")) {
+            if (argparse.argIs(arg, "--config", "-c")) {
+                const next = (try getNextArgs(argv, arg, 1))[0];
+                try result.config_values.append(next);
+            } else if (argparse.argIs(arg, "--help", "-h")) {
                 log.print(usage, .{});
                 return ArgParseError.HelpInvoked;
-            } else if (argparse.argIs(arg, "--version", null)) {
+            } else if (argparse.argIs(arg, "--version", "-v")) {
                 return ArgParseError.VersionInvoked;
             } else if (argparse.isFlag(arg)) {
                 argError("unrecognised flag '{s}'", .{arg});
@@ -199,6 +206,8 @@ const MainArgs = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        self.config_values.deinit();
+
         if (self.subcommand != null) {
             switch (self.subcommand.?) {
                 .alias => |args| self.allocator.free(args),
@@ -262,6 +271,10 @@ pub fn main() !u8 {
         }
     };
     defer structured_args.deinit();
+
+    for (structured_args.config_values.items) |pair| {
+        config.setConfigValue(pair) catch return 2;
+    }
 
     const status = switch (structured_args.subcommand.?) {
         .aliases => |args| {

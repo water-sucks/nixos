@@ -16,6 +16,57 @@ const ansi = utils.ansi;
 const fileExistsAbsolute = utils.fileExistsAbsolute;
 const readFile = utils.readFile;
 
+/// Given a path to a field inside a struct separated by periods,
+/// try to set the field at this path to the provided value.
+fn setFieldValue(comptime T: type, path: []const u8, value: []const u8, ptr: *T) !void {
+    if (T == toml.Table or T == ?toml.Table) {
+        log.err("setting dynamic config values is currently unsupported", .{});
+        return error.DynamicField;
+    }
+
+    switch (@typeInfo(T)) {
+        .Struct => |structInfo| {
+            inline for (structInfo.fields) |field| {
+                if (std.mem.startsWith(u8, path, field.name)) {
+                    const rest = path[field.name.len..];
+
+                    if (rest.len == 0) {
+                        if (field.type == bool) {
+                            const parsed = blk: {
+                                if (mem.eql(u8, value, "true")) break :blk true;
+                                if (mem.eql(u8, value, "false")) break :blk false;
+
+                                return error.InvalidBoolean;
+                            };
+
+                            @field(ptr, field.name) = parsed;
+                        } else if (field.type == []const u8 or field.type == ?[]const u8) {
+                            // Empty values translate to null; there are no config fields that allow
+                            // empty values in the configuration.
+                            if (field.type == ?[]const u8 and value.len == 0) {
+                                @field(ptr, field.name) = null;
+                            } else {
+                                @field(ptr, field.name) = value;
+                            }
+
+                            return;
+                        } else {
+                            return error.UnsupportedType;
+                        }
+
+                        return;
+                    } else if (rest[0] == '.') {
+                        return setFieldValue(field.type, rest[1..], value, &@field(ptr, field.name));
+                    }
+                }
+            } else {
+                return error.NoPathExists;
+            }
+        },
+        else => return,
+    }
+}
+
 pub const Config = struct {
     aliases: ?toml.Table = null,
     apply: struct {
@@ -37,10 +88,11 @@ pub const Config = struct {
     use_nvd: bool = false,
 };
 
-var config_value: ?toml.Parsed(Config) = null;
+var parsed_config: ?toml.Parsed(Config) = null;
+var config: Config = Config{};
 
 pub fn getConfig() Config {
-    return if (config_value) |parsed| parsed.value else Config{};
+    return config;
 }
 
 pub fn parseConfig(allocator: Allocator) !void {
@@ -60,10 +112,10 @@ pub fn parseConfig(allocator: Allocator) !void {
         return err;
     };
     errdefer deinit();
-    var config = parsed.value;
+    var cfg = parsed.value;
 
     // Validation
-    if (config.aliases) |*aliases| {
+    if (cfg.aliases) |*aliases| {
         var values_to_remove = ArrayList([]const u8).init(allocator);
         defer values_to_remove.deinit();
 
@@ -104,7 +156,7 @@ pub fn parseConfig(allocator: Allocator) !void {
         }
     }
 
-    if (config.init.extra_attrs) |*extra_attrs| {
+    if (cfg.init.extra_attrs) |*extra_attrs| {
         var values_to_remove = ArrayList([]const u8).init(allocator);
         defer values_to_remove.deinit();
 
@@ -124,13 +176,37 @@ pub fn parseConfig(allocator: Allocator) !void {
         }
     }
 
-    config_value = parsed;
+    parsed_config = parsed;
+    config = cfg;
+}
+
+/// Set a config value based on a key=value pair. This is sourced
+/// from the command-line args.
+pub fn setConfigValue(pair: []const u8) !void {
+    const split_idx = mem.indexOf(u8, pair, "=") orelse {
+        log.err("command-line config values must be specified in <KEY>=<VALUE> format", .{});
+        return error.InvalidValue;
+    };
+
+    const path = pair[0..split_idx];
+    const value = pair[split_idx + 1 ..];
+
+    // TODO: handle missing config correctly
+    setFieldValue(Config, path, value, &config) catch |err| {
+        switch (err) {
+            error.UnsupportedType => log.err("setting with path '{s}' cannot be set outside configuration", .{path}),
+            error.DynamicField => log.err("setting values for '{s}' is unsupported", .{path}),
+            error.NoPathExists => log.err("setting with path '{s}' does not exist", .{path}),
+            error.InvalidBoolean => log.err("{s}: expected boolean, got invalid value '{s}'", .{ path, value }),
+        }
+        return err;
+    };
 }
 
 pub fn deinit() void {
-    if (config_value) |value| {
+    if (parsed_config) |value| {
         value.deinit();
-        config_value = null;
+        parsed_config = null;
     }
 }
 
