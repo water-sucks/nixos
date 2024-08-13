@@ -43,6 +43,7 @@ pub const GenerationTUI = struct {
     const Mode = enum { normal, input };
     const EndAction = union(enum) {
         delete: []GenerationMetadata,
+        @"switch": GenerationMetadata,
         exit,
     };
 
@@ -193,6 +194,11 @@ pub const GenerationTUI = struct {
                     } else if (key.matches('d', .{})) {
                         self.should_quit = true;
                         end_action = .{ .delete = try self.gens_to_delete.toOwnedSlice() };
+                    } else if (key.matches(vaxis.Key.enter, .{})) {
+                        if (self.filtered_gen_list.len == 0) break :blk;
+
+                        self.should_quit = true;
+                        end_action = .{ .@"switch" = self.filtered_gen_list[self.gen_list_ctx.row].value };
                     }
                 }
             },
@@ -484,6 +490,7 @@ pub const GenerationTUI = struct {
             &.{ "j, Down", "move down list" },
             &.{ "/", "search by description" },
             &.{ "<Esc>", "exit input mode" },
+            &.{ "<Enter>", "switch to generation" },
             &.{ "<Space>", "toggle selection" },
             &.{ "d", "delete selections" },
             &.{ "q, ^C", "quit" },
@@ -572,6 +579,41 @@ fn deleteGenerationsAction(allocator: Allocator, generations: []GenerationMetada
     return true;
 }
 
+fn switchGenerationsAction(allocator: Allocator, gen: GenerationMetadata, profile_name: []const u8) !bool {
+    // Since I'm lazy, switching generations will be done by shelling
+    // out to `nixos generation switch`, rather than using the Zig
+    // code itself.
+    // It's easier to keep output consistent during development this way.
+
+    const original_args = try process.argsAlloc(allocator);
+    defer process.argsFree(allocator, original_args);
+
+    const gen_number_str = try fmt.allocPrint(allocator, "{d}", .{gen.generation.?});
+    defer allocator.free(gen_number_str);
+
+    const argv = &.{ original_args[0], "generation", "-p", profile_name, "switch", gen_number_str };
+
+    log.info("switching to generation {s}", .{gen_number_str});
+    log.cmd(argv);
+
+    const result = runCmd(.{
+        .allocator = allocator,
+        .argv = argv,
+        .stdin_type = .Inherit,
+        .stdout_type = .Inherit,
+    }) catch |err| {
+        log.err("unable to execute `nixos generation switch`: {s}", .{@errorName(err)});
+        return false;
+    };
+
+    if (result.status != 0) {
+        log.err("command exited with status {d}", .{result.status});
+        return false;
+    }
+
+    return true;
+}
+
 fn reload(allocator: Allocator, app: *GenerationTUI, generations: *[]GenerationMetadata, profile_name: []const u8) !void {
     for (generations.*) |*gen| gen.deinit();
     allocator.free(generations.*);
@@ -593,23 +635,28 @@ pub fn generationUI(allocator: Allocator, profile_name: []const u8) !void {
     while (true) {
         const action = try app.run();
 
+        var success: bool = false;
+
         switch (action) {
             .exit => break,
+            .@"switch" => |gen_to_delete| {
+                app.deinit();
+                log.print(ansi.CLEAR ++ ansi.MV_TOP_LEFT, .{});
+                success = switchGenerationsAction(allocator, gen_to_delete, profile_name) catch false;
+            },
             .delete => |gens_to_delete| {
                 defer allocator.free(gens_to_delete);
                 mem.sort(GenerationMetadata, gens_to_delete, {}, GenerationMetadata.lessThan);
 
                 app.deinit();
-
                 log.print(ansi.CLEAR ++ ansi.MV_TOP_LEFT, .{});
-
-                const success = deleteGenerationsAction(allocator, gens_to_delete, profile_name) catch false;
-
-                log.info("returning to main window", .{});
-                std.time.sleep(if (success) 1_000_000_000 else 3_000_000_000);
-
-                try reload(allocator, &app, &generations, profile_name);
+                success = deleteGenerationsAction(allocator, gens_to_delete, profile_name) catch false;
             },
         }
+
+        log.info("returning to main window", .{});
+        std.time.sleep(if (success) 1_000_000_000 else 3_000_000_000);
+
+        try reload(allocator, &app, &generations, profile_name);
     }
 }
