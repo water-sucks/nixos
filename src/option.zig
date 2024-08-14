@@ -28,10 +28,13 @@ const println = utils.println;
 const search = utils.search;
 const ansi = utils.ansi;
 
+const optionSearchUI = @import("option/ui.zig").optionSearchUI;
+
 pub const OptionError = error{
     NoOptionCache,
     NoResultFound,
     UnsupportedOs,
+    ResourceAccessFailed,
 };
 
 pub const OptionCommand = struct {
@@ -314,7 +317,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
     }
 
     if (args.interactive) {
-        log.info("this is currently unimplemented; coming soon!", .{});
+        optionSearchUI(allocator) catch return OptionError.ResourceAccessFailed;
         return;
     }
 
@@ -416,6 +419,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
 pub fn optionMain(allocator: Allocator, args: OptionCommand) u8 {
     option(allocator, args) catch |err| switch (err) {
         OptionError.UnsupportedOs => return 3,
+        OptionError.ResourceAccessFailed => return 4,
         else => return 1,
     };
 
