@@ -114,7 +114,7 @@ pub const OptionCommand = struct {
     }
 };
 
-const NixosOption = struct {
+pub const NixosOption = struct {
     name: []const u8,
     description: ?[]const u8 = null,
     type: []const u8,
@@ -316,11 +316,6 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
         return OptionError.UnsupportedOs;
     }
 
-    if (args.interactive) {
-        optionSearchUI(allocator) catch return OptionError.ResourceAccessFailed;
-        return;
-    }
-
     var options_filename_alloc = false;
     const options_filename = blk: {
         if (!args.no_cache and fileExistsAbsolute(prebuilt_options_cache_filename)) {
@@ -341,6 +336,11 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
     try options_list.setCapacity(allocator, parsed_options.value.len);
     for (parsed_options.value) |opt| {
         options_list.appendAssumeCapacity(opt);
+    }
+
+    if (args.interactive) {
+        optionSearchUI(allocator, parsed_options.value) catch return OptionError.ResourceAccessFailed;
+        return;
     }
 
     const option_input = args.option.?;

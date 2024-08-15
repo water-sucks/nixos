@@ -50,31 +50,14 @@ pub fn rankCandidatesStruct(
     ranked: []CandidateStruct(T),
     candidates: []const T,
     tokens: []const []const u8,
-    // keep_order: bool,
     plain: bool,
     case_sensitive: bool,
 ) []CandidateStruct(T) {
     switch (@typeInfo(T)) {
-        .Struct => |struct_info| {
+        .Struct => |_| {
             if (!@hasField(T, field_name)) {
                 @compileError(@typeName(T) ++ " has no field named " ++ field_name);
             }
-            _ = struct_info;
-
-            // comptime var bruh: bool = false;
-            // inline for (struct_info.fields) |f| {
-            //     if (mem.eql(u8, f.name[0..], field_name)) {
-            //         bruh = true;
-            //         // if (@TypeOf(f.type) != []const u8) {
-            //         //     // @compileError("field type must be []const u8, got " ++ @typeName(f.type));
-            //         // }
-            //         break;
-            //     } else {}
-            // }
-
-            // if (!bruh) {
-            //     @compileError("no field found in struct type " ++ @typeName(T) ++ " with name " ++ field_name);
-            // }
         },
         else => @compileError("rankCandidatesStruct must take a struct type"),
     }
@@ -101,12 +84,6 @@ pub fn rankCandidatesStruct(
             index += 1;
         }
     }
-
-    // TODO: keep order param
-
-    // if (!keep_order) {
-    //     std.sort.block(Candidate, ranked[0..index], {}, sortCandidates);
-    // }
 
     return ranked[0..index];
 }

@@ -13,24 +13,53 @@ const TextInput = vaxis.widgets.TextInput;
 const utils = @import("../utils.zig");
 const ansi = utils.ansi;
 const runCmd = utils.runCmd;
-const GenerationMetadata = utils.generation.GenerationMetadata;
 const CandidateStruct = utils.search.CandidateStruct;
+
+const option_cmd = @import("../option.zig");
+const NixosOption = option_cmd.NixosOption;
+const OptionCandidate = CandidateStruct(NixosOption);
 
 const Event = union(enum) {
     key_press: vaxis.Key,
     winsize: vaxis.Winsize,
 };
 
+fn compareOptionCandidatesReverse(_: void, a: OptionCandidate, b: OptionCandidate) bool {
+    if (b.rank < a.rank) return true;
+    if (b.rank > a.rank) return false;
+
+    const bb = b.value.name;
+    const aa = a.value.name;
+
+    if (bb.len < aa.len) return true;
+    if (bb.len > aa.len) return false;
+
+    for (bb, 0..) |c, i| {
+        if (c < aa[i]) return true;
+        if (c > aa[i]) return false;
+    }
+
+    return false;
+}
+
 pub const OptionSearchTUI = struct {
     allocator: Allocator,
     tty: vaxis.Tty,
     vx: vaxis.Vaxis,
     should_quit: bool = false,
-    text_input: TextInput,
+
+    // Components
+    search_input: TextInput,
+
+    // Application state
+    options: []const NixosOption,
+    candidate_filter_buf: []OptionCandidate,
+    option_results: []OptionCandidate,
+    option_list_ctx: vaxis.widgets.Table.TableContext,
 
     const Self = @This();
 
-    pub fn init(allocator: Allocator) !Self {
+    pub fn init(allocator: Allocator, options: []const NixosOption) !Self {
         var tty = try vaxis.Tty.init();
         errdefer tty.deinit();
 
@@ -40,11 +69,24 @@ pub const OptionSearchTUI = struct {
         var text_input = TextInput.init(allocator, &vx.unicode);
         errdefer text_input.deinit();
 
+        const candidate_filter_buf = try allocator.alloc(CandidateStruct(NixosOption), options.len);
+        errdefer allocator.free(candidate_filter_buf);
+
+        const initial_results = utils.search.rankCandidatesStruct(NixosOption, "name", candidate_filter_buf, options, &.{}, true, true);
+
         return OptionSearchTUI{
             .allocator = allocator,
             .tty = tty,
             .vx = vx,
-            .text_input = text_input,
+            .search_input = text_input,
+            .options = options,
+
+            .candidate_filter_buf = candidate_filter_buf,
+            .option_results = initial_results,
+            .option_list_ctx = .{
+                .selected_bg = .{ .index = 1 },
+                .row = options.len - 1,
+            },
         };
     }
 
@@ -72,11 +114,38 @@ pub const OptionSearchTUI = struct {
 
     pub fn update(self: *Self, allocator: Allocator, event: Event) !void {
         switch (event) {
-            .key_press => |key| {
-                if (key.matches('c', .{ .ctrl = true })) {
+            .key_press => |key| blk: {
+                if (key.matches(vaxis.Key.up, .{})) {
+                    self.option_list_ctx.row -|= 1;
+                    break :blk;
+                }
+                if (key.matches(vaxis.Key.down, .{})) {
+                    if (self.option_list_ctx.row < self.option_results.len - 1) {
+                        self.option_list_ctx.row +|= 1;
+                    }
+                    break :blk;
+                } else if (key.matches('c', .{ .ctrl = true })) {
                     self.should_quit = true;
                 } else {
-                    try self.text_input.update(.{ .key_press = key });
+                    try self.search_input.update(.{ .key_press = key });
+
+                    const search_query = self.search_input.buf.items;
+                    const tokens: []const []const u8 = toks: {
+                        var items = ArrayList([]const u8).init(allocator);
+                        errdefer items.deinit();
+
+                        var iter = mem.tokenizeScalar(u8, search_query, ' ');
+                        while (iter.next()) |token| {
+                            try items.append(token);
+                        }
+
+                        break :toks try items.toOwnedSlice();
+                    };
+
+                    const results = utils.search.rankCandidatesStruct(NixosOption, "name", self.candidate_filter_buf, self.options, tokens, true, true);
+                    std.sort.block(OptionCandidate, results, {}, compareOptionCandidatesReverse);
+                    self.option_list_ctx.row = if (results.len > 0) results.len - 1 else 0;
+                    self.option_results = results;
                 }
             },
             .winsize => |ws| try self.vx.resize(self.allocator, self.tty.anyWriter(), ws),
@@ -115,9 +184,73 @@ pub const OptionSearchTUI = struct {
             .style = .{ .bold = true },
         };
         const title_win: vaxis.Window = main_win.child(.{ .height = .{ .limit = 1 } });
-
         const centered: vaxis.Window = vaxis.widgets.alignment.center(title_win, title_seg.text.len, 2);
         _ = try centered.printSegment(title_seg, .{});
+
+        // Don't show all results if the search bar is empty.
+        if (self.search_input.buf.items.len == 0) {
+            return main_win;
+        }
+
+        const table_win: vaxis.Window = main_win.child(.{
+            .y_off = 2,
+            .height = .{ .limit = main_win.height - 2 },
+        });
+        const gen_list = self.option_results;
+        var ctx = self.option_list_ctx;
+
+        const max_items = if (gen_list.len > table_win.height -| 1)
+            table_win.height -| 1
+        else
+            gen_list.len;
+        var end = ctx.start + max_items;
+        if (end > gen_list.len) end = gen_list.len;
+        ctx.start = tableStart: {
+            if (ctx.row == 0)
+                break :tableStart 0;
+            if (ctx.row < ctx.start)
+                break :tableStart ctx.start - (ctx.start - ctx.row);
+            if (ctx.row >= gen_list.len - 1)
+                ctx.row = gen_list.len - 1;
+            if (ctx.row >= end)
+                break :tableStart ctx.start + (ctx.row - end + 1);
+            break :tableStart ctx.start;
+        };
+        end = ctx.start + max_items;
+        if (end > gen_list.len) end = gen_list.len;
+
+        const selected_row = ctx.row;
+
+        for (gen_list[ctx.start..end], 0..) |data, i| {
+            const option = data.value;
+
+            const tile = table_win.child(.{
+                .y_off = i,
+                .width = .{ .limit = table_win.width },
+                .height = .{ .limit = 1 },
+            });
+
+            const selected = ctx.start + i == selected_row;
+            const tile_bg: vaxis.Color = if (selected) .{ .index = 6 } else .{ .index = 0 };
+
+            if (selected) {
+                tile.fill(.{ .style = .{ .bg = tile_bg } });
+            }
+
+            const generation_seg: vaxis.Segment = .{
+                .text = option.name,
+                .style = .{ .bg = tile_bg },
+            };
+            const selected_arrow_seg: vaxis.Segment = .{
+                .text = "->",
+                .style = .{ .bg = tile_bg },
+            };
+
+            _ = try tile.printSegment(generation_seg, .{ .col_offset = 3 });
+            if (selected) {
+                _ = try tile.printSegment(selected_arrow_seg, .{});
+            }
+        }
 
         return main_win;
     }
@@ -146,8 +279,8 @@ pub const OptionSearchTUI = struct {
             .x_off = 2,
             .width = .{ .limit = search_bar_win.width - 2 },
         });
-        self.text_input.draw(input_win);
-        if (self.text_input.buf.items.len == 0) {
+        self.search_input.draw(input_win);
+        if (self.search_input.buf.items.len == 0) {
             _ = try input_win.printSegment(placeholder_seg, .{});
         }
 
@@ -180,14 +313,15 @@ pub const OptionSearchTUI = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        self.text_input.deinit();
+        self.allocator.free(self.candidate_filter_buf);
+        self.search_input.deinit();
         self.vx.deinit(self.allocator, self.tty.anyWriter());
         self.tty.deinit();
     }
 };
 
-pub fn optionSearchUI(allocator: Allocator) !void {
-    var app = try OptionSearchTUI.init(allocator);
+pub fn optionSearchUI(allocator: Allocator, options: []const NixosOption) !void {
+    var app = try OptionSearchTUI.init(allocator, options);
     defer app.deinit();
 
     try app.run();
