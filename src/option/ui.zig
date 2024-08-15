@@ -26,19 +26,19 @@ const Event = union(enum) {
     winsize: vaxis.Winsize,
 };
 
-fn compareOptionCandidatesReverse(_: void, a: OptionCandidate, b: OptionCandidate) bool {
-    if (b.rank < a.rank) return true;
-    if (b.rank > a.rank) return false;
+fn compareOptionCandidates(_: void, a: OptionCandidate, b: OptionCandidate) bool {
+    if (a.rank < b.rank) return true;
+    if (a.rank > b.rank) return false;
 
-    const bb = b.value.name;
     const aa = a.value.name;
+    const bb = b.value.name;
 
-    if (bb.len < aa.len) return true;
-    if (bb.len > aa.len) return false;
+    if (aa.len < bb.len) return true;
+    if (aa.len > bb.len) return false;
 
-    for (bb, 0..) |c, i| {
-        if (c < aa[i]) return true;
-        if (c > aa[i]) return false;
+    for (aa, 0..) |c, i| {
+        if (c < bb[i]) return true;
+        if (c > bb[i]) return false;
     }
 
     return false;
@@ -57,7 +57,11 @@ pub const OptionSearchTUI = struct {
     options: []const NixosOption,
     candidate_filter_buf: []OptionCandidate,
     option_results: []OptionCandidate,
-    option_list_ctx: vaxis.widgets.Table.TableContext,
+
+    results_ctx: struct {
+        start: usize = 0,
+        row: usize = 0,
+    } = .{},
 
     const Self = @This();
 
@@ -85,10 +89,6 @@ pub const OptionSearchTUI = struct {
 
             .candidate_filter_buf = candidate_filter_buf,
             .option_results = initial_results,
-            .option_list_ctx = .{
-                .selected_bg = .{ .index = 1 },
-                .row = options.len - 1,
-            },
         };
     }
 
@@ -117,13 +117,13 @@ pub const OptionSearchTUI = struct {
     pub fn update(self: *Self, allocator: Allocator, event: Event) !void {
         switch (event) {
             .key_press => |key| blk: {
-                if (key.matches(vaxis.Key.up, .{})) {
-                    self.option_list_ctx.row -|= 1;
+                if (key.matches(vaxis.Key.down, .{})) {
+                    self.results_ctx.row -|= 1;
                     break :blk;
                 }
-                if (key.matches(vaxis.Key.down, .{})) {
-                    if (self.option_list_ctx.row < self.option_results.len - 1) {
-                        self.option_list_ctx.row +|= 1;
+                if (key.matches(vaxis.Key.up, .{})) {
+                    if (self.results_ctx.row < self.option_results.len - 1) {
+                        self.results_ctx.row +|= 1;
                     }
                     break :blk;
                 } else if (key.matches('c', .{ .ctrl = true })) {
@@ -134,8 +134,8 @@ pub const OptionSearchTUI = struct {
                     const tokens = try utils.splitScalarAlloc(allocator, self.search_input.buf.items, ' ');
 
                     const results = utils.search.rankCandidatesStruct(NixosOption, "name", self.candidate_filter_buf, self.options, tokens, true, true);
-                    std.sort.block(OptionCandidate, results, {}, compareOptionCandidatesReverse);
-                    self.option_list_ctx.row = if (results.len > 0) results.len - 1 else 0;
+                    std.sort.block(OptionCandidate, results, {}, compareOptionCandidates);
+                    self.results_ctx.row = 0;
                     self.option_results = results;
                 }
             },
@@ -186,26 +186,27 @@ pub const OptionSearchTUI = struct {
             .height = .{ .limit = main_win.height - 2 },
         });
         const options = self.option_results;
-        var ctx = self.option_list_ctx;
+        var ctx = &self.results_ctx;
 
-        const max_items = if (options.len > table_win.height -| 1)
-            table_win.height -| 1
-        else
-            options.len;
-        var end = ctx.start + max_items;
+        const rows = @min(table_win.height, options.len);
+
+        var end = ctx.start + rows;
         if (end > options.len) end = options.len;
-        ctx.start = tableStart: {
+
+        ctx.start = blk: {
             if (ctx.row == 0)
-                break :tableStart 0;
+                break :blk 0;
+
             if (ctx.row < ctx.start)
-                break :tableStart ctx.start - (ctx.start - ctx.row);
-            if (ctx.row >= options.len - 1)
-                ctx.row = options.len - 1;
+                break :blk ctx.start - (ctx.start - ctx.row);
+
             if (ctx.row >= end)
-                break :tableStart ctx.start + (ctx.row - end + 1);
-            break :tableStart ctx.start;
+                break :blk ctx.start + (ctx.row - end + 1);
+
+            break :blk ctx.start;
         };
-        end = ctx.start + max_items;
+
+        end = ctx.start + rows;
         if (end > options.len) end = options.len;
 
         const selected_row = ctx.row;
@@ -223,7 +224,7 @@ pub const OptionSearchTUI = struct {
             const option = data.value;
 
             const tile = table_win.child(.{
-                .y_off = i,
+                .y_off = table_win.height -| i -| 1,
                 .width = .{ .limit = table_win.width },
                 .height = .{ .limit = 1 },
             });
