@@ -19,6 +19,8 @@ const option_cmd = @import("../option.zig");
 const NixosOption = option_cmd.NixosOption;
 const OptionCandidate = CandidateStruct(NixosOption);
 
+const zf = @import("zf");
+
 const Event = union(enum) {
     key_press: vaxis.Key,
     winsize: vaxis.Winsize,
@@ -129,18 +131,7 @@ pub const OptionSearchTUI = struct {
                 } else {
                     try self.search_input.update(.{ .key_press = key });
 
-                    const search_query = self.search_input.buf.items;
-                    const tokens: []const []const u8 = toks: {
-                        var items = ArrayList([]const u8).init(allocator);
-                        errdefer items.deinit();
-
-                        var iter = mem.tokenizeScalar(u8, search_query, ' ');
-                        while (iter.next()) |token| {
-                            try items.append(token);
-                        }
-
-                        break :toks try items.toOwnedSlice();
-                    };
+                    const tokens = try utils.splitScalarAlloc(allocator, self.search_input.buf.items, ' ');
 
                     const results = utils.search.rankCandidatesStruct(NixosOption, "name", self.candidate_filter_buf, self.options, tokens, true, true);
                     std.sort.block(OptionCandidate, results, {}, compareOptionCandidatesReverse);
@@ -156,17 +147,15 @@ pub const OptionSearchTUI = struct {
     }
 
     fn draw(self: *Self, allocator: Allocator) !void {
-        _ = allocator;
-
         const root_win = self.vx.window();
         root_win.clear();
 
-        _ = try self.drawResultsList();
+        _ = try self.drawResultsList(allocator);
         _ = try self.drawSearchBar();
         _ = try self.drawResultPreview();
     }
 
-    fn drawResultsList(self: *Self) !vaxis.Window {
+    fn drawResultsList(self: *Self, allocator: Allocator) !vaxis.Window {
         const root_win = self.vx.window();
 
         var main_win = root_win.child(.{
@@ -196,32 +185,41 @@ pub const OptionSearchTUI = struct {
             .y_off = 2,
             .height = .{ .limit = main_win.height - 2 },
         });
-        const gen_list = self.option_results;
+        const options = self.option_results;
         var ctx = self.option_list_ctx;
 
-        const max_items = if (gen_list.len > table_win.height -| 1)
+        const max_items = if (options.len > table_win.height -| 1)
             table_win.height -| 1
         else
-            gen_list.len;
+            options.len;
         var end = ctx.start + max_items;
-        if (end > gen_list.len) end = gen_list.len;
+        if (end > options.len) end = options.len;
         ctx.start = tableStart: {
             if (ctx.row == 0)
                 break :tableStart 0;
             if (ctx.row < ctx.start)
                 break :tableStart ctx.start - (ctx.start - ctx.row);
-            if (ctx.row >= gen_list.len - 1)
-                ctx.row = gen_list.len - 1;
+            if (ctx.row >= options.len - 1)
+                ctx.row = options.len - 1;
             if (ctx.row >= end)
                 break :tableStart ctx.start + (ctx.row - end + 1);
             break :tableStart ctx.start;
         };
         end = ctx.start + max_items;
-        if (end > gen_list.len) end = gen_list.len;
+        if (end > options.len) end = options.len;
 
         const selected_row = ctx.row;
+        const tokens = try utils.splitScalarAlloc(allocator, self.search_input.buf.items, ' ');
 
-        for (gen_list[ctx.start..end], 0..) |data, i| {
+        const matches_buf = blk: {
+            var size: usize = 0;
+            for (options[ctx.start..end]) |data| {
+                size = @max(size, data.value.name.len);
+            }
+            break :blk try allocator.alloc(usize, size);
+        };
+
+        for (options[ctx.start..end], 0..) |data, i| {
             const option = data.value;
 
             const tile = table_win.child(.{
@@ -237,17 +235,34 @@ pub const OptionSearchTUI = struct {
                 tile.fill(.{ .style = .{ .bg = tile_bg } });
             }
 
-            const generation_seg: vaxis.Segment = .{
+            const option_name_seg: vaxis.Segment = .{
                 .text = option.name,
-                .style = .{ .bg = tile_bg },
+                .style = .{
+                    .bg = tile_bg,
+                },
             };
-            const selected_arrow_seg: vaxis.Segment = .{
-                .text = "->",
-                .style = .{ .bg = tile_bg },
-            };
+            _ = try tile.printSegment(option_name_seg, .{ .col_offset = 3 });
 
-            _ = try tile.printSegment(generation_seg, .{ .col_offset = 3 });
+            const matches = zf.highlight(option.name, tokens, true, true, matches_buf);
+            for (matches) |idx| {
+                const cell: vaxis.Cell = .{
+                    .char = .{ .grapheme = option.name[idx..(idx + 1)] },
+                    .style = .{
+                        .fg = .{ .index = 2 },
+                        .bg = tile_bg,
+                    },
+                };
+                tile.writeCell(3 + idx, 0, cell);
+            }
+
             if (selected) {
+                const selected_arrow_seg: vaxis.Segment = .{
+                    .text = "->",
+                    .style = .{
+                        .fg = .{ .index = 1 },
+                        .bg = tile_bg,
+                    },
+                };
                 _ = try tile.printSegment(selected_arrow_seg, .{});
             }
         }

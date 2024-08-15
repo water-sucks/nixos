@@ -260,6 +260,18 @@ pub fn concatStringsSep(allocator: Allocator, strings: []const []const u8, sep: 
     return result;
 }
 
+pub fn splitScalarAlloc(allocator: Allocator, input: []const u8, delim: u8) ![]const []const u8 {
+    var items = ArrayList([]const u8).init(allocator);
+    errdefer items.deinit();
+
+    var iter = mem.tokenizeScalar(u8, input, delim);
+    while (iter.next()) |token| {
+        try items.append(token);
+    }
+
+    return try items.toOwnedSlice();
+}
+
 /// Make a temporary directory; this is basically just the `mktemp`
 /// command but without actually invoking the `mktemp` command.
 pub fn mkTmpDir(allocator: Allocator, base: []const u8) ![]const u8 {
