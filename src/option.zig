@@ -322,6 +322,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
             break :blk prebuilt_options_cache_filename;
         }
         options_filename_alloc = true;
+        log.info("building option list cache, please wait...", .{});
         break :blk try findNixosOptionFilepath(allocator, args.includes.items);
     };
     defer if (options_filename_alloc) allocator.free(options_filename);
