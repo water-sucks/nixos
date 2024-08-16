@@ -177,7 +177,7 @@ pub const OptionSearchTUI = struct {
         root_win.clear();
 
         _ = try self.drawResultsList(allocator);
-        _ = try self.drawSearchBar();
+        _ = try self.drawSearchBar(allocator);
         _ = try self.drawResultPreview();
     }
 
@@ -194,6 +194,8 @@ pub const OptionSearchTUI = struct {
             },
         });
 
+        const query = self.search_input.buf.items;
+
         const title_seg: vaxis.Segment = .{
             .text = "Results",
             .style = .{ .bold = true },
@@ -203,7 +205,7 @@ pub const OptionSearchTUI = struct {
         _ = try centered.printSegment(title_seg, .{});
 
         // Don't show all results if the search bar is empty.
-        if (self.search_input.buf.items.len == 0) {
+        if (query.len == 0) {
             return main_win;
         }
 
@@ -302,8 +304,9 @@ pub const OptionSearchTUI = struct {
         return main_win;
     }
 
-    fn drawSearchBar(self: *Self) !vaxis.Window {
+    fn drawSearchBar(self: *Self, allocator: Allocator) !vaxis.Window {
         const root_win = self.vx.window();
+        const query = self.search_input.buf.items;
 
         const search_bar_win = root_win.child(.{
             .y_off = root_win.height - 3,
@@ -316,15 +319,25 @@ pub const OptionSearchTUI = struct {
             },
         });
 
-        const placeholder_seg: vaxis.Segment = .{ .text = "Search for options...", .style = .{
-            .fg = .{ .index = 4 },
-        } };
-
+        const placeholder_seg: vaxis.Segment = .{
+            .text = "Search for options...",
+            .style = .{
+                .fg = .{ .index = 4 },
+            },
+        };
         _ = try search_bar_win.printSegment(.{ .text = ">" }, .{});
+
+        const count_seg: vaxis.Segment = .{
+            .text = if (query.len != 0) try fmt.allocPrint(allocator, "{d} / {d}", .{ self.option_results.len, self.options.len }) else "",
+            .style = .{ .fg = .{ .index = 4 } },
+        };
+        if (count_seg.text.len != 0) {
+            _ = try search_bar_win.printSegment(count_seg, .{ .col_offset = search_bar_win.width - count_seg.text.len });
+        }
 
         var input_win = search_bar_win.child(.{
             .x_off = 2,
-            .width = .{ .limit = search_bar_win.width - 2 },
+            .width = .{ .limit = search_bar_win.width - 2 - count_seg.text.len },
         });
         self.search_input.draw(input_win);
         if (self.search_input.buf.items.len == 0) {
