@@ -11,6 +11,8 @@ const log = @import("../log.zig");
 
 const vaxis = @import("vaxis");
 const TextInput = vaxis.widgets.TextInput;
+const TextView = vaxis.widgets.TextView;
+const TextViewBuffer = TextView.Buffer;
 
 const utils = @import("../utils.zig");
 const ansi = utils.ansi;
@@ -51,10 +53,12 @@ pub const OptionSearchTUI = struct {
     tty: vaxis.Tty,
     vx: vaxis.Vaxis,
     should_quit: bool = false,
+    max_rank: f64,
 
     // Components
     search_input: TextInput,
-    max_rank: f64,
+    option_view: TextView,
+    option_view_buf: TextViewBuffer,
 
     // Application state
     options: []const NixosOption,
@@ -65,6 +69,7 @@ pub const OptionSearchTUI = struct {
         start: usize = 0,
         row: usize = 0,
     } = .{},
+    active_window: enum { input, preview },
 
     const Self = @This();
 
@@ -87,12 +92,16 @@ pub const OptionSearchTUI = struct {
             .allocator = allocator,
             .tty = tty,
             .vx = vx,
-            .search_input = text_input,
-            .options = options,
+            .max_rank = max_rank,
 
+            .search_input = text_input,
+            .option_view = TextView{},
+            .option_view_buf = TextViewBuffer{},
+
+            .options = options,
             .candidate_filter_buf = candidate_filter_buf,
             .option_results = initial_results,
-            .max_rank = max_rank,
+            .active_window = .input,
         };
     }
 
@@ -119,50 +128,75 @@ pub const OptionSearchTUI = struct {
     }
 
     pub fn update(self: *Self, allocator: Allocator, event: Event) !void {
+        var ctx = &self.results_ctx;
+
         switch (event) {
             .key_press => |key| blk: {
-                var ctx = &self.results_ctx;
-
-                if (key.matches(vaxis.Key.down, .{})) {
-                    if (self.option_results.len == 0) break :blk;
-
-                    if (ctx.row == 0) {
-                        ctx.row = self.option_results.len - 1;
+                if (key.matches(vaxis.Key.tab, .{}) or key.matches(vaxis.Key.tab, .{ .shift = true })) {
+                    if (self.active_window == .input) {
+                        self.active_window = .preview;
                     } else {
-                        ctx.row -|= 1;
+                        self.active_window = .input;
                     }
-                    break :blk;
-                }
-                if (key.matches(vaxis.Key.up, .{})) {
-                    if (self.option_results.len == 0) break :blk;
-
-                    if (ctx.row == self.option_results.len - 1) {
-                        ctx.row = 0;
-                    } else {
-                        ctx.row += 1;
-                    }
-
                     break :blk;
                 } else if (key.matches('c', .{ .ctrl = true })) {
                     self.should_quit = true;
-                } else {
-                    try self.search_input.update(.{ .key_press = key });
+                    break :blk;
+                }
 
-                    const tokens = try utils.splitScalarAlloc(allocator, self.search_input.buf.items, ' ');
+                if (self.active_window == .input) {
+                    if (key.matches(vaxis.Key.down, .{})) {
+                        if (self.option_results.len == 0) break :blk;
 
-                    const results = utils.search.rankCandidatesStruct(NixosOption, "name", self.candidate_filter_buf, self.options, tokens, true, true);
-                    std.sort.block(OptionCandidate, results, {}, compareOptionCandidates);
-                    ctx.row = 0;
-                    self.option_results = maxRankFilter: {
-                        var end_index: usize = 0;
-                        for (results) |result| {
-                            if (result.rank > self.max_rank) {
-                                break;
-                            }
-                            end_index += 1;
+                        if (ctx.row == 0) {
+                            ctx.row = self.option_results.len - 1;
+                        } else {
+                            ctx.row -|= 1;
                         }
-                        break :maxRankFilter results[0..end_index];
-                    };
+                        break :blk;
+                    } else if (key.matches(vaxis.Key.up, .{})) {
+                        if (self.option_results.len == 0) break :blk;
+
+                        if (ctx.row == self.option_results.len - 1) {
+                            ctx.row = 0;
+                        } else {
+                            ctx.row += 1;
+                        }
+
+                        break :blk;
+                    } else {
+                        try self.search_input.update(.{ .key_press = key });
+
+                        const tokens = try utils.splitScalarAlloc(allocator, self.search_input.buf.items, ' ');
+
+                        const results = utils.search.rankCandidatesStruct(NixosOption, "name", self.candidate_filter_buf, self.options, tokens, true, true);
+                        std.sort.block(OptionCandidate, results, {}, compareOptionCandidates);
+                        ctx.row = 0;
+                        self.option_results = maxRankFilter: {
+                            var end_index: usize = 0;
+                            for (results) |result| {
+                                if (result.rank > self.max_rank) {
+                                    break;
+                                }
+                                end_index += 1;
+                            }
+                            break :maxRankFilter results[0..end_index];
+                        };
+                    }
+                } else if (self.active_window == .preview) {
+                    if (key.matchesAny(&.{ vaxis.Key.left, 'h' }, .{})) {
+                        if (self.option_results.len == 0) break :blk;
+                        self.option_view.scroll_view.scroll.x -|= 1;
+                    } else if (key.matchesAny(&.{ vaxis.Key.down, 'j' }, .{})) {
+                        if (self.option_results.len == 0) break :blk;
+                        self.option_view.scroll_view.scroll.y +|= 1;
+                    } else if (key.matchesAny(&.{ vaxis.Key.up, 'k' }, .{})) {
+                        if (self.option_results.len == 0) break :blk;
+                        self.option_view.scroll_view.scroll.y -|= 1;
+                    } else if (key.matchesAny(&.{ vaxis.Key.right, 'l' }, .{})) {
+                        if (self.option_results.len == 0) break :blk;
+                        self.option_view.scroll_view.scroll.x +|= 1;
+                    }
                 }
             },
             .winsize => |ws| try self.vx.resize(self.allocator, self.tty.anyWriter(), ws),
@@ -178,7 +212,7 @@ pub const OptionSearchTUI = struct {
 
         _ = try self.drawResultsList(allocator);
         _ = try self.drawSearchBar(allocator);
-        _ = try self.drawResultPreview();
+        _ = try self.drawResultPreview(allocator);
     }
 
     fn drawResultsList(self: *Self, allocator: Allocator) !vaxis.Window {
@@ -189,7 +223,7 @@ pub const OptionSearchTUI = struct {
             .height = .{ .limit = root_win.height - 3 },
             .border = .{
                 .where = .all,
-                .style = .{ .fg = .{ .index = 7 } },
+                .style = .{ .fg = .{ .index = if (self.active_window == .input) 5 else 7 } },
                 .glyphs = .single_square,
             },
         });
@@ -314,7 +348,7 @@ pub const OptionSearchTUI = struct {
             .height = .{ .limit = 3 },
             .border = .{
                 .where = .all,
-                .style = .{ .fg = .{ .index = 7 } },
+                .style = .{ .fg = .{ .index = if (self.active_window == .input) 5 else 7 } },
                 .glyphs = .single_square,
             },
         });
@@ -347,7 +381,7 @@ pub const OptionSearchTUI = struct {
         return search_bar_win;
     }
 
-    fn drawResultPreview(self: *Self) !vaxis.Window {
+    fn drawResultPreview(self: *Self, allocator: Allocator) !vaxis.Window {
         const root_win = self.vx.window();
 
         const main_win = root_win.child(.{
@@ -355,7 +389,7 @@ pub const OptionSearchTUI = struct {
             .width = .{ .limit = root_win.width / 2 },
             .border = .{
                 .where = .all,
-                .style = .{ .fg = .{ .index = 7 } },
+                .style = .{ .fg = .{ .index = if (self.active_window == .preview) 5 else 7 } },
                 .glyphs = .single_square,
             },
         });
@@ -365,15 +399,102 @@ pub const OptionSearchTUI = struct {
             .style = .{ .bold = true },
         };
         const title_win: vaxis.Window = main_win.child(.{ .height = .{ .limit = 1 } });
-
         const centered: vaxis.Window = vaxis.widgets.alignment.center(title_win, title_seg.text.len, 2);
         _ = try centered.printSegment(title_seg, .{});
+
+        const info_win: vaxis.Window = main_win.child(.{
+            .y_off = 2,
+            .height = .{ .limit = main_win.height - 2 },
+        });
+
+        if (self.search_input.buf.items.len == 0) {
+            return main_win;
+        }
+
+        if (self.option_results.len == 0) {
+            _ = try info_win.printSegment(.{
+                .text = "No results found.",
+                .style = .{
+                    .italic = true,
+                    .fg = .{ .index = 1 },
+                },
+            }, .{});
+            return main_win;
+        }
+
+        const opt = self.option_results[self.results_ctx.row].value;
+
+        if (self.option_view.scroll_view.scroll.x > info_win.width - 1) {
+            self.option_view.scroll_view.scroll.x = info_win.width - 1;
+        }
+        if (self.option_view.scroll_view.scroll.y > info_win.height) {
+            self.option_view.scroll_view.scroll.y = info_win.height - 1;
+        }
+
+        self.option_view_buf.clear(self.allocator);
+
+        try self.appendToBuffer("Name\n", .{ .bold = true });
+        try self.appendToBuffer(opt.name, .{});
+        try self.appendToBuffer("\n\n", .{});
+
+        try self.appendToBuffer("Description\n", .{ .bold = true });
+        if (opt.description) |d| {
+            try self.appendToBuffer(mem.trim(u8, d, "\n"), .{});
+        } else {
+            try self.appendToBuffer("(none)", .{ .italic = true });
+        }
+        try self.appendToBuffer("\n\n", .{});
+
+        try self.appendToBuffer("Type\n", .{ .bold = true });
+        try self.appendToBuffer(opt.type, .{ .italic = true });
+        try self.appendToBuffer("\n\n", .{});
+
+        try self.appendToBuffer("Default\n", .{ .bold = true });
+        if (opt.default) |d| {
+            try self.appendToBuffer(mem.trim(u8, d.text, "\n"), .{ .fg = .{ .index = 7 } });
+        } else {
+            try self.appendToBuffer("(none)", .{ .italic = true });
+        }
+        try self.appendToBuffer("\n\n", .{});
+
+        if (opt.example) |e| {
+            try self.appendToBuffer("Example\n", .{ .bold = true });
+            try self.appendToBuffer(mem.trim(u8, e.text, "\n"), .{ .fg = .{ .index = 7 } });
+            try self.appendToBuffer("\n\n", .{});
+        }
+
+        if (opt.declarations.len > 0) {
+            try self.appendToBuffer("Declared In\n", .{ .bold = true });
+            for (opt.declarations) |decl| {
+                try self.appendToBuffer(try fmt.allocPrint(allocator, "  - {s}\n", .{decl}), .{ .italic = true });
+            }
+            try self.appendToBuffer("\n", .{});
+        }
+
+        _ = self.option_view.draw(info_win, self.option_view_buf);
 
         return main_win;
     }
 
+    fn appendToBuffer(self: *Self, content: []const u8, style: vaxis.Style) !void {
+        const begin = self.option_view_buf.content.items.len;
+        const end = begin + content.len + 1;
+
+        try self.option_view_buf.append(self.allocator, .{
+            .bytes = content,
+            .gd = &self.vx.unicode.grapheme_data,
+            .wd = &self.vx.unicode.width_data,
+        });
+        try self.option_view_buf.updateStyle(self.allocator, .{
+            .begin = begin,
+            .end = end,
+            .style = style,
+        });
+    }
+
     pub fn deinit(self: *Self) void {
         self.allocator.free(self.candidate_filter_buf);
+        self.option_view_buf.deinit(self.allocator);
         self.search_input.deinit();
         self.vx.deinit(self.allocator, self.tty.anyWriter());
         self.tty.deinit();
