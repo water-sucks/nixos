@@ -275,6 +275,7 @@ pub fn main() !u8 {
     for (structured_args.config_values.items) |pair| {
         config.setConfigValue(pair) catch return 2;
     }
+    config.validateConfig(allocator) catch return 2;
 
     const status = switch (structured_args.subcommand.?) {
         .aliases => |args| {

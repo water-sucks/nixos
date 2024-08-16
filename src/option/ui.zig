@@ -5,6 +5,8 @@ const process = std.process;
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
 
+const config = @import("../config.zig");
+
 const log = @import("../log.zig");
 
 const vaxis = @import("vaxis");
@@ -52,6 +54,7 @@ pub const OptionSearchTUI = struct {
 
     // Components
     search_input: TextInput,
+    max_rank: f64,
 
     // Application state
     options: []const NixosOption,
@@ -65,7 +68,7 @@ pub const OptionSearchTUI = struct {
 
     const Self = @This();
 
-    pub fn init(allocator: Allocator, options: []const NixosOption) !Self {
+    pub fn init(allocator: Allocator, options: []const NixosOption, max_rank: f64) !Self {
         var tty = try vaxis.Tty.init();
         errdefer tty.deinit();
 
@@ -89,6 +92,7 @@ pub const OptionSearchTUI = struct {
 
             .candidate_filter_buf = candidate_filter_buf,
             .option_results = initial_results,
+            .max_rank = max_rank,
         };
     }
 
@@ -118,10 +122,14 @@ pub const OptionSearchTUI = struct {
         switch (event) {
             .key_press => |key| blk: {
                 if (key.matches(vaxis.Key.down, .{})) {
+                    if (self.option_results.len == 0) break :blk;
+
                     self.results_ctx.row -|= 1;
                     break :blk;
                 }
                 if (key.matches(vaxis.Key.up, .{})) {
+                    if (self.option_results.len == 0) break :blk;
+
                     if (self.results_ctx.row < self.option_results.len - 1) {
                         self.results_ctx.row +|= 1;
                     }
@@ -136,7 +144,16 @@ pub const OptionSearchTUI = struct {
                     const results = utils.search.rankCandidatesStruct(NixosOption, "name", self.candidate_filter_buf, self.options, tokens, true, true);
                     std.sort.block(OptionCandidate, results, {}, compareOptionCandidates);
                     self.results_ctx.row = 0;
-                    self.option_results = results;
+                    self.option_results = maxRankFilter: {
+                        var end_index: usize = 0;
+                        for (results) |result| {
+                            if (result.rank > self.max_rank) {
+                                break;
+                            }
+                            end_index += 1;
+                        }
+                        break :maxRankFilter results[0..end_index];
+                    };
                 }
             },
             .winsize => |ws| try self.vx.resize(self.allocator, self.tty.anyWriter(), ws),
@@ -186,6 +203,11 @@ pub const OptionSearchTUI = struct {
             .height = .{ .limit = main_win.height - 2 },
         });
         const options = self.option_results;
+
+        if (options.len == 0) {
+            return main_win;
+        }
+
         var ctx = &self.results_ctx;
 
         const rows = @min(table_win.height, options.len);
@@ -337,7 +359,9 @@ pub const OptionSearchTUI = struct {
 };
 
 pub fn optionSearchUI(allocator: Allocator, options: []const NixosOption) !void {
-    var app = try OptionSearchTUI.init(allocator, options);
+    const c = config.getConfig();
+
+    var app = try OptionSearchTUI.init(allocator, options, c.option.max_rank);
     defer app.deinit();
 
     try app.run();
