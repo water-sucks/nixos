@@ -50,6 +50,8 @@ fn setFieldValue(comptime T: type, path: []const u8, value: []const u8, ptr: *T)
                             }
 
                             return;
+                        } else if (field.type == f64) {
+                            @field(ptr, field.name) = std.fmt.parseFloat(f64, value) catch return error.InvalidFloat;
                         } else {
                             return error.UnsupportedType;
                         }
@@ -85,6 +87,9 @@ pub const Config = struct {
         extra_config: ?[]const u8 = null,
     } = .{},
     no_confirm: bool = false,
+    option: struct {
+        max_rank: f64 = 3.00,
+    } = .{},
     use_nvd: bool = false,
 };
 
@@ -95,26 +100,9 @@ pub fn getConfig() Config {
     return config;
 }
 
-pub fn parseConfig(allocator: Allocator) !void {
-    const config_location = posix.getenv("NIXOS_CLI_CONFIG") orelse Constants.default_config_location;
+pub fn validateConfig(allocator: Allocator) !void {
+    const cfg = &config;
 
-    const config_str = readFile(allocator, config_location) catch |err| {
-        log.err("error opening config: {s}", .{@errorName(err)});
-        return err;
-    };
-    defer allocator.free(config_str);
-
-    var parser = toml.Parser(Config).init(allocator);
-    defer parser.deinit();
-
-    const parsed = parser.parseString(config_str) catch |err| {
-        log.err("unable to parse settings: {s}", .{@errorName(err)});
-        return err;
-    };
-    errdefer deinit();
-    var cfg = parsed.value;
-
-    // Validation
     if (cfg.aliases) |*aliases| {
         var values_to_remove = ArrayList([]const u8).init(allocator);
         defer values_to_remove.deinit();
@@ -156,28 +144,32 @@ pub fn parseConfig(allocator: Allocator) !void {
         }
     }
 
-    if (cfg.init.extra_attrs) |*extra_attrs| {
-        var values_to_remove = ArrayList([]const u8).init(allocator);
-        defer values_to_remove.deinit();
-
-        var it = extra_attrs.iterator();
-        while (it.next()) |kv| {
-            const key = kv.key_ptr.*;
-            const value = kv.value_ptr.*;
-
-            if (std.meta.activeTag(value) != .string) {
-                configError("init.extra_attrs: expected type string for key '{s}', got type {s}", .{ key, @tagName(value) });
-                try values_to_remove.append(key);
-            }
-        }
-
-        for (values_to_remove.items) |key| {
-            _ = extra_attrs.remove(key);
-        }
+    if (cfg.option.max_rank < 1.00) {
+        log.err("option: max_rank must be at least 1.00", .{});
+        cfg.option.max_rank = 3.00;
     }
+}
+
+pub fn parseConfig(allocator: Allocator) !void {
+    const config_location = posix.getenv("NIXOS_CLI_CONFIG") orelse Constants.default_config_location;
+
+    const config_str = readFile(allocator, config_location) catch |err| {
+        log.err("error opening config: {s}", .{@errorName(err)});
+        return err;
+    };
+    defer allocator.free(config_str);
+
+    var parser = toml.Parser(Config).init(allocator);
+    defer parser.deinit();
+
+    const parsed = parser.parseString(config_str) catch |err| {
+        log.err("unable to parse settings: {s}", .{@errorName(err)});
+        return err;
+    };
+    errdefer deinit();
 
     parsed_config = parsed;
-    config = cfg;
+    config = parsed.value;
 }
 
 /// Set a config value based on a key=value pair. This is sourced
@@ -198,6 +190,7 @@ pub fn setConfigValue(pair: []const u8) !void {
             error.DynamicField => log.err("setting values for '{s}' is unsupported", .{path}),
             error.NoPathExists => log.err("setting with path '{s}' does not exist", .{path}),
             error.InvalidBoolean => log.err("{s}: expected boolean, got invalid value '{s}'", .{ path, value }),
+            error.InvalidFloat => log.err("{s}: expected number, got invalid value '{s}'", .{ path, value }),
         }
         return err;
     };

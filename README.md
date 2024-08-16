@@ -103,19 +103,20 @@ configuration is located in [`config.sample.toml`](./config.sample.toml).
   - ✅ `delete`
   - ✅ `diff`
 - ✅ `manual`
-- ➖ `option`
+- ✅ `option`
 - ✅ `repl`
 
 ### Roadmap
 
 - ❌ CLI completion
 - ❌ Documentation (via man pages)
-- ❌ Options search (a la https://search.nixos.org)
+- ✅ Options search (a la https://search.nixos.org)
 - ❌ Remote installation (a la [`nixos-anywhere`](https;//github.com/numtide/nixos-anywhere))
 - ❌ Remote application of configurations
 - ❌ Container management (Maybe? This is lower priority.)
 
-Check the [issues] page for more on this; this is just a high-level overview.
+Check the [issues](https://github.com/water-sucks/nixos/issues) page for more on
+this; this is just a high-level overview.
 
 ### Possible Future Commands
 

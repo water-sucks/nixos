@@ -28,10 +28,13 @@ const println = utils.println;
 const search = utils.search;
 const ansi = utils.ansi;
 
+const optionSearchUI = @import("option/ui.zig").optionSearchUI;
+
 pub const OptionError = error{
     NoOptionCache,
     NoResultFound,
     UnsupportedOs,
+    ResourceAccessFailed,
 };
 
 pub const OptionCommand = struct {
@@ -111,7 +114,7 @@ pub const OptionCommand = struct {
     }
 };
 
-const NixosOption = struct {
+pub const NixosOption = struct {
     name: []const u8,
     description: ?[]const u8 = null,
     type: []const u8,
@@ -313,17 +316,13 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
         return OptionError.UnsupportedOs;
     }
 
-    if (args.interactive) {
-        log.info("this is currently unimplemented; coming soon!", .{});
-        return;
-    }
-
     var options_filename_alloc = false;
     const options_filename = blk: {
         if (!args.no_cache and fileExistsAbsolute(prebuilt_options_cache_filename)) {
             break :blk prebuilt_options_cache_filename;
         }
         options_filename_alloc = true;
+        log.info("building option list cache, please wait...", .{});
         break :blk try findNixosOptionFilepath(allocator, args.includes.items);
     };
     defer if (options_filename_alloc) allocator.free(options_filename);
@@ -338,6 +337,11 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
     try options_list.setCapacity(allocator, parsed_options.value.len);
     for (parsed_options.value) |opt| {
         options_list.appendAssumeCapacity(opt);
+    }
+
+    if (args.interactive) {
+        optionSearchUI(allocator, parsed_options.value) catch return OptionError.ResourceAccessFailed;
+        return;
     }
 
     const option_input = args.option.?;
@@ -416,6 +420,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
 pub fn optionMain(allocator: Allocator, args: OptionCommand) u8 {
     option(allocator, args) catch |err| switch (err) {
         OptionError.UnsupportedOs => return 3,
+        OptionError.ResourceAccessFailed => return 4,
         else => return 1,
     };
 

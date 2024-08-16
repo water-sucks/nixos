@@ -41,6 +41,13 @@ desktop_config = ""
 # Extra configuration to append to `configuration.nix` as a string
 extra_config = ""
 
+# Configuration for the `option` subcommand.
+[option]
+# The maximum distance score allowed for search results. This can be any number
+# above 1; higher scores will give less relevant results, while smaller scores
+# will be more strict in matching.
+max_rank = 3.00
+
 # Extra configuration to append to `configuration.nix`,
 # as structured key-value pairs
 [init.extra_attrs]
