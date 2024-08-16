@@ -121,18 +121,27 @@ pub const OptionSearchTUI = struct {
     pub fn update(self: *Self, allocator: Allocator, event: Event) !void {
         switch (event) {
             .key_press => |key| blk: {
+                var ctx = &self.results_ctx;
+
                 if (key.matches(vaxis.Key.down, .{})) {
                     if (self.option_results.len == 0) break :blk;
 
-                    self.results_ctx.row -|= 1;
+                    if (ctx.row == 0) {
+                        ctx.row = self.option_results.len - 1;
+                    } else {
+                        ctx.row -|= 1;
+                    }
                     break :blk;
                 }
                 if (key.matches(vaxis.Key.up, .{})) {
                     if (self.option_results.len == 0) break :blk;
 
-                    if (self.results_ctx.row < self.option_results.len - 1) {
-                        self.results_ctx.row +|= 1;
+                    if (ctx.row == self.option_results.len - 1) {
+                        ctx.row = 0;
+                    } else {
+                        ctx.row += 1;
                     }
+
                     break :blk;
                 } else if (key.matches('c', .{ .ctrl = true })) {
                     self.should_quit = true;
@@ -143,7 +152,7 @@ pub const OptionSearchTUI = struct {
 
                     const results = utils.search.rankCandidatesStruct(NixosOption, "name", self.candidate_filter_buf, self.options, tokens, true, true);
                     std.sort.block(OptionCandidate, results, {}, compareOptionCandidates);
-                    self.results_ctx.row = 0;
+                    ctx.row = 0;
                     self.option_results = maxRankFilter: {
                         var end_index: usize = 0;
                         for (results) |result| {
