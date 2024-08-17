@@ -387,12 +387,8 @@ pub const OptionSearchTUI = struct {
             \\
             \\<Tab> moves to the option preview window.
             \\
-            \\
-        , .{});
-        try self.appendToBuffer(buf, "(This feature is coming soon)\n", .{ .italic = true });
-        try self.appendToBuffer(buf,
-            \\<Enter> will allow you to preview that option's current value, if it
-            \\is able to be evaluated. This will toggle the option value window.
+            \\<Enter> previews that option's current value, if it is able to be
+            \\evaluated. This will toggle the option value window.
             \\
             \\
             \\
@@ -406,10 +402,6 @@ pub const OptionSearchTUI = struct {
             \\
             \\<Tab> will move back to the input window for searching.
             \\
-            \\
-        , .{});
-        try self.appendToBuffer(buf, "(This feature is coming soon)\n", .{ .italic = true });
-        try self.appendToBuffer(buf,
             \\<Enter> will also evaluate the value, if possible.
             \\This will toggle the option value window.
             \\
@@ -418,7 +410,6 @@ pub const OptionSearchTUI = struct {
         , .{});
 
         try self.appendToBuffer(buf, "Option Value Window ", .{ .bold = true });
-        try self.appendToBuffer(buf, "(coming soon)\n", .{ .italic = true });
         try self.appendToBuffer(buf,
             \\Use the cursor keys or h, j, k, and l to scroll around.
             \\
