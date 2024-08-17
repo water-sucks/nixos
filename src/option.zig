@@ -131,30 +131,6 @@ pub const NixosOption = struct {
     declarations: []const []const u8,
 };
 
-fn findNixosOptionFilepathLegacy(allocator: Allocator, includes: []const []const u8) ![]const u8 {
-    var argv = ArrayList([]const u8).init(allocator);
-    defer argv.deinit();
-
-    try argv.appendSlice(&.{ "nix-build", "<nixpkgs/nixos>", "--no-out-link", "-A", "config.system.build.manual.optionsJSON" });
-    for (includes) |include| {
-        try argv.appendSlice(&.{ "-I", include });
-    }
-
-    const result = runCmd(.{
-        .allocator = allocator,
-        .argv = argv.items,
-        .stderr_type = .Ignore,
-    }) catch return OptionError.NoOptionCache;
-
-    if (result.status != 0) {
-        log.err("unable to find options cache; cannot continue", .{});
-        return OptionError.NoOptionCache;
-    }
-    defer allocator.free(result.stdout.?);
-
-    return try allocator.dupe(u8, result.stdout.?);
-}
-
 const flake_options_cache_expr =
     \\let
     \\  flake = builtins.getFlake "{s}";
@@ -340,7 +316,13 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
     }
 
     if (args.interactive) {
-        optionSearchUI(allocator, parsed_options.value) catch return OptionError.ResourceAccessFailed;
+        optionSearchUI(allocator, args.includes.items, parsed_options.value) catch |err| {
+            switch (err) {
+                error.UnknownFlakeRef => log.err("unable to determine current system flake ref", .{}),
+                else => {},
+            }
+            return OptionError.ResourceAccessFailed;
+        };
         return;
     }
 
