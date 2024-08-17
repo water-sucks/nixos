@@ -1,6 +1,8 @@
 const std = @import("std");
+const opts = @import("options");
 const fmt = std.fmt;
 const mem = std.mem;
+const posix = std.posix;
 const process = std.process;
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
@@ -28,6 +30,7 @@ const zf = @import("zf");
 const Event = union(enum) {
     key_press: vaxis.Key,
     winsize: vaxis.Winsize,
+    value_changed,
 };
 
 fn compareOptionCandidates(_: void, a: OptionCandidate, b: OptionCandidate) bool {
@@ -53,6 +56,7 @@ pub const OptionSearchTUI = struct {
     tty: vaxis.Tty,
     vx: vaxis.Vaxis,
     should_quit: bool = false,
+    config: ConfigType,
     max_rank: f64,
 
     // Components
@@ -63,20 +67,35 @@ pub const OptionSearchTUI = struct {
     help_view: TextView,
     help_view_buf: TextViewBuffer,
 
+    value_view: TextView,
+    value_view_buf: TextViewBuffer,
+
     // Application state
     options: []const NixosOption,
     candidate_filter_buf: []OptionCandidate,
     option_results: []OptionCandidate,
-
     results_ctx: struct {
         start: usize = 0,
         row: usize = 0,
     } = .{},
-    active_window: enum { input, preview, help },
+    active_window: enum { input, preview, help, value },
+    option_eval_value: EvaluatedValue = .loading,
+    value_cmd_ctr: std.atomic.Value(usize) = std.atomic.Value(usize).init(0),
 
     const Self = @This();
 
-    pub fn init(allocator: Allocator, options: []const NixosOption, max_rank: f64) !Self {
+    pub const ConfigType = union(enum) {
+        legacy: []const []const u8,
+        flake: utils.FlakeRef,
+    };
+
+    pub const EvaluatedValue = union(enum) {
+        loading,
+        success: []const u8,
+        @"error": []const u8,
+    };
+
+    pub fn init(allocator: Allocator, options: []const NixosOption, configuration: ConfigType, max_rank: f64) !Self {
         var tty = try vaxis.Tty.init();
         errdefer tty.deinit();
 
@@ -95,6 +114,7 @@ pub const OptionSearchTUI = struct {
             .allocator = allocator,
             .tty = tty,
             .vx = vx,
+            .config = configuration,
             .max_rank = max_rank,
 
             .search_input = text_input,
@@ -102,6 +122,8 @@ pub const OptionSearchTUI = struct {
             .option_view_buf = TextViewBuffer{},
             .help_view = TextView{},
             .help_view_buf = TextViewBuffer{},
+            .value_view = TextView{},
+            .value_view_buf = TextViewBuffer{},
 
             .options = options,
             .candidate_filter_buf = candidate_filter_buf,
@@ -128,11 +150,11 @@ pub const OptionSearchTUI = struct {
             const event_alloc = event_arena.allocator();
 
             const event = loop.nextEvent();
-            try self.update(event_alloc, event);
+            try self.update(event_alloc, event, &loop);
         }
     }
 
-    pub fn update(self: *Self, allocator: Allocator, event: Event) !void {
+    pub fn update(self: *Self, allocator: Allocator, event: Event, loop: *vaxis.Loop(Event)) !void {
         var ctx = &self.results_ctx;
 
         switch (event) {
@@ -155,6 +177,25 @@ pub const OptionSearchTUI = struct {
                         self.active_window = .input;
                     }
                     break :blk;
+                } else if (self.active_window == .value) {
+                    if (key.matchesAny(&.{ vaxis.Key.left, 'h' }, .{})) {
+                        self.value_view.scroll_view.scroll.x -|= 1;
+                    } else if (key.matchesAny(&.{ vaxis.Key.down, 'j' }, .{})) {
+                        self.value_view.scroll_view.scroll.y +|= 1;
+                    } else if (key.matchesAny(&.{ vaxis.Key.up, 'k' }, .{})) {
+                        self.value_view.scroll_view.scroll.y -|= 1;
+                    } else if (key.matchesAny(&.{ vaxis.Key.right, 'l' }, .{})) {
+                        self.value_view.scroll_view.scroll.x +|= 1;
+                    } else if (key.matchesAny(&.{ vaxis.Key.escape, 'q' }, .{})) {
+                        self.active_window = .input;
+                        switch (self.option_eval_value) {
+                            .loading => {},
+                            .success => |payload| self.allocator.free(payload),
+                            .@"error" => |payload| self.allocator.free(payload),
+                        }
+                        self.option_eval_value = .loading;
+                    }
+                    break :blk;
                 }
 
                 if (key.matches(vaxis.Key.tab, .{}) or key.matches(vaxis.Key.tab, .{ .shift = true })) {
@@ -168,6 +209,14 @@ pub const OptionSearchTUI = struct {
                     // Ctrl-G may seem like a weird shortcut, but I stole this idea
                     // directly from `nano`, since that's the default NixOS editor.
                     self.active_window = .help;
+                    break :blk;
+                }
+                if (key.matches(vaxis.Key.enter, .{})) {
+                    if (self.search_input.buf.items.len == 0 or self.option_results.len == 0) break :blk;
+                    self.active_window = .value;
+                    const orig_counter = self.value_cmd_ctr.fetchAdd(1, .seq_cst);
+                    const thread = std.Thread.spawn(.{ .allocator = self.allocator }, OptionSearchTUI.evaluateOption, .{ self, orig_counter, loop }) catch null;
+                    if (thread) |t| t.detach();
                     break :blk;
                 }
 
@@ -227,6 +276,7 @@ pub const OptionSearchTUI = struct {
                 }
             },
             .winsize => |ws| try self.vx.resize(self.allocator, self.tty.anyWriter(), ws),
+            else => {},
         }
 
         try self.draw(allocator);
@@ -253,11 +303,16 @@ pub const OptionSearchTUI = struct {
             .height = .{ .limit = 1 },
         });
         const centered = vaxis.widgets.alignment.center(help_prompt_row_win, help_seg.text.len, 1);
-        _ = try centered.printSegment(help_seg, .{});
+        if (self.active_window != .value) {
+            _ = try centered.printSegment(help_seg, .{});
+        }
 
         _ = try self.drawResultsList(root_win, allocator);
         _ = try self.drawSearchBar(root_win, allocator);
         _ = try self.drawResultPreview(root_win, allocator);
+        if (self.active_window == .value) {
+            try self.drawValuePopup(root_win);
+        }
     }
 
     fn drawHelpWindow(self: *Self, root_win: vaxis.Window) !void {
@@ -624,6 +679,62 @@ pub const OptionSearchTUI = struct {
         return main_win;
     }
 
+    fn drawValuePopup(self: *Self, root_win: vaxis.Window) !void {
+        const main_win = vaxis.widgets.alignment.center(root_win, root_win.width / 2, root_win.height / 2).child(.{
+            .border = .{
+                .where = .all,
+                .style = .{ .fg = .{ .index = 5 } },
+                .glyphs = .single_square,
+            },
+        });
+        main_win.clear();
+
+        const opt_name = self.option_results[self.results_ctx.row].value.name;
+
+        const buf = &self.value_view_buf;
+        buf.clear(self.allocator);
+
+        const title_win = main_win.child(.{
+            .height = .{ .limit = 2 },
+            .border = .{
+                .where = .bottom,
+                .style = .{ .fg = .{ .index = 7 } },
+                .glyphs = .single_square,
+            },
+        });
+        const title_seg: vaxis.Segment = .{
+            .text = opt_name,
+            .style = .{ .bold = true },
+        };
+        const title_centered_win = vaxis.widgets.alignment.center(title_win, title_seg.text.len, 1);
+        _ = try title_centered_win.printSegment(title_seg, .{});
+
+        const info_win = main_win.child(.{
+            .y_off = 2,
+            .height = .{ .limit = main_win.height - 2 },
+        });
+
+        switch (self.option_eval_value) {
+            .loading => try self.appendToBuffer(buf, "Loading...", .{}),
+            .success => |value| {
+                // Nix outputs the evaluated value on a single line. This
+                // wraps the value to the window.
+                var i: usize = 0;
+                while (i < value.len -| info_win.width) : (i += info_win.width) {
+                    const end = i + info_win.width - 1;
+                    try self.appendToBuffer(buf, value[i..end], .{ .fg = .{ .index = 7 } });
+                    try self.appendToBuffer(buf, "\n", .{});
+                }
+                if (i < value.len) {
+                    try self.appendToBuffer(buf, value[i..], .{ .fg = .{ .index = 7 } });
+                }
+            },
+            .@"error" => |message| try self.appendToBuffer(buf, message, .{ .fg = .{ .index = 1 } }),
+        }
+
+        self.value_view.draw(info_win, self.value_view_buf);
+    }
+
     fn appendToBuffer(self: *Self, buf: *TextViewBuffer, content: []const u8, style: vaxis.Style) !void {
         const begin = buf.content.items.len;
         const end = begin + content.len + 1;
@@ -640,8 +751,65 @@ pub const OptionSearchTUI = struct {
         });
     }
 
+    fn evaluateOption(self: *Self, orig_counter: usize, loop: *vaxis.Loop(Event)) !void {
+        const opt_name = self.option_results[self.results_ctx.row].value.name;
+
+        const value: EvaluatedValue = switch (self.config) {
+            .flake => |ref| blk: {
+                const attr = try fmt.allocPrint(self.allocator, "{s}#nixosConfigurations.{s}.config.{s}", .{ ref.uri, ref.system, opt_name });
+                defer self.allocator.free(attr);
+
+                const argv = &.{ "nix", "eval", attr };
+
+                const result = utils.runCmd(.{
+                    .allocator = self.allocator,
+                    .argv = argv,
+                    .stderr_type = .Ignore,
+                }) catch |err| break :blk .{ .@"error" = try fmt.allocPrint(self.allocator, "unable to run `nix eval`: {s}", .{@errorName(err)}) };
+                if (result.status != 0) {
+                    // TODO: add error trace from `nix eval`
+                    break :blk .{ .@"error" = try fmt.allocPrint(self.allocator, "`nix eval` exited with status {d}", .{result.status}) };
+                }
+
+                break :blk .{ .success = result.stdout.? };
+            },
+            .legacy => |includes| blk: {
+                var argv = ArrayList([]const u8).init(self.allocator);
+                defer argv.deinit();
+
+                const attr = try fmt.allocPrint(self.allocator, "config.{s}", .{opt_name});
+                defer self.allocator.free(attr);
+
+                try argv.appendSlice(&.{ "nix-instantiate", "--eval", "--strict", "<nixpkgs/nixos>", "-A", attr });
+                for (includes) |include| {
+                    try argv.append(include);
+                }
+
+                const result = utils.runCmd(.{
+                    .allocator = self.allocator,
+                    .argv = argv.items,
+                    .stderr_type = .Ignore,
+                }) catch |err| break :blk .{ .@"error" = try fmt.allocPrint(self.allocator, "unable to run `nix-instantiate`: {s}", .{@errorName(err)}) };
+                if (result.status != 0) {
+                    // TODO: add error trace from `nix-instantiate`
+                    break :blk .{ .@"error" = try fmt.allocPrint(self.allocator, "`nix-instantiate` exited with status {d}", .{result.status}) };
+                }
+
+                break :blk .{ .success = result.stdout.? };
+            },
+        };
+
+        const counter = self.value_cmd_ctr.load(.seq_cst);
+        if (counter == orig_counter + 1) {
+            self.option_eval_value = value;
+            loop.postEvent(.value_changed);
+        }
+    }
+
     pub fn deinit(self: *Self) void {
         self.allocator.free(self.candidate_filter_buf);
+        self.value_view_buf.deinit(self.allocator);
+        self.help_view_buf.deinit(self.allocator);
         self.option_view_buf.deinit(self.allocator);
         self.search_input.deinit();
         self.vx.deinit(self.allocator, self.tty.anyWriter());
@@ -649,10 +817,20 @@ pub const OptionSearchTUI = struct {
     }
 };
 
-pub fn optionSearchUI(allocator: Allocator, options: []const NixosOption) !void {
+pub fn optionSearchUI(allocator: Allocator, includes: []const []const u8, options: []const NixosOption) !void {
     const c = config.getConfig();
 
-    var app = try OptionSearchTUI.init(allocator, options, c.option.max_rank);
+    var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
+    const configuration: OptionSearchTUI.ConfigType = blk: {
+        if (opts.flake) {
+            var flake_ref = utils.findFlakeRef() catch return error.UnknownFlakeRef;
+            flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return error.UnknownFlakeRef;
+            break :blk .{ .flake = flake_ref };
+        }
+        break :blk .{ .legacy = includes };
+    };
+
+    var app = try OptionSearchTUI.init(allocator, options, configuration, c.option.max_rank);
     defer app.deinit();
 
     try app.run();
