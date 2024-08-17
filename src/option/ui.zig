@@ -60,6 +60,9 @@ pub const OptionSearchTUI = struct {
     option_view: TextView,
     option_view_buf: TextViewBuffer,
 
+    help_view: TextView,
+    help_view_buf: TextViewBuffer,
+
     // Application state
     options: []const NixosOption,
     candidate_filter_buf: []OptionCandidate,
@@ -69,7 +72,7 @@ pub const OptionSearchTUI = struct {
         start: usize = 0,
         row: usize = 0,
     } = .{},
-    active_window: enum { input, preview },
+    active_window: enum { input, preview, help },
 
     const Self = @This();
 
@@ -97,6 +100,8 @@ pub const OptionSearchTUI = struct {
             .search_input = text_input,
             .option_view = TextView{},
             .option_view_buf = TextViewBuffer{},
+            .help_view = TextView{},
+            .help_view_buf = TextViewBuffer{},
 
             .options = options,
             .candidate_filter_buf = candidate_filter_buf,
@@ -132,6 +137,26 @@ pub const OptionSearchTUI = struct {
 
         switch (event) {
             .key_press => |key| blk: {
+                if (key.matches('c', .{ .ctrl = true })) {
+                    self.should_quit = true;
+                    break :blk;
+                }
+
+                if (self.active_window == .help) {
+                    if (key.matchesAny(&.{ vaxis.Key.left, 'h' }, .{})) {
+                        self.help_view.scroll_view.scroll.x -|= 1;
+                    } else if (key.matchesAny(&.{ vaxis.Key.down, 'j' }, .{})) {
+                        self.help_view.scroll_view.scroll.y +|= 1;
+                    } else if (key.matchesAny(&.{ vaxis.Key.up, 'k' }, .{})) {
+                        self.help_view.scroll_view.scroll.y -|= 1;
+                    } else if (key.matchesAny(&.{ vaxis.Key.right, 'l' }, .{})) {
+                        self.help_view.scroll_view.scroll.x +|= 1;
+                    } else if (key.matchesAny(&.{ vaxis.Key.escape, 'q' }, .{})) {
+                        self.active_window = .input;
+                    }
+                    break :blk;
+                }
+
                 if (key.matches(vaxis.Key.tab, .{}) or key.matches(vaxis.Key.tab, .{ .shift = true })) {
                     if (self.active_window == .input) {
                         self.active_window = .preview;
@@ -139,8 +164,10 @@ pub const OptionSearchTUI = struct {
                         self.active_window = .input;
                     }
                     break :blk;
-                } else if (key.matches('c', .{ .ctrl = true })) {
-                    self.should_quit = true;
+                } else if (key.matches('g', .{ .ctrl = true })) {
+                    // Ctrl-G may seem like a weird shortcut, but I stole this idea
+                    // directly from `nano`, since that's the default NixOS editor.
+                    self.active_window = .help;
                     break :blk;
                 }
 
@@ -207,17 +234,147 @@ pub const OptionSearchTUI = struct {
     }
 
     fn draw(self: *Self, allocator: Allocator) !void {
-        const root_win = self.vx.window();
-        root_win.clear();
+        const win = self.vx.window();
+        win.clear();
 
-        _ = try self.drawResultsList(allocator);
-        _ = try self.drawSearchBar(allocator);
-        _ = try self.drawResultPreview(allocator);
+        const root_win = vaxis.widgets.alignment.center(win, win.width - 4, win.height - 4);
+
+        if (self.active_window == .help) {
+            try self.drawHelpWindow(root_win);
+            return;
+        }
+
+        const help_seg: vaxis.Segment = .{
+            .text = "For basic help, type Ctrl-G.",
+            .style = .{ .fg = .{ .index = 3 } },
+        };
+        const help_prompt_row_win = win.child(.{
+            .y_off = win.height - 2,
+            .height = .{ .limit = 1 },
+        });
+        const centered = vaxis.widgets.alignment.center(help_prompt_row_win, help_seg.text.len, 1);
+        _ = try centered.printSegment(help_seg, .{});
+
+        _ = try self.drawResultsList(root_win, allocator);
+        _ = try self.drawSearchBar(root_win, allocator);
+        _ = try self.drawResultPreview(root_win, allocator);
     }
 
-    fn drawResultsList(self: *Self, allocator: Allocator) !vaxis.Window {
-        const root_win = self.vx.window();
+    fn drawHelpWindow(self: *Self, root_win: vaxis.Window) !void {
+        self.help_view_buf.clear(self.allocator);
 
+        const main_win = root_win.child(.{
+            .border = .{
+                .where = .all,
+                .style = .{ .fg = .{ .index = 5 } },
+                .glyphs = .single_square,
+            },
+        });
+
+        const title_win = main_win.child(.{
+            .height = .{ .limit = 2 },
+            .border = .{
+                .where = .bottom,
+                .style = .{ .fg = .{ .index = 7 } },
+                .glyphs = .single_square,
+            },
+        });
+        const title_seg: vaxis.Segment = .{
+            .text = "Help",
+            .style = .{ .bold = true },
+        };
+        const centered = vaxis.widgets.alignment.center(title_win, title_seg.text.len, 1);
+        _ = try centered.printSegment(title_seg, .{});
+
+        const info_win = main_win.child(.{
+            .y_off = 2,
+            .x_off = 1,
+            .height = .{ .limit = root_win.height - 2 },
+        });
+        main_win.hideCursor();
+
+        const buf = &self.help_view_buf;
+        try self.appendToBuffer(buf, "nixos option -i", .{ .fg = .{ .index = 7 } });
+        try self.appendToBuffer(buf, " is a tool designed to help search through available\n", .{});
+        try self.appendToBuffer(buf, "options on a given NixOS system with ease.\n\n", .{});
+
+        try self.appendToBuffer(buf, "Basic Features\n", .{ .bold = true });
+        try self.appendToBuffer(buf,
+            \\A purple border means that a given window is active. If a window
+            \\is active, then its keybinds will work.
+            \\
+            \\The main windows are the:
+            \\  - Option Input/Result List Window
+            \\  - Option Preview Window
+            \\  - Help Window (this one)
+            \\  - Option Value Window
+            \\
+            \\
+            \\
+        , .{});
+
+        try self.appendToBuffer(buf, "Help Window\n", .{ .bold = true });
+        try self.appendToBuffer(buf,
+            \\Use the cursor keys or h, j, k, and l to scroll around.
+            \\
+            \\<Esc> or q will close this help window.
+            \\
+            \\
+            \\
+        , .{});
+
+        try self.appendToBuffer(buf, "Option Input Window\n", .{ .bold = true });
+        try self.appendToBuffer(buf,
+            \\Type anything into the input box and all available options that
+            \\match will be filtered into a list. Scroll this list with the up
+            \\or down cursor keys, and the information for that option will show
+            \\in the option preview window.
+            \\
+            \\<Tab> moves to the option preview window.
+            \\
+            \\
+        , .{});
+        try self.appendToBuffer(buf, "(This feature is coming soon)\n", .{ .italic = true });
+        try self.appendToBuffer(buf,
+            \\<Enter> will allow you to preview that option's current value, if it
+            \\is able to be evaluated. This will toggle the option value window.
+            \\
+            \\
+            \\
+        , .{});
+
+        try self.appendToBuffer(buf, "Option Preview Window\n", .{ .bold = true });
+        try self.appendToBuffer(buf,
+            \\Use the cursor keys or h, j, k, and l to scroll around.
+            \\
+            \\The input box is not updated when this window is active.
+            \\
+            \\<Tab> will move back to the input window for searching.
+            \\
+            \\
+        , .{});
+        try self.appendToBuffer(buf, "(This feature is coming soon)\n", .{ .italic = true });
+        try self.appendToBuffer(buf,
+            \\<Enter> will also evaluate the value, if possible.
+            \\This will toggle the option value window.
+            \\
+            \\
+            \\
+        , .{});
+
+        try self.appendToBuffer(buf, "Option Value Window ", .{ .bold = true });
+        try self.appendToBuffer(buf, "(coming soon)\n", .{ .italic = true });
+        try self.appendToBuffer(buf,
+            \\Use the cursor keys or h, j, k, and l to scroll around.
+            \\
+            \\<Esc> or q will close this window.
+            \\
+        , .{});
+
+        self.help_view.draw(info_win, self.help_view_buf);
+    }
+
+    fn drawResultsList(self: *Self, root_win: vaxis.Window, allocator: Allocator) !vaxis.Window {
         var main_win = root_win.child(.{
             .width = .{ .limit = root_win.width / 2 },
             .height = .{ .limit = root_win.height - 3 },
@@ -297,7 +454,7 @@ pub const OptionSearchTUI = struct {
             });
 
             const selected = ctx.start + i == selected_row;
-            const tile_bg: vaxis.Color = if (selected) .{ .index = 6 } else .{ .index = 0 };
+            const tile_bg: vaxis.Color = if (selected) .{ .index = 4 } else .{ .index = 0 };
 
             if (selected) {
                 tile.fill(.{ .style = .{ .bg = tile_bg } });
@@ -327,7 +484,7 @@ pub const OptionSearchTUI = struct {
                 const selected_arrow_seg: vaxis.Segment = .{
                     .text = "->",
                     .style = .{
-                        .fg = .{ .index = 1 },
+                        .fg = .{ .index = 3 },
                         .bg = tile_bg,
                     },
                 };
@@ -338,8 +495,7 @@ pub const OptionSearchTUI = struct {
         return main_win;
     }
 
-    fn drawSearchBar(self: *Self, allocator: Allocator) !vaxis.Window {
-        const root_win = self.vx.window();
+    fn drawSearchBar(self: *Self, root_win: vaxis.Window, allocator: Allocator) !vaxis.Window {
         const query = self.search_input.buf.items;
 
         const search_bar_win = root_win.child(.{
@@ -381,9 +537,7 @@ pub const OptionSearchTUI = struct {
         return search_bar_win;
     }
 
-    fn drawResultPreview(self: *Self, allocator: Allocator) !vaxis.Window {
-        const root_win = self.vx.window();
-
+    fn drawResultPreview(self: *Self, root_win: vaxis.Window, allocator: Allocator) !vaxis.Window {
         const main_win = root_win.child(.{
             .x_off = root_win.width / 2,
             .width = .{ .limit = root_win.width / 2 },
@@ -424,51 +578,45 @@ pub const OptionSearchTUI = struct {
 
         const opt = self.option_results[self.results_ctx.row].value;
 
-        if (self.option_view.scroll_view.scroll.x > info_win.width - 1) {
-            self.option_view.scroll_view.scroll.x = info_win.width - 1;
-        }
-        if (self.option_view.scroll_view.scroll.y > info_win.height) {
-            self.option_view.scroll_view.scroll.y = info_win.height - 1;
-        }
-
         self.option_view_buf.clear(self.allocator);
 
-        try self.appendToBuffer("Name\n", .{ .bold = true });
-        try self.appendToBuffer(opt.name, .{});
-        try self.appendToBuffer("\n\n", .{});
+        const buf = &self.option_view_buf;
+        try self.appendToBuffer(buf, "Name\n", .{ .bold = true });
+        try self.appendToBuffer(buf, opt.name, .{});
+        try self.appendToBuffer(buf, "\n\n", .{});
 
-        try self.appendToBuffer("Description\n", .{ .bold = true });
+        try self.appendToBuffer(buf, "Description\n", .{ .bold = true });
         if (opt.description) |d| {
-            try self.appendToBuffer(mem.trim(u8, d, "\n"), .{});
+            try self.appendToBuffer(buf, mem.trim(u8, d, "\n"), .{});
         } else {
-            try self.appendToBuffer("(none)", .{ .italic = true });
+            try self.appendToBuffer(buf, "(none)", .{ .italic = true });
         }
-        try self.appendToBuffer("\n\n", .{});
+        try self.appendToBuffer(buf, "\n\n", .{});
 
-        try self.appendToBuffer("Type\n", .{ .bold = true });
-        try self.appendToBuffer(opt.type, .{ .italic = true });
-        try self.appendToBuffer("\n\n", .{});
+        try self.appendToBuffer(buf, "Type\n", .{ .bold = true });
+        try self.appendToBuffer(buf, opt.type, .{ .italic = true });
+        try self.appendToBuffer(buf, "\n\n", .{});
 
-        try self.appendToBuffer("Default\n", .{ .bold = true });
+        try self.appendToBuffer(buf, "Default\n", .{ .bold = true });
         if (opt.default) |d| {
-            try self.appendToBuffer(mem.trim(u8, d.text, "\n"), .{ .fg = .{ .index = 7 } });
+            try self.appendToBuffer(buf, mem.trim(u8, d.text, "\n"), .{ .fg = .{ .index = 7 } });
         } else {
-            try self.appendToBuffer("(none)", .{ .italic = true });
+            try self.appendToBuffer(buf, "(none)", .{ .italic = true });
         }
-        try self.appendToBuffer("\n\n", .{});
+        try self.appendToBuffer(buf, "\n\n", .{});
 
         if (opt.example) |e| {
-            try self.appendToBuffer("Example\n", .{ .bold = true });
-            try self.appendToBuffer(mem.trim(u8, e.text, "\n"), .{ .fg = .{ .index = 7 } });
-            try self.appendToBuffer("\n\n", .{});
+            try self.appendToBuffer(buf, "Example\n", .{ .bold = true });
+            try self.appendToBuffer(buf, mem.trim(u8, e.text, "\n"), .{ .fg = .{ .index = 7 } });
+            try self.appendToBuffer(buf, "\n\n", .{});
         }
 
         if (opt.declarations.len > 0) {
-            try self.appendToBuffer("Declared In\n", .{ .bold = true });
+            try self.appendToBuffer(buf, "Declared In\n", .{ .bold = true });
             for (opt.declarations) |decl| {
-                try self.appendToBuffer(try fmt.allocPrint(allocator, "  - {s}\n", .{decl}), .{ .italic = true });
+                try self.appendToBuffer(buf, try fmt.allocPrint(allocator, "  - {s}\n", .{decl}), .{ .italic = true });
             }
-            try self.appendToBuffer("\n", .{});
+            try self.appendToBuffer(buf, "\n", .{});
         }
 
         _ = self.option_view.draw(info_win, self.option_view_buf);
@@ -476,16 +624,16 @@ pub const OptionSearchTUI = struct {
         return main_win;
     }
 
-    fn appendToBuffer(self: *Self, content: []const u8, style: vaxis.Style) !void {
-        const begin = self.option_view_buf.content.items.len;
+    fn appendToBuffer(self: *Self, buf: *TextViewBuffer, content: []const u8, style: vaxis.Style) !void {
+        const begin = buf.content.items.len;
         const end = begin + content.len + 1;
 
-        try self.option_view_buf.append(self.allocator, .{
+        try buf.append(self.allocator, .{
             .bytes = content,
             .gd = &self.vx.unicode.grapheme_data,
             .wd = &self.vx.unicode.width_data,
         });
-        try self.option_view_buf.updateStyle(self.allocator, .{
+        try buf.updateStyle(self.allocator, .{
             .begin = begin,
             .end = end,
             .style = style,
