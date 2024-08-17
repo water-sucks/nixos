@@ -771,7 +771,7 @@ pub const OptionSearchTUI = struct {
                 const attr = try fmt.allocPrint(self.allocator, "config.{s}", .{opt_name});
                 defer self.allocator.free(attr);
 
-                try argv.appendSlice(&.{ "nix-instantiate", "--eval", "--strict", "<nixpkgs/nixos>", "-A", attr });
+                try argv.appendSlice(&.{ "nix-instantiate", "--eval", "<nixpkgs/nixos>", "-A", attr });
                 for (includes) |include| {
                     try argv.append(include);
                 }
