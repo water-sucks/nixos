@@ -43,6 +43,7 @@ pub const OptionCommand = struct {
     interactive: bool = false,
     includes: ArrayList([]const u8),
     no_cache: bool = false,
+    value_only: bool = false,
 
     const Self = @This();
 
@@ -61,6 +62,7 @@ pub const OptionCommand = struct {
         \\    -I, --include <PATH>    Add a path value to the Nix search path
         \\    -j, --json              Output option information in JSON format
         \\    -n, --no-cache          Do not attempt to use cache
+        \\    -v, --value-only        Show only the selected option's value
         \\
     ;
 
@@ -85,6 +87,8 @@ pub const OptionCommand = struct {
                 parsed.json = true;
             } else if (argIs(arg, "--no-cache", "-n")) {
                 parsed.no_cache = true;
+            } else if (argIs(arg, "--value-only", "-v")) {
+                parsed.value_only = true;
             } else {
                 if (parsed.option == null) {
                     parsed.option = arg;
@@ -98,6 +102,14 @@ pub const OptionCommand = struct {
 
         if (parsed.interactive and parsed.json) {
             argError("--interactive and --json flags conflict", .{});
+            return ArgParseError.ConflictingOptions;
+        }
+        if (parsed.interactive and parsed.value_only) {
+            argError("--interactive and --value-only flags conflict", .{});
+            return ArgParseError.ConflictingOptions;
+        }
+        if (parsed.json and parsed.value_only) {
+            argError("--json and --value-only flags conflict", .{});
             return ArgParseError.ConflictingOptions;
         }
 
@@ -159,19 +171,10 @@ const legacy_options_cache_expr =
     \\  jsonFormat.generate "options-cache.json" optionsList
 ;
 
-fn findNixosOptionFilepath(allocator: Allocator, includes: []const []const u8) ![]const u8 {
-    var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
-
-    const option_cache_expr: []const u8 = blk: {
-        if (opts.flake) {
-            var flake_ref = utils.findFlakeRef() catch return OptionError.NoOptionCache;
-            flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return OptionError.NoOptionCache;
-            break :blk try fmt.allocPrint(allocator, flake_options_cache_expr, .{
-                flake_ref.uri,
-                flake_ref.system,
-            });
-        }
-        break :blk try allocator.dupe(u8, legacy_options_cache_expr);
+fn findNixosOptionFilepath(allocator: Allocator, configuration: ConfigType) ![]const u8 {
+    const option_cache_expr = switch (configuration) {
+        .flake => |ref| try fmt.allocPrint(allocator, flake_options_cache_expr, .{ ref.uri, ref.system }),
+        .legacy => try allocator.dupe(u8, legacy_options_cache_expr),
     };
     defer allocator.free(option_cache_expr);
 
@@ -179,8 +182,11 @@ fn findNixosOptionFilepath(allocator: Allocator, includes: []const []const u8) !
     defer argv.deinit();
 
     try argv.appendSlice(&.{ "nix-build", "--no-out-link", "--expr", option_cache_expr });
-    for (includes) |include| {
-        try argv.appendSlice(&.{ "-I", include });
+
+    if (std.meta.activeTag(configuration) == .legacy) {
+        for (configuration.legacy) |include| {
+            try argv.appendSlice(&.{ "-I", include });
+        }
     }
 
     const result = runCmd(.{
@@ -221,7 +227,7 @@ fn loadOptionsFromFile(allocator: Allocator, filename: []const u8) !json.Parsed(
     return parsed;
 }
 
-fn displayOption(name: []const u8, opt: NixosOption) void {
+fn displayOption(opt: NixosOption, evaluated: EvaluatedValue) void {
     const stdout = io.getStdOut().writer();
 
     // A lot of attributes have lots of newlines and spaces,
@@ -248,9 +254,15 @@ fn displayOption(name: []const u8, opt: NixosOption) void {
     const example = if (opt.example) |e| mem.trim(u8, e.text, "\n ") else null;
 
     if (Constants.use_color) {
-        println(stdout, ansi.BOLD ++ "Name\n" ++ ansi.RESET ++ "{s}\n", .{name});
+        println(stdout, ansi.BOLD ++ "Name\n" ++ ansi.RESET ++ "{s}\n", .{opt.name});
         println(stdout, ansi.BOLD ++ "Description\n" ++ ansi.RESET ++ "{s}\n", .{description});
         println(stdout, ansi.BOLD ++ "Type\n" ++ ansi.RESET ++ "{s}\n", .{opt.type});
+        println(stdout, ansi.BOLD ++ "Value" ++ ansi.RESET, .{});
+        if (std.meta.activeTag(evaluated) == .success) {
+            println(stdout, "{s}\n", .{evaluated.success});
+        } else {
+            println(stdout, ansi.RED ++ "error: {s}\n" ++ ansi.RESET, .{evaluated.@"error"});
+        }
         println(stdout, ansi.BOLD ++ "Default\n" ++ ansi.RESET ++ "{s}\n", .{default});
         if (example) |e| {
             println(stdout, ansi.BOLD ++ "Example\n" ++ ansi.RESET ++ "{s}\n", .{e});
@@ -262,12 +274,18 @@ fn displayOption(name: []const u8, opt: NixosOption) void {
             }
         }
         if (opt.readOnly) {
-            println(stdout, ansi.RED ++ ansi.ITALIC ++ "\nThis option is read-only." ++ ansi.RESET, .{});
+            println(stdout, ansi.YELLOW ++ "\nThis option is read-only." ++ ansi.RESET, .{});
         }
     } else {
-        println(stdout, "Name\n{s}\n", .{name});
+        println(stdout, "Name\n{s}\n", .{opt.name});
         println(stdout, "Description\n{s}\n", .{description});
         println(stdout, "Type\n{s}\n", .{opt.type});
+        println(stdout, "Value", .{});
+        if (std.meta.activeTag(evaluated) == .success) {
+            println(stdout, "{s}\n", .{evaluated.success});
+        } else {
+            println(stdout, "error: {s}\n", .{evaluated.@"error"});
+        }
         println(stdout, "Default\n{s}\n", .{default});
         if (example) |e| {
             println(stdout, "Example\n{s}\n", .{e});
@@ -284,6 +302,84 @@ fn displayOption(name: []const u8, opt: NixosOption) void {
     }
 }
 
+pub fn evaluateOptionValue(allocator: Allocator, configuration: ConfigType, name: []const u8) !EvaluatedValue {
+    switch (configuration) {
+        .flake => |ref| {
+            const attr = try fmt.allocPrint(allocator, "{s}#nixosConfigurations.{s}.config.{s}", .{ ref.uri, ref.system, name });
+            defer allocator.free(attr);
+
+            const argv = &.{ "nix", "eval", attr };
+
+            const result = utils.runCmd(.{
+                .allocator = allocator,
+                .argv = argv,
+                .stderr_type = .Ignore,
+            }) catch |err| return .{ .@"error" = try fmt.allocPrint(allocator, "unable to run `nix eval`: {s}", .{@errorName(err)}) };
+            if (result.status != 0) {
+                // TODO: add error trace from `nix eval`
+                return .{ .@"error" = try fmt.allocPrint(allocator, "`nix eval` exited with status {d}", .{result.status}) };
+            }
+
+            return .{ .success = result.stdout.? };
+        },
+        .legacy => |includes| {
+            var argv = ArrayList([]const u8).init(allocator);
+            defer argv.deinit();
+
+            const attr = try fmt.allocPrint(allocator, "config.{s}", .{name});
+            defer allocator.free(attr);
+
+            try argv.appendSlice(&.{ "nix-instantiate", "--eval", "<nixpkgs/nixos>", "-A", attr });
+            for (includes) |include| {
+                try argv.append(include);
+            }
+
+            const result = utils.runCmd(.{
+                .allocator = allocator,
+                .argv = argv.items,
+                .stderr_type = .Ignore,
+            }) catch |err| return .{ .@"error" = try fmt.allocPrint(allocator, "unable to run `nix-instantiate`: {s}", .{@errorName(err)}) };
+            if (result.status != 0) {
+                // TODO: add error trace from `nix-instantiate`
+                return .{ .@"error" = try fmt.allocPrint(allocator, "`nix-instantiate` exited with status {d}", .{result.status}) };
+            }
+
+            return .{ .success = result.stdout.? };
+        },
+    }
+}
+
+pub const ConfigType = union(enum) {
+    legacy: []const []const u8,
+    flake: utils.FlakeRef,
+};
+
+pub const EvaluatedValue = union(enum) {
+    loading,
+    success: []const u8,
+    @"error": []const u8,
+};
+
+pub const OptionCandidate = utils.search.CandidateStruct(NixosOption);
+
+pub fn compareOptionCandidates(_: void, a: OptionCandidate, b: OptionCandidate) bool {
+    if (a.rank < b.rank) return true;
+    if (a.rank > b.rank) return false;
+
+    const aa = a.value.name;
+    const bb = b.value.name;
+
+    if (aa.len < bb.len) return true;
+    if (aa.len > bb.len) return false;
+
+    for (aa, 0..) |c, i| {
+        if (c < bb[i]) return true;
+        if (c > bb[i]) return false;
+    }
+
+    return false;
+}
+
 const prebuilt_options_cache_filename = Constants.current_system ++ "/etc/nixos-cli/options-cache.json";
 
 fn option(allocator: Allocator, args: OptionCommand) !void {
@@ -292,6 +388,16 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
         return OptionError.UnsupportedOs;
     }
 
+    var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
+    const configuration: ConfigType = blk: {
+        if (opts.flake) {
+            var flake_ref = utils.findFlakeRef() catch return error.UnknownFlakeRef;
+            flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return error.UnknownFlakeRef;
+            break :blk .{ .flake = flake_ref };
+        }
+        break :blk .{ .legacy = args.includes.items };
+    };
+
     var options_filename_alloc = false;
     const options_filename = blk: {
         if (!args.no_cache and fileExistsAbsolute(prebuilt_options_cache_filename)) {
@@ -299,65 +405,73 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
         }
         options_filename_alloc = true;
         log.info("building option list cache, please wait...", .{});
-        break :blk try findNixosOptionFilepath(allocator, args.includes.items);
+        break :blk try findNixosOptionFilepath(allocator, configuration);
     };
     defer if (options_filename_alloc) allocator.free(options_filename);
 
     var parsed_options = loadOptionsFromFile(allocator, options_filename) catch return OptionError.NoOptionCache;
     defer parsed_options.deinit();
 
-    // NOTE: Is this really faster than just using the slice directly?
-    // Need to benchmark.
-    var options_list = std.MultiArrayList(NixosOption){};
-    defer options_list.deinit(allocator);
-    try options_list.setCapacity(allocator, parsed_options.value.len);
-    for (parsed_options.value) |opt| {
-        options_list.appendAssumeCapacity(opt);
-    }
+    const options_list = parsed_options.value;
 
     if (args.interactive) {
-        optionSearchUI(allocator, args.includes.items, parsed_options.value) catch |err| {
-            switch (err) {
-                error.UnknownFlakeRef => log.err("unable to determine current system flake ref", .{}),
-                else => {},
-            }
-            return OptionError.ResourceAccessFailed;
-        };
+        optionSearchUI(allocator, configuration, options_list, args.option) catch return OptionError.ResourceAccessFailed;
         return;
     }
 
     const option_input = args.option.?;
     const stdout = io.getStdOut().writer();
 
-    for (options_list.items(.name), 0..) |opt_name, i| {
-        const key = opt_name;
+    for (options_list) |opt| {
+        if (mem.eql(u8, option_input, opt.name)) {
+            const value = try evaluateOptionValue(allocator, configuration, opt.name);
+            defer switch (value) {
+                .loading => unreachable,
+                .@"error" => |payload| allocator.free(payload),
+                .success => |payload| allocator.free(
+                    payload,
+                ),
+            };
 
-        if (mem.eql(u8, option_input, key)) {
-            const value = options_list.get(i);
             if (args.json) {
                 const output = .{
-                    .name = key,
-                    .description = if (value.description) |d| mem.trim(u8, d, "\n ") else null,
-                    .type = value.type,
-                    .default = if (value.default) |d| d.text else null,
-                    .example = if (value.example) |e| e.text else null,
-                    .declarations = value.declarations,
-                    .readOnly = value.readOnly,
+                    .name = opt.name,
+                    .description = if (opt.description) |d| mem.trim(u8, d, "\n ") else null,
+                    .type = opt.type,
+                    .value = switch (value) {
+                        .loading => unreachable,
+                        .@"error" => null,
+                        .success => |payload| payload,
+                    },
+                    .default = if (opt.default) |d| mem.trim(u8, d.text, "\n") else null,
+                    .example = if (opt.example) |e| mem.trim(u8, e.text, "\n") else null,
+                    .declarations = opt.declarations,
+                    .readOnly = opt.readOnly,
                 };
 
                 json.stringify(output, .{ .whitespace = .indent_2 }, stdout) catch unreachable;
                 println(stdout, "", .{});
+            } else if (args.value_only) {
+                if (std.meta.activeTag(value) == .success) {
+                    println(stdout, "{s}", .{value.success});
+                } else {
+                    log.err("{s}", .{value.@"error"});
+                    return OptionError.ResourceAccessFailed;
+                }
             } else {
-                displayOption(key, value);
+                displayOption(opt, value);
             }
             return;
         }
     } else {
-        const candidate_filter_buf = try allocator.alloc(search.Candidate, options_list.len);
+        const candidate_filter_buf = try allocator.alloc(OptionCandidate, options_list.len);
         defer allocator.free(candidate_filter_buf);
 
+        const tokens = try utils.splitScalarAlloc(allocator, option_input, ' ');
+        defer allocator.free(tokens);
+
         const similar_options = blk: {
-            const raw_filtered = search.rankCandidates(candidate_filter_buf, options_list.items(.name), &.{option_input}, false, true, true);
+            const raw_filtered = search.rankCandidatesStruct(NixosOption, "name", candidate_filter_buf, options_list, tokens, true, true);
             if (raw_filtered.len < 10) {
                 break :blk raw_filtered;
             }
@@ -372,7 +486,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
             defer allocator.free(similar_options_str_list);
 
             for (similar_options, similar_options_str_list) |opt_name, *dst| {
-                dst.* = opt_name.str;
+                dst.* = opt_name.value.name;
             }
 
             const output = .{
@@ -388,7 +502,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
             if (similar_options.len > 0) {
                 log.print("\nSome similar options were found:\n", .{});
                 for (similar_options) |c| {
-                    log.print("  - {s}\n", .{c.str});
+                    log.print("  - {s}\n", .{c.value.name});
                 }
             } else {
                 log.print("Try refining your search query.\n", .{});

@@ -19,11 +19,13 @@ const TextViewBuffer = TextView.Buffer;
 const utils = @import("../utils.zig");
 const ansi = utils.ansi;
 const runCmd = utils.runCmd;
-const CandidateStruct = utils.search.CandidateStruct;
 
 const option_cmd = @import("../option.zig");
 const NixosOption = option_cmd.NixosOption;
-const OptionCandidate = CandidateStruct(NixosOption);
+const OptionCandidate = option_cmd.OptionCandidate;
+const EvaluatedValue = option_cmd.EvaluatedValue;
+const ConfigType = option_cmd.ConfigType;
+const compareOptionCandidates = option_cmd.compareOptionCandidates;
 
 const zf = @import("zf");
 
@@ -32,24 +34,6 @@ const Event = union(enum) {
     winsize: vaxis.Winsize,
     value_changed,
 };
-
-fn compareOptionCandidates(_: void, a: OptionCandidate, b: OptionCandidate) bool {
-    if (a.rank < b.rank) return true;
-    if (a.rank > b.rank) return false;
-
-    const aa = a.value.name;
-    const bb = b.value.name;
-
-    if (aa.len < bb.len) return true;
-    if (aa.len > bb.len) return false;
-
-    for (aa, 0..) |c, i| {
-        if (c < bb[i]) return true;
-        if (c > bb[i]) return false;
-    }
-
-    return false;
-}
 
 pub const OptionSearchTUI = struct {
     allocator: Allocator,
@@ -84,18 +68,7 @@ pub const OptionSearchTUI = struct {
 
     const Self = @This();
 
-    pub const ConfigType = union(enum) {
-        legacy: []const []const u8,
-        flake: utils.FlakeRef,
-    };
-
-    pub const EvaluatedValue = union(enum) {
-        loading,
-        success: []const u8,
-        @"error": []const u8,
-    };
-
-    pub fn init(allocator: Allocator, options: []const NixosOption, configuration: ConfigType, max_rank: f64) !Self {
+    pub fn init(allocator: Allocator, options: []const NixosOption, configuration: ConfigType, max_rank: f64, initial_query: ?[]const u8) !Self {
         var tty = try vaxis.Tty.init();
         errdefer tty.deinit();
 
@@ -104,11 +77,18 @@ pub const OptionSearchTUI = struct {
 
         var text_input = TextInput.init(allocator, &vx.unicode);
         errdefer text_input.deinit();
+        if (initial_query) |query| {
+            try text_input.insertSliceAtCursor(query);
+        }
 
-        const candidate_filter_buf = try allocator.alloc(CandidateStruct(NixosOption), options.len);
+        const candidate_filter_buf = try allocator.alloc(OptionCandidate, options.len);
         errdefer allocator.free(candidate_filter_buf);
 
-        const initial_results = utils.search.rankCandidatesStruct(NixosOption, "name", candidate_filter_buf, options, &.{}, true, true);
+        const initial_results = blk: {
+            const tokens = try utils.splitScalarAlloc(allocator, initial_query orelse "", ' ');
+            defer allocator.free(tokens);
+            break :blk utils.search.rankCandidatesStruct(NixosOption, "name", candidate_filter_buf, options, tokens, true, true);
+        };
 
         return OptionSearchTUI{
             .allocator = allocator,
@@ -215,7 +195,7 @@ pub const OptionSearchTUI = struct {
                     if (self.search_input.buf.items.len == 0 or self.option_results.len == 0) break :blk;
                     self.active_window = .value;
                     const orig_counter = self.value_cmd_ctr.fetchAdd(1, .seq_cst);
-                    const thread = std.Thread.spawn(.{ .allocator = self.allocator }, OptionSearchTUI.evaluateOption, .{ self, orig_counter, loop }) catch null;
+                    const thread = std.Thread.spawn(.{ .allocator = self.allocator }, OptionSearchTUI.evaluateOptionValue, .{ self, orig_counter, loop }) catch null;
                     if (thread) |t| t.detach();
                     break :blk;
                 }
@@ -665,6 +645,11 @@ pub const OptionSearchTUI = struct {
             try self.appendToBuffer(buf, "\n", .{});
         }
 
+        if (opt.readOnly) {
+            try self.appendToBuffer(buf, "This option is read-only.", .{ .fg = .{ .index = 3 } });
+            try self.appendToBuffer(buf, "\n\n", .{});
+        }
+
         _ = self.option_view.draw(info_win, self.option_view_buf);
 
         return main_win;
@@ -742,58 +727,21 @@ pub const OptionSearchTUI = struct {
         });
     }
 
-    fn evaluateOption(self: *Self, orig_counter: usize, loop: *vaxis.Loop(Event)) !void {
+    fn evaluateOptionValue(self: *Self, orig_counter: usize, loop: *vaxis.Loop(Event)) !void {
         const opt_name = self.option_results[self.results_ctx.row].value.name;
 
-        const value: EvaluatedValue = switch (self.config) {
-            .flake => |ref| blk: {
-                const attr = try fmt.allocPrint(self.allocator, "{s}#nixosConfigurations.{s}.config.{s}", .{ ref.uri, ref.system, opt_name });
-                defer self.allocator.free(attr);
-
-                const argv = &.{ "nix", "eval", attr };
-
-                const result = utils.runCmd(.{
-                    .allocator = self.allocator,
-                    .argv = argv,
-                    .stderr_type = .Ignore,
-                }) catch |err| break :blk .{ .@"error" = try fmt.allocPrint(self.allocator, "unable to run `nix eval`: {s}", .{@errorName(err)}) };
-                if (result.status != 0) {
-                    // TODO: add error trace from `nix eval`
-                    break :blk .{ .@"error" = try fmt.allocPrint(self.allocator, "`nix eval` exited with status {d}", .{result.status}) };
-                }
-
-                break :blk .{ .success = result.stdout.? };
-            },
-            .legacy => |includes| blk: {
-                var argv = ArrayList([]const u8).init(self.allocator);
-                defer argv.deinit();
-
-                const attr = try fmt.allocPrint(self.allocator, "config.{s}", .{opt_name});
-                defer self.allocator.free(attr);
-
-                try argv.appendSlice(&.{ "nix-instantiate", "--eval", "<nixpkgs/nixos>", "-A", attr });
-                for (includes) |include| {
-                    try argv.append(include);
-                }
-
-                const result = utils.runCmd(.{
-                    .allocator = self.allocator,
-                    .argv = argv.items,
-                    .stderr_type = .Ignore,
-                }) catch |err| break :blk .{ .@"error" = try fmt.allocPrint(self.allocator, "unable to run `nix-instantiate`: {s}", .{@errorName(err)}) };
-                if (result.status != 0) {
-                    // TODO: add error trace from `nix-instantiate`
-                    break :blk .{ .@"error" = try fmt.allocPrint(self.allocator, "`nix-instantiate` exited with status {d}", .{result.status}) };
-                }
-
-                break :blk .{ .success = result.stdout.? };
-            },
-        };
+        const value: EvaluatedValue = try option_cmd.evaluateOptionValue(self.allocator, self.config, opt_name);
 
         const counter = self.value_cmd_ctr.load(.seq_cst);
         if (counter == orig_counter + 1) {
             self.option_eval_value = value;
             loop.postEvent(.value_changed);
+        } else {
+            switch (value) {
+                .loading => {},
+                .@"error" => |payload| self.allocator.free(payload),
+                .success => |payload| self.allocator.free(payload),
+            }
         }
     }
 
@@ -808,20 +756,10 @@ pub const OptionSearchTUI = struct {
     }
 };
 
-pub fn optionSearchUI(allocator: Allocator, includes: []const []const u8, options: []const NixosOption) !void {
+pub fn optionSearchUI(allocator: Allocator, configuration: ConfigType, options: []const NixosOption, initial_query: ?[]const u8) !void {
     const c = config.getConfig();
 
-    var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
-    const configuration: OptionSearchTUI.ConfigType = blk: {
-        if (opts.flake) {
-            var flake_ref = utils.findFlakeRef() catch return error.UnknownFlakeRef;
-            flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return error.UnknownFlakeRef;
-            break :blk .{ .flake = flake_ref };
-        }
-        break :blk .{ .legacy = includes };
-    };
-
-    var app = try OptionSearchTUI.init(allocator, options, configuration, c.option.max_rank);
+    var app = try OptionSearchTUI.init(allocator, options, configuration, c.option.max_rank, initial_query);
     defer app.deinit();
 
     try app.run();
