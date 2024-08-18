@@ -645,6 +645,11 @@ pub const OptionSearchTUI = struct {
             try self.appendToBuffer(buf, "\n", .{});
         }
 
+        if (opt.readOnly) {
+            try self.appendToBuffer(buf, "This option is read-only.", .{ .fg = .{ .index = 3 } });
+            try self.appendToBuffer(buf, "\n\n", .{});
+        }
+
         _ = self.option_view.draw(info_win, self.option_view_buf);
 
         return main_win;

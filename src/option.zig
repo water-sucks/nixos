@@ -274,7 +274,7 @@ fn displayOption(opt: NixosOption, evaluated: EvaluatedValue) void {
             }
         }
         if (opt.readOnly) {
-            println(stdout, ansi.RED ++ ansi.ITALIC ++ "\nThis option is read-only." ++ ansi.RESET, .{});
+            println(stdout, ansi.YELLOW ++ "\nThis option is read-only." ++ ansi.RESET, .{});
         }
     } else {
         println(stdout, "Name\n{s}\n", .{opt.name});
