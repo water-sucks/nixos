@@ -215,7 +215,7 @@ fn loadOptionsFromFile(allocator: Allocator, filename: []const u8) !json.Parsed(
     return parsed;
 }
 
-fn displayOption(name: []const u8, opt: NixosOption) void {
+fn displayOption(name: []const u8, opt: NixosOption, evaluated: EvaluatedValue) void {
     const stdout = io.getStdOut().writer();
 
     // A lot of attributes have lots of newlines and spaces,
@@ -245,6 +245,12 @@ fn displayOption(name: []const u8, opt: NixosOption) void {
         println(stdout, ansi.BOLD ++ "Name\n" ++ ansi.RESET ++ "{s}\n", .{name});
         println(stdout, ansi.BOLD ++ "Description\n" ++ ansi.RESET ++ "{s}\n", .{description});
         println(stdout, ansi.BOLD ++ "Type\n" ++ ansi.RESET ++ "{s}\n", .{opt.type});
+        println(stdout, ansi.BOLD ++ "Value" ++ ansi.RESET, .{});
+        if (std.meta.activeTag(evaluated) == .success) {
+            println(stdout, "{s}\n", .{evaluated.success});
+        } else {
+            println(stdout, ansi.RED ++ "error: {s}\n" ++ ansi.RESET, .{evaluated.@"error"});
+        }
         println(stdout, ansi.BOLD ++ "Default\n" ++ ansi.RESET ++ "{s}\n", .{default});
         if (example) |e| {
             println(stdout, ansi.BOLD ++ "Example\n" ++ ansi.RESET ++ "{s}\n", .{e});
@@ -262,6 +268,12 @@ fn displayOption(name: []const u8, opt: NixosOption) void {
         println(stdout, "Name\n{s}\n", .{name});
         println(stdout, "Description\n{s}\n", .{description});
         println(stdout, "Type\n{s}\n", .{opt.type});
+        println(stdout, "Value", .{});
+        if (std.meta.activeTag(evaluated) == .success) {
+            println(stdout, "{s}\n", .{evaluated.success});
+        } else {
+            println(stdout, "error: {s}\n", .{evaluated.@"error"});
+        }
         println(stdout, "Default\n{s}\n", .{default});
         if (example) |e| {
             println(stdout, "Example\n{s}\n", .{e});
@@ -275,6 +287,53 @@ fn displayOption(name: []const u8, opt: NixosOption) void {
         if (opt.readOnly) {
             println(stdout, "\nThis option is read-only.", .{});
         }
+    }
+}
+
+pub fn evaluateOptionValue(allocator: Allocator, configuration: ConfigType, name: []const u8) !EvaluatedValue {
+    switch (configuration) {
+        .flake => |ref| {
+            const attr = try fmt.allocPrint(allocator, "{s}#nixosConfigurations.{s}.config.{s}", .{ ref.uri, ref.system, name });
+            defer allocator.free(attr);
+
+            const argv = &.{ "nix", "eval", attr };
+
+            const result = utils.runCmd(.{
+                .allocator = allocator,
+                .argv = argv,
+                .stderr_type = .Ignore,
+            }) catch |err| return .{ .@"error" = try fmt.allocPrint(allocator, "unable to run `nix eval`: {s}", .{@errorName(err)}) };
+            if (result.status != 0) {
+                // TODO: add error trace from `nix eval`
+                return .{ .@"error" = try fmt.allocPrint(allocator, "`nix eval` exited with status {d}", .{result.status}) };
+            }
+
+            return .{ .success = result.stdout.? };
+        },
+        .legacy => |includes| {
+            var argv = ArrayList([]const u8).init(allocator);
+            defer argv.deinit();
+
+            const attr = try fmt.allocPrint(allocator, "config.{s}", .{name});
+            defer allocator.free(attr);
+
+            try argv.appendSlice(&.{ "nix-instantiate", "--eval", "<nixpkgs/nixos>", "-A", attr });
+            for (includes) |include| {
+                try argv.append(include);
+            }
+
+            const result = utils.runCmd(.{
+                .allocator = allocator,
+                .argv = argv.items,
+                .stderr_type = .Ignore,
+            }) catch |err| return .{ .@"error" = try fmt.allocPrint(allocator, "unable to run `nix-instantiate`: {s}", .{@errorName(err)}) };
+            if (result.status != 0) {
+                // TODO: add error trace from `nix-instantiate`
+                return .{ .@"error" = try fmt.allocPrint(allocator, "`nix-instantiate` exited with status {d}", .{result.status}) };
+            }
+
+            return .{ .success = result.stdout.? };
+        },
     }
 }
 
@@ -331,13 +390,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
     }
 
     if (args.interactive) {
-        optionSearchUI(allocator, configuration, parsed_options.value) catch |err| {
-            switch (err) {
-                error.UnknownFlakeRef => log.err("unable to determine current system flake ref", .{}),
-                else => {},
-            }
-            return OptionError.ResourceAccessFailed;
-        };
+        optionSearchUI(allocator, configuration, parsed_options.value) catch return OptionError.ResourceAccessFailed;
         return;
     }
 
@@ -348,22 +401,36 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
         const key = opt_name;
 
         if (mem.eql(u8, option_input, key)) {
-            const value = options_list.get(i);
+            const opt = options_list.get(i);
+            const value = try evaluateOptionValue(allocator, configuration, opt.name);
+            defer switch (value) {
+                .loading => unreachable,
+                .@"error" => |payload| allocator.free(payload),
+                .success => |payload| allocator.free(
+                    payload,
+                ),
+            };
+
             if (args.json) {
                 const output = .{
                     .name = key,
-                    .description = if (value.description) |d| mem.trim(u8, d, "\n ") else null,
-                    .type = value.type,
-                    .default = if (value.default) |d| d.text else null,
-                    .example = if (value.example) |e| e.text else null,
-                    .declarations = value.declarations,
-                    .readOnly = value.readOnly,
+                    .description = if (opt.description) |d| mem.trim(u8, d, "\n ") else null,
+                    .type = opt.type,
+                    .value = switch (value) {
+                        .loading => unreachable,
+                        .@"error" => null,
+                        .success => |payload| payload,
+                    },
+                    .default = if (opt.default) |d| mem.trim(u8, d.text, "\n") else null,
+                    .example = if (opt.example) |e| mem.trim(u8, e.text, "\n") else null,
+                    .declarations = opt.declarations,
+                    .readOnly = opt.readOnly,
                 };
 
                 json.stringify(output, .{ .whitespace = .indent_2 }, stdout) catch unreachable;
                 println(stdout, "", .{});
             } else {
-                displayOption(key, value);
+                displayOption(key, opt, value);
             }
             return;
         }

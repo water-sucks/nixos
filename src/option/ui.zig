@@ -206,7 +206,7 @@ pub const OptionSearchTUI = struct {
                     if (self.search_input.buf.items.len == 0 or self.option_results.len == 0) break :blk;
                     self.active_window = .value;
                     const orig_counter = self.value_cmd_ctr.fetchAdd(1, .seq_cst);
-                    const thread = std.Thread.spawn(.{ .allocator = self.allocator }, OptionSearchTUI.evaluateOption, .{ self, orig_counter, loop }) catch null;
+                    const thread = std.Thread.spawn(.{ .allocator = self.allocator }, OptionSearchTUI.evaluateOptionValue, .{ self, orig_counter, loop }) catch null;
                     if (thread) |t| t.detach();
                     break :blk;
                 }
@@ -733,58 +733,21 @@ pub const OptionSearchTUI = struct {
         });
     }
 
-    fn evaluateOption(self: *Self, orig_counter: usize, loop: *vaxis.Loop(Event)) !void {
+    fn evaluateOptionValue(self: *Self, orig_counter: usize, loop: *vaxis.Loop(Event)) !void {
         const opt_name = self.option_results[self.results_ctx.row].value.name;
 
-        const value: EvaluatedValue = switch (self.config) {
-            .flake => |ref| blk: {
-                const attr = try fmt.allocPrint(self.allocator, "{s}#nixosConfigurations.{s}.config.{s}", .{ ref.uri, ref.system, opt_name });
-                defer self.allocator.free(attr);
-
-                const argv = &.{ "nix", "eval", attr };
-
-                const result = utils.runCmd(.{
-                    .allocator = self.allocator,
-                    .argv = argv,
-                    .stderr_type = .Ignore,
-                }) catch |err| break :blk .{ .@"error" = try fmt.allocPrint(self.allocator, "unable to run `nix eval`: {s}", .{@errorName(err)}) };
-                if (result.status != 0) {
-                    // TODO: add error trace from `nix eval`
-                    break :blk .{ .@"error" = try fmt.allocPrint(self.allocator, "`nix eval` exited with status {d}", .{result.status}) };
-                }
-
-                break :blk .{ .success = result.stdout.? };
-            },
-            .legacy => |includes| blk: {
-                var argv = ArrayList([]const u8).init(self.allocator);
-                defer argv.deinit();
-
-                const attr = try fmt.allocPrint(self.allocator, "config.{s}", .{opt_name});
-                defer self.allocator.free(attr);
-
-                try argv.appendSlice(&.{ "nix-instantiate", "--eval", "<nixpkgs/nixos>", "-A", attr });
-                for (includes) |include| {
-                    try argv.append(include);
-                }
-
-                const result = utils.runCmd(.{
-                    .allocator = self.allocator,
-                    .argv = argv.items,
-                    .stderr_type = .Ignore,
-                }) catch |err| break :blk .{ .@"error" = try fmt.allocPrint(self.allocator, "unable to run `nix-instantiate`: {s}", .{@errorName(err)}) };
-                if (result.status != 0) {
-                    // TODO: add error trace from `nix-instantiate`
-                    break :blk .{ .@"error" = try fmt.allocPrint(self.allocator, "`nix-instantiate` exited with status {d}", .{result.status}) };
-                }
-
-                break :blk .{ .success = result.stdout.? };
-            },
-        };
+        const value: EvaluatedValue = try option_cmd.evaluateOptionValue(self.allocator, self.config, opt_name);
 
         const counter = self.value_cmd_ctr.load(.seq_cst);
         if (counter == orig_counter + 1) {
             self.option_eval_value = value;
             loop.postEvent(.value_changed);
+        } else {
+            switch (value) {
+                .loading => {},
+                .@"error" => |payload| self.allocator.free(payload),
+                .success => |payload| self.allocator.free(payload),
+            }
         }
     }
 
