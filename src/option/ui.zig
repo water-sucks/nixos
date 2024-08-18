@@ -86,7 +86,7 @@ pub const OptionSearchTUI = struct {
 
     const Self = @This();
 
-    pub fn init(allocator: Allocator, options: []const NixosOption, configuration: ConfigType, max_rank: f64) !Self {
+    pub fn init(allocator: Allocator, options: []const NixosOption, configuration: ConfigType, max_rank: f64, initial_query: ?[]const u8) !Self {
         var tty = try vaxis.Tty.init();
         errdefer tty.deinit();
 
@@ -95,11 +95,18 @@ pub const OptionSearchTUI = struct {
 
         var text_input = TextInput.init(allocator, &vx.unicode);
         errdefer text_input.deinit();
+        if (initial_query) |query| {
+            try text_input.insertSliceAtCursor(query);
+        }
 
         const candidate_filter_buf = try allocator.alloc(CandidateStruct(NixosOption), options.len);
         errdefer allocator.free(candidate_filter_buf);
 
-        const initial_results = utils.search.rankCandidatesStruct(NixosOption, "name", candidate_filter_buf, options, &.{}, true, true);
+        const initial_results = blk: {
+            const tokens = try utils.splitScalarAlloc(allocator, initial_query orelse "", ' ');
+            defer allocator.free(tokens);
+            break :blk utils.search.rankCandidatesStruct(NixosOption, "name", candidate_filter_buf, options, tokens, true, true);
+        };
 
         return OptionSearchTUI{
             .allocator = allocator,
@@ -762,10 +769,10 @@ pub const OptionSearchTUI = struct {
     }
 };
 
-pub fn optionSearchUI(allocator: Allocator, configuration: ConfigType, options: []const NixosOption) !void {
+pub fn optionSearchUI(allocator: Allocator, configuration: ConfigType, options: []const NixosOption, initial_query: ?[]const u8) !void {
     const c = config.getConfig();
 
-    var app = try OptionSearchTUI.init(allocator, options, configuration, c.option.max_rank);
+    var app = try OptionSearchTUI.init(allocator, options, configuration, c.option.max_rank, initial_query);
     defer app.deinit();
 
     try app.run();

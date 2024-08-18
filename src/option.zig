@@ -402,7 +402,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
     }
 
     if (args.interactive) {
-        optionSearchUI(allocator, configuration, parsed_options.value) catch return OptionError.ResourceAccessFailed;
+        optionSearchUI(allocator, configuration, parsed_options.value, args.option) catch return OptionError.ResourceAccessFailed;
         return;
     }
 
