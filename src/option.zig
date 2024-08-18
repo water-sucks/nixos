@@ -395,7 +395,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
             flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return error.UnknownFlakeRef;
             break :blk .{ .flake = flake_ref };
         }
-        break :blk .{ .legacy = args.includes };
+        break :blk .{ .legacy = args.includes.items };
     };
 
     var options_filename_alloc = false;
