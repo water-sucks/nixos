@@ -159,19 +159,10 @@ const legacy_options_cache_expr =
     \\  jsonFormat.generate "options-cache.json" optionsList
 ;
 
-fn findNixosOptionFilepath(allocator: Allocator, includes: []const []const u8) ![]const u8 {
-    var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
-
-    const option_cache_expr: []const u8 = blk: {
-        if (opts.flake) {
-            var flake_ref = utils.findFlakeRef() catch return OptionError.NoOptionCache;
-            flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return OptionError.NoOptionCache;
-            break :blk try fmt.allocPrint(allocator, flake_options_cache_expr, .{
-                flake_ref.uri,
-                flake_ref.system,
-            });
-        }
-        break :blk try allocator.dupe(u8, legacy_options_cache_expr);
+fn findNixosOptionFilepath(allocator: Allocator, configuration: ConfigType) ![]const u8 {
+    const option_cache_expr = switch (configuration) {
+        .flake => |ref| try fmt.allocPrint(allocator, flake_options_cache_expr, .{ ref.uri, ref.system }),
+        .legacy => try allocator.dupe(u8, legacy_options_cache_expr),
     };
     defer allocator.free(option_cache_expr);
 
@@ -179,8 +170,11 @@ fn findNixosOptionFilepath(allocator: Allocator, includes: []const []const u8) !
     defer argv.deinit();
 
     try argv.appendSlice(&.{ "nix-build", "--no-out-link", "--expr", option_cache_expr });
-    for (includes) |include| {
-        try argv.appendSlice(&.{ "-I", include });
+
+    if (std.meta.activeTag(configuration) == .legacy) {
+        for (configuration.legacy) |include| {
+            try argv.appendSlice(&.{ "-I", include });
+        }
     }
 
     const result = runCmd(.{
@@ -284,6 +278,17 @@ fn displayOption(name: []const u8, opt: NixosOption) void {
     }
 }
 
+pub const ConfigType = union(enum) {
+    legacy: []const []const u8,
+    flake: utils.FlakeRef,
+};
+
+pub const EvaluatedValue = union(enum) {
+    loading,
+    success: []const u8,
+    @"error": []const u8,
+};
+
 const prebuilt_options_cache_filename = Constants.current_system ++ "/etc/nixos-cli/options-cache.json";
 
 fn option(allocator: Allocator, args: OptionCommand) !void {
@@ -292,6 +297,16 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
         return OptionError.UnsupportedOs;
     }
 
+    var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
+    const configuration: ConfigType = blk: {
+        if (opts.flake) {
+            var flake_ref = utils.findFlakeRef() catch return error.UnknownFlakeRef;
+            flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return error.UnknownFlakeRef;
+            break :blk .{ .flake = flake_ref };
+        }
+        break :blk .{ .legacy = args.includes };
+    };
+
     var options_filename_alloc = false;
     const options_filename = blk: {
         if (!args.no_cache and fileExistsAbsolute(prebuilt_options_cache_filename)) {
@@ -299,7 +314,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
         }
         options_filename_alloc = true;
         log.info("building option list cache, please wait...", .{});
-        break :blk try findNixosOptionFilepath(allocator, args.includes.items);
+        break :blk try findNixosOptionFilepath(allocator, configuration);
     };
     defer if (options_filename_alloc) allocator.free(options_filename);
 
@@ -316,7 +331,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
     }
 
     if (args.interactive) {
-        optionSearchUI(allocator, args.includes.items, parsed_options.value) catch |err| {
+        optionSearchUI(allocator, configuration, parsed_options.value) catch |err| {
             switch (err) {
                 error.UnknownFlakeRef => log.err("unable to determine current system flake ref", .{}),
                 else => {},

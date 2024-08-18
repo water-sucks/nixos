@@ -24,6 +24,8 @@ const CandidateStruct = utils.search.CandidateStruct;
 const option_cmd = @import("../option.zig");
 const NixosOption = option_cmd.NixosOption;
 const OptionCandidate = CandidateStruct(NixosOption);
+const EvaluatedValue = option_cmd.EvaluatedValue;
+const ConfigType = option_cmd.ConfigType;
 
 const zf = @import("zf");
 
@@ -83,17 +85,6 @@ pub const OptionSearchTUI = struct {
     value_cmd_ctr: std.atomic.Value(usize) = std.atomic.Value(usize).init(0),
 
     const Self = @This();
-
-    pub const ConfigType = union(enum) {
-        legacy: []const []const u8,
-        flake: utils.FlakeRef,
-    };
-
-    pub const EvaluatedValue = union(enum) {
-        loading,
-        success: []const u8,
-        @"error": []const u8,
-    };
 
     pub fn init(allocator: Allocator, options: []const NixosOption, configuration: ConfigType, max_rank: f64) !Self {
         var tty = try vaxis.Tty.init();
@@ -808,18 +799,8 @@ pub const OptionSearchTUI = struct {
     }
 };
 
-pub fn optionSearchUI(allocator: Allocator, includes: []const []const u8, options: []const NixosOption) !void {
+pub fn optionSearchUI(allocator: Allocator, configuration: ConfigType, options: []const NixosOption) !void {
     const c = config.getConfig();
-
-    var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
-    const configuration: OptionSearchTUI.ConfigType = blk: {
-        if (opts.flake) {
-            var flake_ref = utils.findFlakeRef() catch return error.UnknownFlakeRef;
-            flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return error.UnknownFlakeRef;
-            break :blk .{ .flake = flake_ref };
-        }
-        break :blk .{ .legacy = includes };
-    };
 
     var app = try OptionSearchTUI.init(allocator, options, configuration, c.option.max_rank);
     defer app.deinit();
