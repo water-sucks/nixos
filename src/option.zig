@@ -227,7 +227,7 @@ fn loadOptionsFromFile(allocator: Allocator, filename: []const u8) !json.Parsed(
     return parsed;
 }
 
-fn displayOption(name: []const u8, opt: NixosOption, evaluated: EvaluatedValue) void {
+fn displayOption(opt: NixosOption, evaluated: EvaluatedValue) void {
     const stdout = io.getStdOut().writer();
 
     // A lot of attributes have lots of newlines and spaces,
@@ -254,7 +254,7 @@ fn displayOption(name: []const u8, opt: NixosOption, evaluated: EvaluatedValue) 
     const example = if (opt.example) |e| mem.trim(u8, e.text, "\n ") else null;
 
     if (Constants.use_color) {
-        println(stdout, ansi.BOLD ++ "Name\n" ++ ansi.RESET ++ "{s}\n", .{name});
+        println(stdout, ansi.BOLD ++ "Name\n" ++ ansi.RESET ++ "{s}\n", .{opt.name});
         println(stdout, ansi.BOLD ++ "Description\n" ++ ansi.RESET ++ "{s}\n", .{description});
         println(stdout, ansi.BOLD ++ "Type\n" ++ ansi.RESET ++ "{s}\n", .{opt.type});
         println(stdout, ansi.BOLD ++ "Value" ++ ansi.RESET, .{});
@@ -277,7 +277,7 @@ fn displayOption(name: []const u8, opt: NixosOption, evaluated: EvaluatedValue) 
             println(stdout, ansi.RED ++ ansi.ITALIC ++ "\nThis option is read-only." ++ ansi.RESET, .{});
         }
     } else {
-        println(stdout, "Name\n{s}\n", .{name});
+        println(stdout, "Name\n{s}\n", .{opt.name});
         println(stdout, "Description\n{s}\n", .{description});
         println(stdout, "Type\n{s}\n", .{opt.type});
         println(stdout, "Value", .{});
@@ -360,6 +360,26 @@ pub const EvaluatedValue = union(enum) {
     @"error": []const u8,
 };
 
+pub const OptionCandidate = utils.search.CandidateStruct(NixosOption);
+
+pub fn compareOptionCandidates(_: void, a: OptionCandidate, b: OptionCandidate) bool {
+    if (a.rank < b.rank) return true;
+    if (a.rank > b.rank) return false;
+
+    const aa = a.value.name;
+    const bb = b.value.name;
+
+    if (aa.len < bb.len) return true;
+    if (aa.len > bb.len) return false;
+
+    for (aa, 0..) |c, i| {
+        if (c < bb[i]) return true;
+        if (c > bb[i]) return false;
+    }
+
+    return false;
+}
+
 const prebuilt_options_cache_filename = Constants.current_system ++ "/etc/nixos-cli/options-cache.json";
 
 fn option(allocator: Allocator, args: OptionCommand) !void {
@@ -392,28 +412,18 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
     var parsed_options = loadOptionsFromFile(allocator, options_filename) catch return OptionError.NoOptionCache;
     defer parsed_options.deinit();
 
-    // NOTE: Is this really faster than just using the slice directly?
-    // Need to benchmark.
-    var options_list = std.MultiArrayList(NixosOption){};
-    defer options_list.deinit(allocator);
-    try options_list.setCapacity(allocator, parsed_options.value.len);
-    for (parsed_options.value) |opt| {
-        options_list.appendAssumeCapacity(opt);
-    }
+    const options_list = parsed_options.value;
 
     if (args.interactive) {
-        optionSearchUI(allocator, configuration, parsed_options.value, args.option) catch return OptionError.ResourceAccessFailed;
+        optionSearchUI(allocator, configuration, options_list, args.option) catch return OptionError.ResourceAccessFailed;
         return;
     }
 
     const option_input = args.option.?;
     const stdout = io.getStdOut().writer();
 
-    for (options_list.items(.name), 0..) |opt_name, i| {
-        const key = opt_name;
-
-        if (mem.eql(u8, option_input, key)) {
-            const opt = options_list.get(i);
+    for (options_list) |opt| {
+        if (mem.eql(u8, option_input, opt.name)) {
             const value = try evaluateOptionValue(allocator, configuration, opt.name);
             defer switch (value) {
                 .loading => unreachable,
@@ -425,7 +435,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
 
             if (args.json) {
                 const output = .{
-                    .name = key,
+                    .name = opt.name,
                     .description = if (opt.description) |d| mem.trim(u8, d, "\n ") else null,
                     .type = opt.type,
                     .value = switch (value) {
@@ -449,16 +459,19 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
                     return OptionError.ResourceAccessFailed;
                 }
             } else {
-                displayOption(key, opt, value);
+                displayOption(opt, value);
             }
             return;
         }
     } else {
-        const candidate_filter_buf = try allocator.alloc(search.Candidate, options_list.len);
+        const candidate_filter_buf = try allocator.alloc(OptionCandidate, options_list.len);
         defer allocator.free(candidate_filter_buf);
 
+        const tokens = try utils.splitScalarAlloc(allocator, option_input, ' ');
+        defer allocator.free(tokens);
+
         const similar_options = blk: {
-            const raw_filtered = search.rankCandidates(candidate_filter_buf, options_list.items(.name), &.{option_input}, false, true, true);
+            const raw_filtered = search.rankCandidatesStruct(NixosOption, "name", candidate_filter_buf, options_list, tokens, true, true);
             if (raw_filtered.len < 10) {
                 break :blk raw_filtered;
             }
@@ -473,7 +486,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
             defer allocator.free(similar_options_str_list);
 
             for (similar_options, similar_options_str_list) |opt_name, *dst| {
-                dst.* = opt_name.str;
+                dst.* = opt_name.value.name;
             }
 
             const output = .{
@@ -489,7 +502,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
             if (similar_options.len > 0) {
                 log.print("\nSome similar options were found:\n", .{});
                 for (similar_options) |c| {
-                    log.print("  - {s}\n", .{c.str});
+                    log.print("  - {s}\n", .{c.value.name});
                 }
             } else {
                 log.print("Try refining your search query.\n", .{});

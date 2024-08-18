@@ -19,13 +19,13 @@ const TextViewBuffer = TextView.Buffer;
 const utils = @import("../utils.zig");
 const ansi = utils.ansi;
 const runCmd = utils.runCmd;
-const CandidateStruct = utils.search.CandidateStruct;
 
 const option_cmd = @import("../option.zig");
 const NixosOption = option_cmd.NixosOption;
-const OptionCandidate = CandidateStruct(NixosOption);
+const OptionCandidate = option_cmd.OptionCandidate;
 const EvaluatedValue = option_cmd.EvaluatedValue;
 const ConfigType = option_cmd.ConfigType;
+const compareOptionCandidates = option_cmd.compareOptionCandidates;
 
 const zf = @import("zf");
 
@@ -34,24 +34,6 @@ const Event = union(enum) {
     winsize: vaxis.Winsize,
     value_changed,
 };
-
-fn compareOptionCandidates(_: void, a: OptionCandidate, b: OptionCandidate) bool {
-    if (a.rank < b.rank) return true;
-    if (a.rank > b.rank) return false;
-
-    const aa = a.value.name;
-    const bb = b.value.name;
-
-    if (aa.len < bb.len) return true;
-    if (aa.len > bb.len) return false;
-
-    for (aa, 0..) |c, i| {
-        if (c < bb[i]) return true;
-        if (c > bb[i]) return false;
-    }
-
-    return false;
-}
 
 pub const OptionSearchTUI = struct {
     allocator: Allocator,
@@ -99,7 +81,7 @@ pub const OptionSearchTUI = struct {
             try text_input.insertSliceAtCursor(query);
         }
 
-        const candidate_filter_buf = try allocator.alloc(CandidateStruct(NixosOption), options.len);
+        const candidate_filter_buf = try allocator.alloc(OptionCandidate, options.len);
         errdefer allocator.free(candidate_filter_buf);
 
         const initial_results = blk: {
