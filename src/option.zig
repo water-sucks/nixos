@@ -43,6 +43,7 @@ pub const OptionCommand = struct {
     interactive: bool = false,
     includes: ArrayList([]const u8),
     no_cache: bool = false,
+    value_only: bool = false,
 
     const Self = @This();
 
@@ -61,6 +62,7 @@ pub const OptionCommand = struct {
         \\    -I, --include <PATH>    Add a path value to the Nix search path
         \\    -j, --json              Output option information in JSON format
         \\    -n, --no-cache          Do not attempt to use cache
+        \\    -v, --value-only        Show only the selected option's value
         \\
     ;
 
@@ -85,6 +87,8 @@ pub const OptionCommand = struct {
                 parsed.json = true;
             } else if (argIs(arg, "--no-cache", "-n")) {
                 parsed.no_cache = true;
+            } else if (argIs(arg, "--value-only", "-v")) {
+                parsed.value_only = true;
             } else {
                 if (parsed.option == null) {
                     parsed.option = arg;
@@ -98,6 +102,14 @@ pub const OptionCommand = struct {
 
         if (parsed.interactive and parsed.json) {
             argError("--interactive and --json flags conflict", .{});
+            return ArgParseError.ConflictingOptions;
+        }
+        if (parsed.interactive and parsed.value_only) {
+            argError("--interactive and --value-only flags conflict", .{});
+            return ArgParseError.ConflictingOptions;
+        }
+        if (parsed.json and parsed.value_only) {
+            argError("--json and --value-only flags conflict", .{});
             return ArgParseError.ConflictingOptions;
         }
 
@@ -429,6 +441,13 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
 
                 json.stringify(output, .{ .whitespace = .indent_2 }, stdout) catch unreachable;
                 println(stdout, "", .{});
+            } else if (args.value_only) {
+                if (std.meta.activeTag(value) == .success) {
+                    println(stdout, "{s}", .{value.success});
+                } else {
+                    log.err("{s}", .{value.@"error"});
+                    return OptionError.ResourceAccessFailed;
+                }
             } else {
                 displayOption(key, opt, value);
             }
