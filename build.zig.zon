@@ -1,6 +1,6 @@
 .{
     .name = "nixos",
-    .version = "0.11.0",
+    .version = "0.12.0-dev",
     .minimum_zig_version = "0.13.0",
     .paths = .{
         "build.zig",
