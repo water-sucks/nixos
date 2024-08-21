@@ -227,14 +227,41 @@ fn loadOptionsFromFile(allocator: Allocator, filename: []const u8) !json.Parsed(
     return parsed;
 }
 
-fn displayOption(opt: NixosOption, evaluated: EvaluatedValue) void {
+const annotations_to_remove: []const []const u8 = &.{
+    "{option}`",
+    "{var}`",
+    "{file}`",
+    "{env}`",
+    "{command}`",
+    "{manpage}`",
+};
+
+/// Some options have annotations in the form of {manpage}`hello(1)`, or
+/// {option}`system.nixos.version`, or similar. Remove these, as they can
+/// obscure plain text.
+pub fn stripInlineCodeAnnotations(slice: []const u8, buf: []u8) []const u8 {
+    var result: []const u8 = slice;
+
+    for (annotations_to_remove) |input| {
+        const new_size = std.mem.replacementSize(u8, result, input, "`");
+        _ = std.mem.replace(u8, result, input, "`", buf);
+        result = buf[0..new_size];
+    }
+
+    return result;
+}
+
+fn displayOption(allocator: Allocator, opt: NixosOption, evaluated: EvaluatedValue) !void {
     const stdout = io.getStdOut().writer();
+
+    const desc_buf = try allocator.alloc(u8, if (opt.description) |d| d.len else 0);
+    defer allocator.free(desc_buf);
 
     // A lot of attributes have lots of newlines and spaces,
     // especially trailing ones. This should be trimmed.
     const description = blk: {
         if (opt.description) |d| {
-            break :blk mem.trim(u8, d, "\n ");
+            break :blk stripInlineCodeAnnotations(mem.trim(u8, d, "\n "), desc_buf);
         }
 
         break :blk if (Constants.use_color)
@@ -242,6 +269,7 @@ fn displayOption(opt: NixosOption, evaluated: EvaluatedValue) void {
         else
             "(none)";
     };
+
     const default = blk: {
         if (opt.default) |d| {
             break :blk mem.trim(u8, d.text, "\n ");
@@ -459,7 +487,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
                     return OptionError.ResourceAccessFailed;
                 }
             } else {
-                displayOption(opt, value);
+                try displayOption(allocator, opt, value);
             }
             return;
         }

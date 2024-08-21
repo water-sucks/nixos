@@ -611,9 +611,12 @@ pub const OptionSearchTUI = struct {
         try self.appendToBuffer(buf, opt.name, .{});
         try self.appendToBuffer(buf, "\n\n", .{});
 
+        const desc_buf = try allocator.alloc(u8, if (opt.description) |d| d.len else 0);
+
         try self.appendToBuffer(buf, "Description\n", .{ .bold = true });
         if (opt.description) |d| {
-            try self.appendToBuffer(buf, mem.trim(u8, d, "\n"), .{});
+            const desc = option_cmd.stripInlineCodeAnnotations(d, desc_buf);
+            try self.appendToBuffer(buf, mem.trim(u8, desc, "\n"), .{});
         } else {
             try self.appendToBuffer(buf, "(none)", .{ .italic = true });
         }
