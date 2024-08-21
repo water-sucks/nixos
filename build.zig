@@ -87,6 +87,7 @@ fn nixosExecutable(b: *Build, opts: struct {
     const zf_package = b.dependency("zf", common_dep_options);
     const zeit_package = b.dependency("zeit", common_dep_options);
     const vaxis_package = b.dependency("vaxis", common_dep_options);
+    const koino_package = b.dependency("koino", common_dep_options);
 
     const exe = b.addExecutable(.{
         .name = "nixos",
@@ -99,6 +100,7 @@ fn nixosExecutable(b: *Build, opts: struct {
     exe.root_module.addImport("zf", zf_package.module("zf"));
     exe.root_module.addImport("zeit", zeit_package.module("zeit"));
     exe.root_module.addImport("vaxis", vaxis_package.module("vaxis"));
+    exe.root_module.addImport("koino", koino_package.module("koino"));
 
     exe.root_module.addOptions("options", opts.options);
 
