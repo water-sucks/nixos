@@ -259,9 +259,16 @@ fn displayOption(allocator: Allocator, opt: NixosOption, evaluated: EvaluatedVal
 
     // A lot of attributes have lots of newlines and spaces,
     // especially trailing ones. This should be trimmed.
+    var desc_alloc: bool = false;
     const description = blk: {
         if (opt.description) |d| {
-            break :blk stripInlineCodeAnnotations(mem.trim(u8, d, "\n "), desc_buf);
+            const stripped = stripInlineCodeAnnotations(d, desc_buf);
+            const rendered = utils.markdown.renderMarkdownANSI(allocator, stripped) catch |err| {
+                desc_alloc = true;
+                break :blk try fmt.allocPrint(allocator, "unable to render description: {s}", .{@errorName(err)});
+            };
+            desc_alloc = true;
+            break :blk mem.trim(u8, rendered, "\n ");
         }
 
         break :blk if (Constants.use_color)
@@ -269,6 +276,7 @@ fn displayOption(allocator: Allocator, opt: NixosOption, evaluated: EvaluatedVal
         else
             "(none)";
     };
+    defer if (desc_alloc) allocator.free(description);
 
     const default = blk: {
         if (opt.default) |d| {
