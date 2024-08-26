@@ -89,6 +89,7 @@ pub const Config = struct {
     no_confirm: bool = false,
     option: struct {
         max_rank: f64 = 3.00,
+        prettify: bool = true,
     } = .{},
     use_nvd: bool = false,
 };

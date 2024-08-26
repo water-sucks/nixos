@@ -8,6 +8,7 @@ const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
 
 const config = @import("../config.zig");
+const ConfigSchema = config.Config;
 
 const log = @import("../log.zig");
 
@@ -44,6 +45,7 @@ pub const OptionSearchTUI = struct {
     should_quit: bool = false,
     config: ConfigType,
     max_rank: f64,
+    prettify: bool,
 
     // Components
     search_input: TextInput,
@@ -70,7 +72,14 @@ pub const OptionSearchTUI = struct {
 
     const Self = @This();
 
-    pub fn init(allocator: Allocator, options: []const NixosOption, configuration: ConfigType, max_rank: f64, initial_query: ?[]const u8) !Self {
+    pub fn init(
+        allocator: Allocator,
+        options: []const NixosOption,
+        configuration: ConfigType,
+        max_rank: f64,
+        prettify: bool,
+        initial_query: ?[]const u8,
+    ) !Self {
         var tty = try vaxis.Tty.init();
         errdefer tty.deinit();
 
@@ -98,6 +107,7 @@ pub const OptionSearchTUI = struct {
             .vx = vx,
             .config = configuration,
             .max_rank = max_rank,
+            .prettify = prettify,
 
             .search_input = text_input,
             .option_view = TextView{},
@@ -617,7 +627,13 @@ pub const OptionSearchTUI = struct {
 
         try appendToTextBuffer(self.allocator, self.vx, buf, "Description\n", .{ .bold = true });
         if (opt.description) |d| desc: {
-            const desc_raw = option_cmd.stripInlineCodeAnnotations(d, desc_buf);
+            const desc_raw = mem.trim(u8, option_cmd.stripInlineCodeAnnotations(d, desc_buf), "\n ");
+
+            if (!self.prettify) {
+                try appendToTextBuffer(self.allocator, self.vx, buf, desc_raw, .{});
+                break :desc;
+            }
+
             const rendered = utils.markdown.renderMarkdownANSI(allocator, desc_raw) catch {
                 // Use the raw description without rendering if it somehow fails.
                 try appendToTextBuffer(self.allocator, self.vx, buf, desc_raw, .{});
@@ -753,7 +769,7 @@ pub const OptionSearchTUI = struct {
 pub fn optionSearchUI(allocator: Allocator, configuration: ConfigType, options: []const NixosOption, initial_query: ?[]const u8) !void {
     const c = config.getConfig();
 
-    var app = try OptionSearchTUI.init(allocator, options, configuration, c.option.max_rank, initial_query);
+    var app = try OptionSearchTUI.init(allocator, options, configuration, c.option.max_rank, c.option.prettify, initial_query);
     defer app.deinit();
 
     try app.run();

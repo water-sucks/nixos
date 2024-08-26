@@ -47,6 +47,8 @@ extra_config = ""
 # above 1; higher scores will give less relevant results, while smaller scores
 # will be more strict in matching.
 max_rank = 3.00
+# Attempt to prettify option descriptions with colors and formatting.
+prettify = true
 
 # Extra configuration to append to `configuration.nix`,
 # as structured key-value pairs

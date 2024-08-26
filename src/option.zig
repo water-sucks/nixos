@@ -16,6 +16,8 @@ const argIs = argparse.argIs;
 const argError = argparse.argError;
 const getNextArgs = argparse.getNextArgs;
 
+const config = @import("config.zig");
+
 const Constants = @import("constants.zig");
 
 const log = @import("log.zig");
@@ -252,6 +254,8 @@ pub fn stripInlineCodeAnnotations(slice: []const u8, buf: []u8) []const u8 {
 }
 
 fn displayOption(allocator: Allocator, opt: NixosOption, evaluated: EvaluatedValue) !void {
+    const c = config.getConfig();
+
     const stdout = io.getStdOut().writer();
 
     const desc_buf = try allocator.alloc(u8, if (opt.description) |d| d.len else 0);
@@ -264,12 +268,13 @@ fn displayOption(allocator: Allocator, opt: NixosOption, evaluated: EvaluatedVal
         if (opt.description) |d| {
             const stripped = stripInlineCodeAnnotations(d, desc_buf);
 
-            // Skip rendering if NO_COLOR is set. This isn't worth the time
+            // Skip rendering if NO_COLOR is set, or if prettifying
+            // is disabled in the config. This isn't worth the time
             // to try and parse and format properly without the ANSI escapes.
             //
             // If a generic writer is brought in that sanitizes all ANSI
             // codes, then this can be revisited.
-            if (!Constants.use_color) {
+            if (!Constants.use_color or !c.option.prettify) {
                 break :blk mem.trim(u8, stripped, "\n");
             }
 
