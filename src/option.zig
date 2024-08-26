@@ -263,6 +263,16 @@ fn displayOption(allocator: Allocator, opt: NixosOption, evaluated: EvaluatedVal
     const description = blk: {
         if (opt.description) |d| {
             const stripped = stripInlineCodeAnnotations(d, desc_buf);
+
+            // Skip rendering if NO_COLOR is set. This isn't worth the time
+            // to try and parse and format properly without the ANSI escapes.
+            //
+            // If a generic writer is brought in that sanitizes all ANSI
+            // codes, then this can be revisited.
+            if (!Constants.use_color) {
+                break :blk mem.trim(u8, stripped, "\n");
+            }
+
             const rendered = utils.markdown.renderMarkdownANSI(allocator, stripped) catch |err| {
                 desc_alloc = true;
                 break :blk try fmt.allocPrint(allocator, "unable to render description: {s}", .{@errorName(err)});
