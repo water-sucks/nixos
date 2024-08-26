@@ -282,24 +282,29 @@ fn displayOption(allocator: Allocator, opt: NixosOption, evaluated: EvaluatedVal
         if (opt.default) |d| {
             break :blk mem.trim(u8, d.text, "\n ");
         }
-        break :blk if (Constants.use_color)
-            ansi.ITALIC ++ "(none)" ++ ansi.RESET
-        else
-            "(none)";
+        break :blk "(none)";
     };
     const example = if (opt.example) |e| mem.trim(u8, e.text, "\n ") else null;
 
     if (Constants.use_color) {
         println(stdout, ansi.BOLD ++ "Name\n" ++ ansi.RESET ++ "{s}\n", .{opt.name});
         println(stdout, ansi.BOLD ++ "Description\n" ++ ansi.RESET ++ "{s}\n", .{description});
-        println(stdout, ansi.BOLD ++ "Type\n" ++ ansi.RESET ++ "{s}\n", .{opt.type});
+        println(stdout, ansi.BOLD ++ "Type\n" ++ ansi.RESET ++ ansi.ITALIC ++ "{s}\n" ++ ansi.RESET, .{opt.type});
         println(stdout, ansi.BOLD ++ "Value" ++ ansi.RESET, .{});
         if (std.meta.activeTag(evaluated) == .success) {
             println(stdout, "{s}\n", .{evaluated.success});
         } else {
             println(stdout, ansi.RED ++ "error: {s}\n" ++ ansi.RESET, .{evaluated.@"error"});
         }
-        println(stdout, ansi.BOLD ++ "Default\n" ++ ansi.RESET ++ "{s}\n", .{default});
+
+        println(stdout, ansi.BOLD ++ "Default" ++ ansi.RESET, .{});
+        if (opt.default) |_| {
+            println(stdout, ansi.WHITE ++ "{s}" ++ ansi.RESET, .{default});
+        } else {
+            println(stdout, ansi.ITALIC ++ "(none)" ++ ansi.RESET, .{});
+        }
+        println(stdout, "", .{});
+
         if (example) |e| {
             println(stdout, ansi.BOLD ++ "Example\n" ++ ansi.RESET ++ "{s}\n", .{e});
         }
