@@ -263,7 +263,13 @@ pub fn ANSIFormatter(comptime Writer: type) type {
                     };
 
                     if (entering) {
-                        try self.writer.print(ansi.GREEN ++ "{s} " ++ ansi.BLUE ++ ansi.UNDERLINE ++ "{s}" ++ ansi.DEFAULT ++ ansi.R_UNDERLINE, .{ title, nl.url });
+                        // Beacuse of the above-mentioned hack, sometimes the link and the text node
+                        // will have the same content. Just omit the title content in this case.
+                        if (mem.eql(u8, title, nl.url)) {
+                            try self.writer.print(ansi.BLUE ++ ansi.UNDERLINE ++ "{s}" ++ ansi.DEFAULT ++ ansi.R_UNDERLINE, .{nl.url});
+                        } else {
+                            try self.writer.print(ansi.GREEN ++ "{s} " ++ ansi.BLUE ++ ansi.UNDERLINE ++ "{s}" ++ ansi.DEFAULT ++ ansi.R_UNDERLINE, .{ title, nl.url });
+                        }
                     }
                 },
                 .Image => |nl| {
