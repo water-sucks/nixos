@@ -32,5 +32,9 @@
             .url = "https://github.com/rockorager/libvaxis/archive/d36ab043caf7cbb24cae1bd0346dd6b654df0653.tar.gz",
             .hash = "12206c252ee00b9dd0214989dfa35a6eea29ac7d65d4053817f161f4c23b6e09dd89",
         },
+        .koino = .{
+            .url = "https://github.com/kivikakk/koino/archive/0151bb37714d93688f31e3d7a3d0369106818f26.tar.gz",
+            .hash = "122055057fe62c0a8bcccb3c36a23115db58a185af2c18dd41d0bb4ac083f519ad5d",
+        },
     },
 }

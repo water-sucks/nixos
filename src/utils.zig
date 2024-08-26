@@ -434,3 +434,5 @@ pub const search = @import("utils/search.zig");
 pub const generation = @import("utils/generation.zig");
 pub const ansi = @import("utils/ansi.zig");
 pub const time = @import("utils/time.zig");
+pub const markdown = @import("utils/markdown.zig");
+pub const vaxis = @import("utils/vaxis.zig");

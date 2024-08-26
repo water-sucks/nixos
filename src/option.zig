@@ -16,6 +16,8 @@ const argIs = argparse.argIs;
 const argError = argparse.argError;
 const getNextArgs = argparse.getNextArgs;
 
+const config = @import("config.zig");
+
 const Constants = @import("constants.zig");
 
 const log = @import("log.zig");
@@ -227,14 +229,61 @@ fn loadOptionsFromFile(allocator: Allocator, filename: []const u8) !json.Parsed(
     return parsed;
 }
 
-fn displayOption(opt: NixosOption, evaluated: EvaluatedValue) void {
+const annotations_to_remove: []const []const u8 = &.{
+    "{option}`",
+    "{var}`",
+    "{file}`",
+    "{env}`",
+    "{command}`",
+    "{manpage}`",
+};
+
+/// Some options have annotations in the form of {manpage}`hello(1)`, or
+/// {option}`system.nixos.version`, or similar. Remove these, as they can
+/// obscure plain text.
+pub fn stripInlineCodeAnnotations(slice: []const u8, buf: []u8) []const u8 {
+    var result: []const u8 = slice;
+
+    for (annotations_to_remove) |input| {
+        const new_size = std.mem.replacementSize(u8, result, input, "`");
+        _ = std.mem.replace(u8, result, input, "`", buf);
+        result = buf[0..new_size];
+    }
+
+    return result;
+}
+
+fn displayOption(allocator: Allocator, opt: NixosOption, evaluated: EvaluatedValue) !void {
+    const c = config.getConfig();
+
     const stdout = io.getStdOut().writer();
+
+    const desc_buf = try allocator.alloc(u8, if (opt.description) |d| d.len else 0);
+    defer allocator.free(desc_buf);
 
     // A lot of attributes have lots of newlines and spaces,
     // especially trailing ones. This should be trimmed.
+    var desc_alloc: bool = false;
     const description = blk: {
         if (opt.description) |d| {
-            break :blk mem.trim(u8, d, "\n ");
+            const stripped = stripInlineCodeAnnotations(d, desc_buf);
+
+            // Skip rendering if NO_COLOR is set, or if prettifying
+            // is disabled in the config. This isn't worth the time
+            // to try and parse and format properly without the ANSI escapes.
+            //
+            // If a generic writer is brought in that sanitizes all ANSI
+            // codes, then this can be revisited.
+            if (!Constants.use_color or !c.option.prettify) {
+                break :blk mem.trim(u8, stripped, "\n");
+            }
+
+            const rendered = utils.markdown.renderMarkdownANSI(allocator, stripped) catch |err| {
+                desc_alloc = true;
+                break :blk try fmt.allocPrint(allocator, "unable to render description: {s}", .{@errorName(err)});
+            };
+            desc_alloc = true;
+            break :blk mem.trim(u8, rendered, "\n ");
         }
 
         break :blk if (Constants.use_color)
@@ -242,28 +291,35 @@ fn displayOption(opt: NixosOption, evaluated: EvaluatedValue) void {
         else
             "(none)";
     };
+    defer if (desc_alloc) allocator.free(description);
+
     const default = blk: {
         if (opt.default) |d| {
             break :blk mem.trim(u8, d.text, "\n ");
         }
-        break :blk if (Constants.use_color)
-            ansi.ITALIC ++ "(none)" ++ ansi.RESET
-        else
-            "(none)";
+        break :blk "(none)";
     };
     const example = if (opt.example) |e| mem.trim(u8, e.text, "\n ") else null;
 
     if (Constants.use_color) {
         println(stdout, ansi.BOLD ++ "Name\n" ++ ansi.RESET ++ "{s}\n", .{opt.name});
         println(stdout, ansi.BOLD ++ "Description\n" ++ ansi.RESET ++ "{s}\n", .{description});
-        println(stdout, ansi.BOLD ++ "Type\n" ++ ansi.RESET ++ "{s}\n", .{opt.type});
+        println(stdout, ansi.BOLD ++ "Type\n" ++ ansi.RESET ++ ansi.ITALIC ++ "{s}\n" ++ ansi.RESET, .{opt.type});
         println(stdout, ansi.BOLD ++ "Value" ++ ansi.RESET, .{});
         if (std.meta.activeTag(evaluated) == .success) {
             println(stdout, "{s}\n", .{evaluated.success});
         } else {
             println(stdout, ansi.RED ++ "error: {s}\n" ++ ansi.RESET, .{evaluated.@"error"});
         }
-        println(stdout, ansi.BOLD ++ "Default\n" ++ ansi.RESET ++ "{s}\n", .{default});
+
+        println(stdout, ansi.BOLD ++ "Default" ++ ansi.RESET, .{});
+        if (opt.default) |_| {
+            println(stdout, ansi.WHITE ++ "{s}" ++ ansi.RESET, .{default});
+        } else {
+            println(stdout, ansi.ITALIC ++ "(none)" ++ ansi.RESET, .{});
+        }
+        println(stdout, "", .{});
+
         if (example) |e| {
             println(stdout, ansi.BOLD ++ "Example\n" ++ ansi.RESET ++ "{s}\n", .{e});
         }
@@ -459,7 +515,7 @@ fn option(allocator: Allocator, args: OptionCommand) !void {
                     return OptionError.ResourceAccessFailed;
                 }
             } else {
-                displayOption(opt, value);
+                try displayOption(allocator, opt, value);
             }
             return;
         }
