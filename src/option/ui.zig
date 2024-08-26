@@ -19,6 +19,7 @@ const TextViewBuffer = TextView.Buffer;
 const utils = @import("../utils.zig");
 const ansi = utils.ansi;
 const runCmd = utils.runCmd;
+const appendToBuffer = utils.vaxis.appendToTextBuffer;
 
 const option_cmd = @import("../option.zig");
 const NixosOption = option_cmd.NixosOption;
@@ -329,12 +330,12 @@ pub const OptionSearchTUI = struct {
         main_win.hideCursor();
 
         const buf = &self.help_view_buf;
-        try self.appendToBuffer(buf, "nixos option -i", .{ .fg = .{ .index = 7 } });
-        try self.appendToBuffer(buf, " is a tool designed to help search through available\n", .{});
-        try self.appendToBuffer(buf, "options on a given NixOS system with ease.\n\n", .{});
+        try appendToBuffer(self.allocator, self.vx, buf, "nixos option -i", .{ .fg = .{ .index = 7 } });
+        try appendToBuffer(self.allocator, self.vx, buf, " is a tool designed to help search through available\n", .{});
+        try appendToBuffer(self.allocator, self.vx, buf, "options on a given NixOS system with ease.\n\n", .{});
 
-        try self.appendToBuffer(buf, "Basic Features\n", .{ .bold = true });
-        try self.appendToBuffer(buf,
+        try appendToBuffer(self.allocator, self.vx, buf, "Basic Features\n", .{ .bold = true });
+        try appendToBuffer(self.allocator, self.vx, buf,
             \\A purple border means that a given window is active. If a window
             \\is active, then its keybinds will work.
             \\
@@ -348,8 +349,8 @@ pub const OptionSearchTUI = struct {
             \\
         , .{});
 
-        try self.appendToBuffer(buf, "Help Window\n", .{ .bold = true });
-        try self.appendToBuffer(buf,
+        try appendToBuffer(self.allocator, self.vx, buf, "Help Window\n", .{ .bold = true });
+        try appendToBuffer(self.allocator, self.vx, buf,
             \\Use the cursor keys or h, j, k, and l to scroll around.
             \\
             \\<Esc> or q will close this help window.
@@ -358,8 +359,8 @@ pub const OptionSearchTUI = struct {
             \\
         , .{});
 
-        try self.appendToBuffer(buf, "Option Input Window\n", .{ .bold = true });
-        try self.appendToBuffer(buf,
+        try appendToBuffer(self.allocator, self.vx, buf, "Option Input Window\n", .{ .bold = true });
+        try appendToBuffer(self.allocator, self.vx, buf,
             \\Type anything into the input box and all available options that
             \\match will be filtered into a list. Scroll this list with the up
             \\or down cursor keys, and the information for that option will show
@@ -374,8 +375,8 @@ pub const OptionSearchTUI = struct {
             \\
         , .{});
 
-        try self.appendToBuffer(buf, "Option Preview Window\n", .{ .bold = true });
-        try self.appendToBuffer(buf,
+        try appendToBuffer(self.allocator, self.vx, buf, "Option Preview Window\n", .{ .bold = true });
+        try appendToBuffer(self.allocator, self.vx, buf,
             \\Use the cursor keys or h, j, k, and l to scroll around.
             \\
             \\The input box is not updated when this window is active.
@@ -389,8 +390,8 @@ pub const OptionSearchTUI = struct {
             \\
         , .{});
 
-        try self.appendToBuffer(buf, "Option Value Window ", .{ .bold = true });
-        try self.appendToBuffer(buf,
+        try appendToBuffer(self.allocator, self.vx, buf, "Option Value Window ", .{ .bold = true });
+        try appendToBuffer(self.allocator, self.vx, buf,
             \\Use the cursor keys or h, j, k, and l to scroll around.
             \\
             \\<Esc> or q will close this window.
@@ -607,50 +608,50 @@ pub const OptionSearchTUI = struct {
         self.option_view_buf.clear(self.allocator);
 
         const buf = &self.option_view_buf;
-        try self.appendToBuffer(buf, "Name\n", .{ .bold = true });
-        try self.appendToBuffer(buf, opt.name, .{});
-        try self.appendToBuffer(buf, "\n\n", .{});
+        try appendToBuffer(self.allocator, self.vx, buf, "Name\n", .{ .bold = true });
+        try appendToBuffer(self.allocator, self.vx, buf, opt.name, .{});
+        try appendToBuffer(self.allocator, self.vx, buf, "\n\n", .{});
 
         const desc_buf = try allocator.alloc(u8, if (opt.description) |d| d.len else 0);
 
-        try self.appendToBuffer(buf, "Description\n", .{ .bold = true });
+        try appendToBuffer(self.allocator, self.vx, buf, "Description\n", .{ .bold = true });
         if (opt.description) |d| {
             const desc = option_cmd.stripInlineCodeAnnotations(d, desc_buf);
-            try self.appendToBuffer(buf, mem.trim(u8, desc, "\n"), .{});
+            try appendToBuffer(self.allocator, self.vx, buf, mem.trim(u8, desc, "\n"), .{});
         } else {
-            try self.appendToBuffer(buf, "(none)", .{ .italic = true });
+            try appendToBuffer(self.allocator, self.vx, buf, "(none)", .{ .italic = true });
         }
-        try self.appendToBuffer(buf, "\n\n", .{});
+        try appendToBuffer(self.allocator, self.vx, buf, "\n\n", .{});
 
-        try self.appendToBuffer(buf, "Type\n", .{ .bold = true });
-        try self.appendToBuffer(buf, opt.type, .{ .italic = true });
-        try self.appendToBuffer(buf, "\n\n", .{});
+        try appendToBuffer(self.allocator, self.vx, buf, "Type\n", .{ .bold = true });
+        try appendToBuffer(self.allocator, self.vx, buf, opt.type, .{ .italic = true });
+        try appendToBuffer(self.allocator, self.vx, buf, "\n\n", .{});
 
-        try self.appendToBuffer(buf, "Default\n", .{ .bold = true });
+        try appendToBuffer(self.allocator, self.vx, buf, "Default\n", .{ .bold = true });
         if (opt.default) |d| {
-            try self.appendToBuffer(buf, mem.trim(u8, d.text, "\n"), .{ .fg = .{ .index = 7 } });
+            try appendToBuffer(self.allocator, self.vx, buf, mem.trim(u8, d.text, "\n"), .{ .fg = .{ .index = 7 } });
         } else {
-            try self.appendToBuffer(buf, "(none)", .{ .italic = true });
+            try appendToBuffer(self.allocator, self.vx, buf, "(none)", .{ .italic = true });
         }
-        try self.appendToBuffer(buf, "\n\n", .{});
+        try appendToBuffer(self.allocator, self.vx, buf, "\n\n", .{});
 
         if (opt.example) |e| {
-            try self.appendToBuffer(buf, "Example\n", .{ .bold = true });
-            try self.appendToBuffer(buf, mem.trim(u8, e.text, "\n"), .{ .fg = .{ .index = 7 } });
-            try self.appendToBuffer(buf, "\n\n", .{});
+            try appendToBuffer(self.allocator, self.vx, buf, "Example\n", .{ .bold = true });
+            try appendToBuffer(self.allocator, self.vx, buf, mem.trim(u8, e.text, "\n"), .{ .fg = .{ .index = 7 } });
+            try appendToBuffer(self.allocator, self.vx, buf, "\n\n", .{});
         }
 
         if (opt.declarations.len > 0) {
-            try self.appendToBuffer(buf, "Declared In\n", .{ .bold = true });
+            try appendToBuffer(self.allocator, self.vx, buf, "Declared In\n", .{ .bold = true });
             for (opt.declarations) |decl| {
-                try self.appendToBuffer(buf, try fmt.allocPrint(allocator, "  - {s}\n", .{decl}), .{ .italic = true });
+                try appendToBuffer(self.allocator, self.vx, buf, try fmt.allocPrint(allocator, "  - {s}\n", .{decl}), .{ .italic = true });
             }
-            try self.appendToBuffer(buf, "\n", .{});
+            try appendToBuffer(self.allocator, self.vx, buf, "\n", .{});
         }
 
         if (opt.readOnly) {
-            try self.appendToBuffer(buf, "This option is read-only.", .{ .fg = .{ .index = 3 } });
-            try self.appendToBuffer(buf, "\n\n", .{});
+            try appendToBuffer(self.allocator, self.vx, buf, "This option is read-only.", .{ .fg = .{ .index = 3 } });
+            try appendToBuffer(self.allocator, self.vx, buf, "\n\n", .{});
         }
 
         _ = self.option_view.draw(info_win, self.option_view_buf);
@@ -694,40 +695,24 @@ pub const OptionSearchTUI = struct {
         });
 
         switch (self.option_eval_value) {
-            .loading => try self.appendToBuffer(buf, "Loading...", .{}),
+            .loading => try appendToBuffer(self.allocator, self.vx, buf, "Loading...", .{}),
             .success => |value| {
                 // Nix outputs the evaluated value on a single line. This
                 // wraps the value to the window.
                 var i: usize = 0;
                 while (i < value.len -| info_win.width) : (i += info_win.width) {
                     const end = i + info_win.width - 1;
-                    try self.appendToBuffer(buf, value[i..end], .{ .fg = .{ .index = 7 } });
-                    try self.appendToBuffer(buf, "\n", .{});
+                    try appendToBuffer(self.allocator, self.vx, buf, value[i..end], .{ .fg = .{ .index = 7 } });
+                    try appendToBuffer(self.allocator, self.vx, buf, "\n", .{});
                 }
                 if (i < value.len) {
-                    try self.appendToBuffer(buf, value[i..], .{ .fg = .{ .index = 7 } });
+                    try appendToBuffer(self.allocator, self.vx, buf, value[i..], .{ .fg = .{ .index = 7 } });
                 }
             },
-            .@"error" => |message| try self.appendToBuffer(buf, message, .{ .fg = .{ .index = 1 } }),
+            .@"error" => |message| try appendToBuffer(self.allocator, self.vx, buf, message, .{ .fg = .{ .index = 1 } }),
         }
 
         self.value_view.draw(info_win, self.value_view_buf);
-    }
-
-    fn appendToBuffer(self: *Self, buf: *TextViewBuffer, content: []const u8, style: vaxis.Style) !void {
-        const begin = buf.content.items.len;
-        const end = begin + content.len + 1;
-
-        try buf.append(self.allocator, .{
-            .bytes = content,
-            .gd = &self.vx.unicode.grapheme_data,
-            .wd = &self.vx.unicode.width_data,
-        });
-        try buf.updateStyle(self.allocator, .{
-            .begin = begin,
-            .end = end,
-            .style = style,
-        });
     }
 
     fn evaluateOptionValue(self: *Self, orig_counter: usize, loop: *vaxis.Loop(Event)) !void {

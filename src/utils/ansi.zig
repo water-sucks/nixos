@@ -8,15 +8,6 @@ pub const CYAN = "\x1B[36m";
 pub const WHITE = "\x1B[37m";
 pub const DEFAULT = "\x1B[39m";
 
-pub const BR_BLACK = "\x1B[90m";
-pub const BR_RED = "\x1B[91m";
-pub const BR_GREEN = "\x1B[92m";
-pub const BR_YELLOW = "\x1B[93m";
-pub const BR_BLUE = "\x1B[94m";
-pub const BR_MAGENTA = "\x1B[95m";
-pub const BR_CYAN = "\x1B[96m";
-pub const BR_WHITE = "\x1B[97m";
-
 pub const RESET = "\x1B[0m";
 pub const BOLD = "\x1B[1m";
 pub const DIM = "\x1B[2m";

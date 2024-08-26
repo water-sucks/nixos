@@ -48,7 +48,7 @@ pub fn step(comptime fmt: []const u8, args: anytype) void {
 /// Pretty-print a command that will be ran.
 pub fn cmd(argv: []const []const u8) void {
     if (Constants.use_color) {
-        print(ansi.BR_BLUE, .{});
+        print(ansi.BLUE, .{});
     }
 
     print("$ ", .{});
