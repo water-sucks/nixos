@@ -25,6 +25,10 @@ use_nom = false
 # This only applies for flake configurations, and is always true in the
 # case of legacy configurations.
 imply_impure_with_tag = false
+# Use the Git commit message as the description tag for the
+# generation automatically if a tag is not provided.
+# This setting does not work with dirty Git trees.
+use_git_commit_msg = false
 
 # Configuration for the `enter` subcommand.
 [enter]
