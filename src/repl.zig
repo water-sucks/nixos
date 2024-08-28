@@ -253,7 +253,7 @@ fn repl(allocator: Allocator, args: ReplCommand) ReplError!void {
 
         execFlakeRepl(allocator, flake_ref, args.includes.items) catch return ReplError.ReplExecError;
     } else {
-        utils.verifyLegacyConfigurationExists(allocator, false) catch return ReplError.ConfigurationNotFound;
+        _ = utils.findLegacyConfiguration(false) catch return ReplError.ConfigurationNotFound;
         execLegacyRepl(allocator, args.includes.items, posix.getenv("NIXOS_CONFIG") != null) catch return ReplError.ReplExecError;
     }
 }

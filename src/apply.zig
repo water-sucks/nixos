@@ -579,6 +579,10 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
     var flake_ref: FlakeRef = undefined;
     var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
 
+    // The directory name where the configuration is, if it is a path.
+    // This could not be the case with remotely-defined configurations.
+    var config_dirname: []const u8 = undefined;
+
     if (opts.flake) {
         if (verbose) log.info("looking for flake configuration", .{});
         flake_ref = blk: {
@@ -593,8 +597,29 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
         flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return ApplyError.ConfigurationNotFound;
 
         if (verbose) log.info("found flake configuration {s}#{s}", .{ flake_ref.uri, flake_ref.system });
+        config_dirname = flake_ref.uri;
     } else {
-        utils.verifyLegacyConfigurationExists(allocator, verbose) catch return ApplyError.ConfigurationNotFound;
+        config_dirname = utils.findLegacyConfiguration(verbose) catch return ApplyError.ConfigurationNotFound;
+    }
+
+    var config_dir: ?fs.Dir = fs.cwd().openDir(config_dirname, .{}) catch |err| blk: {
+        // A rough heuristic for determining if this was intended
+        // to be a path to a configuration or not. Only absolute
+        // paths are allowed; in the case of non-paths such as
+        // remote flake refs, do not display any warnings.
+        if (fs.path.isAbsolute(config_dirname)) {
+            log.warn("unable to open {s}: {s}", .{ config_dirname, @errorName(err) });
+            log.warn("some features that depend on this existing will be unavailable", .{});
+        }
+        break :blk null;
+    };
+    defer if (config_dir) |*dir| dir.close();
+    if (config_dir) |dir| {
+        if (verbose) log.info("setting working directory to {s}", .{config_dirname});
+        dir.setAsCwd() catch |err| {
+            log.err("unable to set {s} as working dir: {s}", .{ config_dirname, @errorName(err) });
+            return ApplyError.ResourceAccessFailed;
+        };
     }
 
     // Upgrade all channels
