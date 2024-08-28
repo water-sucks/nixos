@@ -377,6 +377,56 @@ fn nixBuild(
     return result.stdout.?;
 }
 
+const GitMessageError = error{
+    GitTreeDirty,
+    NotGitRepo,
+    CommandFailed,
+} || Allocator.Error;
+
+/// Find the most recent Git commit message.
+///
+/// This will only be relevant for clean Git trees, to mirror the
+/// behavior of Nix. This is done by using `git diff --quiet`.
+fn fetchLastGitCommitMessage(allocator: Allocator) GitMessageError![]const u8 {
+    const check_argv = &.{ "git", "diff", "--quiet" };
+    errdefer log.warn("skipping commit message retrieval", .{});
+
+    const dirty_check_result = runCmd(.{
+        .allocator = allocator,
+        .argv = check_argv,
+        .stdout_type = .Inherit,
+    }) catch |err| {
+        log.err("`git diff` for status check failed: {s}", .{@errorName(err)});
+        return GitMessageError.CommandFailed;
+    };
+
+    if (dirty_check_result.status == 1) {
+        log.warn("git tree is dirty, ignoring use_git_commit_msg setting", .{});
+        return GitMessageError.GitTreeDirty;
+    } else if (dirty_check_result.status == 129) {
+        log.warn("configuration directory is not a git repository", .{});
+        return error.NotGitRepo;
+    }
+
+    const diff_argv = &.{ "git", "log", "-1", "--pretty=%B" };
+
+    const commit_message_result = runCmd(.{
+        .allocator = allocator,
+        .argv = diff_argv,
+    }) catch |err| {
+        log.warn("`git log` failed to run: {s}", .{@errorName(err)});
+        return GitMessageError.CommandFailed;
+    };
+    defer allocator.free(commit_message_result.stdout.?);
+
+    if (commit_message_result.status == 1) {
+        log.warn("`git log` exited with status {d}", .{commit_message_result.status});
+        return GitMessageError.CommandFailed;
+    }
+
+    return try allocator.dupe(u8, mem.sliceTo(commit_message_result.stdout.?, '\n'));
+}
+
 /// Build a NixOS configuration located in a flake
 fn nixBuildFlake(
     allocator: Allocator,
@@ -660,6 +710,25 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
         log.warn("falling back to `nix` command for building", .{});
         use_nom = false;
     }
+
+    var tag_alloc = false;
+    const tag: ?[]const u8 = blk: {
+        if (args.tag) |t| {
+            if (c.apply.use_git_commit_msg) {
+                log.info("explicit generation tag was given, ignoring apply.use_git_commit_msg setting", .{});
+            }
+            break :blk t;
+        }
+
+        if (c.apply.use_git_commit_msg) {
+            const message = fetchLastGitCommitMessage(allocator) catch break :blk null;
+            tag_alloc = true;
+            break :blk message;
+        }
+
+        break :blk null;
+    };
+    defer if (tag_alloc and tag != null) allocator.free(tag.?);
 
     if (opts.flake) {
         result = nixBuildFlake(allocator, build_type, flake_ref, .{
