@@ -92,7 +92,7 @@ fn listGenerations(allocator: Allocator, profile_name: []const u8, args: Generat
     }
 
     for (generations, 0..) |gen, i| {
-        gen.prettyPrint(.{ .color = Constants.use_color }, stdout) catch unreachable;
+        gen.prettyPrint(.{}, stdout) catch unreachable;
         if (i != generations.len - 1) {
             print(stdout, "\n", .{});
         }

@@ -19,8 +19,6 @@ const argError = argparse.argError;
 const argIs = argparse.argIs;
 const getNextArgs = argparse.getNextArgs;
 
-const Constants = @import("constants.zig");
-
 const log = @import("log.zig");
 
 const utils = @import("utils.zig");
@@ -133,7 +131,7 @@ const flake_motd_template =
 
 fn execFlakeRepl(allocator: Allocator, ref: FlakeRef, includes: []const []const u8) !void {
     // zig fmt: off
-    const motd = if (Constants.use_color) try fmt.allocPrint(allocator, flake_motd_template, .{
+    const motd = try fmt.allocPrint(allocator, flake_motd_template, .{
         ansi.CYAN,    ref.uri,    ref.system,   ansi.RESET,
         ansi.MAGENTA, ansi.RESET,
         ansi.MAGENTA, ansi.RESET,
@@ -143,16 +141,6 @@ fn execFlakeRepl(allocator: Allocator, ref: FlakeRef, includes: []const []const 
         ansi.GREEN,   ansi.RESET,
         ansi.GREEN,   ansi.RESET,
         ansi.YELLOW,  ansi.RESET, ansi.CYAN, ansi.RESET,
-    }) else try fmt.allocPrint(allocator, flake_motd_template, .{
-        "", ref.uri, ref.system, "",
-        "",      "",
-        "",      "",
-        "",      "",
-        "",      "",         "", "",
-        "",      "",         "", "",
-        "",      "",
-        "",      "",
-        "",      "",         "", ""
     });
     // zig fmt: on
 
@@ -203,25 +191,13 @@ fn execLegacyRepl(allocator: Allocator, includes: []const []const u8, impure: bo
     defer argv.deinit();
 
     // zig fmt: off
-    const motd = if (Constants.use_color) try fmt.allocPrint(allocator, legacy_motd_template, .{
+    const motd = try fmt.allocPrint(allocator, legacy_motd_template, .{
         ansi.MAGENTA, ansi.RESET,
         ansi.MAGENTA, ansi.RESET,
         ansi.MAGENTA, ansi.RESET, ansi.CYAN,    ansi.RESET,
         ansi.MAGENTA, ansi.RESET, ansi.MAGENTA, ansi.RESET,
         ansi.GREEN,   ansi.RESET,
         ansi.GREEN,   ansi.RESET,
-    }) else try fmt.allocPrint(allocator, flake_motd_template, .{
-        "", "",
-        "", "",
-        "", "", "", "",
-        "", "", "", "",
-        "", "",
-        "", "",
-        "", "",
-        "", "",
-        "", "",
-        "", "",
-        "", "",
     });
     // zig fmt: on
 

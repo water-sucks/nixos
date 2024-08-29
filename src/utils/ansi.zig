@@ -1,3 +1,9 @@
+const std = @import("std");
+const io = std.io;
+const mem = std.mem;
+
+const Constants = @import("../constants.zig");
+
 pub const BLACK = "\x1B[30m";
 pub const RED = "\x1B[31m";
 pub const GREEN = "\x1B[32m";
@@ -23,3 +29,55 @@ pub const R_STRIKE = "\x1B[29m";
 
 pub const CLEAR = "\x1B[2J";
 pub const MV_TOP_LEFT = "\x1B[H";
+
+/// A thin wrapper writer that strips ANSI codes
+/// from the written bytes based on a constant.
+pub fn ANSIFilter(comptime WriterType: type) type {
+    return struct {
+        raw_writer: WriterType,
+
+        pub const Error = WriterType.Error;
+        pub const Writer = io.Writer(*Self, Error, write);
+
+        const Self = @This();
+
+        pub fn writer(self: *Self) Writer {
+            return .{ .context = self };
+        }
+
+        pub fn write(self: *Self, bytes: []const u8) Error!usize {
+            var input = bytes;
+
+            while (true) {
+                const esc_start = mem.indexOf(u8, input, "\x1B[") orelse {
+                    // No more escape sequences exist, we are done here.
+                    try self.raw_writer.writeAll(input);
+                    break;
+                };
+
+                const esc_end = mem.indexOf(u8, input[esc_start..], "m") orelse {
+                    // This escape sequence is invalid, and there are no more available.
+                    try self.raw_writer.writeAll(input);
+                    break;
+                };
+
+                const sequence = input[esc_start .. esc_start + esc_end + 1];
+                const text_before_esc = input[0..esc_start];
+
+                try self.raw_writer.writeAll(text_before_esc);
+
+                if (Constants.use_color) {
+                    try self.raw_writer.writeAll(sequence);
+                }
+
+                input = input[esc_start + esc_end + 1 ..];
+            }
+
+            // This may not be the actual number of bytes due to the
+            // skipping of escape sequences, but the writer will fail
+            // to flush the actual contents immediately if this is not
+            // the case.
+            return bytes.len;
+        }
+    };
+}

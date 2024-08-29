@@ -286,10 +286,7 @@ fn displayOption(allocator: Allocator, opt: NixosOption, evaluated: EvaluatedVal
             break :blk mem.trim(u8, rendered, "\n ");
         }
 
-        break :blk if (Constants.use_color)
-            ansi.ITALIC ++ "(none)" ++ ansi.RESET
-        else
-            "(none)";
+        break :blk ansi.ITALIC ++ "(none)" ++ ansi.RESET;
     };
     defer if (desc_alloc) allocator.free(description);
 
@@ -301,60 +298,35 @@ fn displayOption(allocator: Allocator, opt: NixosOption, evaluated: EvaluatedVal
     };
     const example = if (opt.example) |e| mem.trim(u8, e.text, "\n ") else null;
 
-    if (Constants.use_color) {
-        println(stdout, ansi.BOLD ++ "Name\n" ++ ansi.RESET ++ "{s}\n", .{opt.name});
-        println(stdout, ansi.BOLD ++ "Description\n" ++ ansi.RESET ++ "{s}\n", .{description});
-        println(stdout, ansi.BOLD ++ "Type\n" ++ ansi.RESET ++ ansi.ITALIC ++ "{s}\n" ++ ansi.RESET, .{opt.type});
-        println(stdout, ansi.BOLD ++ "Value" ++ ansi.RESET, .{});
-        if (std.meta.activeTag(evaluated) == .success) {
-            println(stdout, "{s}\n", .{evaluated.success});
-        } else {
-            println(stdout, ansi.RED ++ "error: {s}\n" ++ ansi.RESET, .{evaluated.@"error"});
-        }
-
-        println(stdout, ansi.BOLD ++ "Default" ++ ansi.RESET, .{});
-        if (opt.default) |_| {
-            println(stdout, ansi.WHITE ++ "{s}" ++ ansi.RESET, .{default});
-        } else {
-            println(stdout, ansi.ITALIC ++ "(none)" ++ ansi.RESET, .{});
-        }
-        println(stdout, "", .{});
-
-        if (example) |e| {
-            println(stdout, ansi.BOLD ++ "Example\n" ++ ansi.RESET ++ "{s}\n", .{e});
-        }
-        if (opt.declarations.len > 0) {
-            println(stdout, ansi.BOLD ++ "Declared In" ++ ansi.RESET, .{});
-            for (opt.declarations) |decl| {
-                println(stdout, ansi.ITALIC ++ "  - {s}" ++ ansi.RESET, .{decl});
-            }
-        }
-        if (opt.readOnly) {
-            println(stdout, ansi.YELLOW ++ "\nThis option is read-only." ++ ansi.RESET, .{});
-        }
+    println(stdout, ansi.BOLD ++ "Name\n" ++ ansi.RESET ++ "{s}\n", .{opt.name});
+    println(stdout, ansi.BOLD ++ "Description\n" ++ ansi.RESET ++ "{s}\n", .{description});
+    println(stdout, ansi.BOLD ++ "Type\n" ++ ansi.RESET ++ ansi.ITALIC ++ "{s}\n" ++ ansi.RESET, .{opt.type});
+    println(stdout, ansi.BOLD ++ "Value" ++ ansi.RESET, .{});
+    if (std.meta.activeTag(evaluated) == .success) {
+        println(stdout, "{s}\n", .{evaluated.success});
     } else {
-        println(stdout, "Name\n{s}\n", .{opt.name});
-        println(stdout, "Description\n{s}\n", .{description});
-        println(stdout, "Type\n{s}\n", .{opt.type});
-        println(stdout, "Value", .{});
-        if (std.meta.activeTag(evaluated) == .success) {
-            println(stdout, "{s}\n", .{evaluated.success});
-        } else {
-            println(stdout, "error: {s}\n", .{evaluated.@"error"});
+        println(stdout, ansi.RED ++ "error: {s}\n" ++ ansi.RESET, .{evaluated.@"error"});
+    }
+
+    println(stdout, ansi.BOLD ++ "Default" ++ ansi.RESET, .{});
+    if (opt.default) |_| {
+        println(stdout, ansi.WHITE ++ "{s}" ++ ansi.RESET, .{default});
+    } else {
+        println(stdout, ansi.ITALIC ++ "(none)" ++ ansi.RESET, .{});
+    }
+    println(stdout, "", .{});
+
+    if (example) |e| {
+        println(stdout, ansi.BOLD ++ "Example\n" ++ ansi.RESET ++ "{s}\n", .{e});
+    }
+    if (opt.declarations.len > 0) {
+        println(stdout, ansi.BOLD ++ "Declared In" ++ ansi.RESET, .{});
+        for (opt.declarations) |decl| {
+            println(stdout, ansi.ITALIC ++ "  - {s}" ++ ansi.RESET, .{decl});
         }
-        println(stdout, "Default\n{s}\n", .{default});
-        if (example) |e| {
-            println(stdout, "Example\n{s}\n", .{e});
-        }
-        if (opt.declarations.len > 0) {
-            println(stdout, "Declared In", .{});
-            for (opt.declarations) |decl| {
-                println(stdout, "  - {s}", .{decl});
-            }
-        }
-        if (opt.readOnly) {
-            println(stdout, "\nThis option is read-only.", .{});
-        }
+    }
+    if (opt.readOnly) {
+        println(stdout, ansi.YELLOW ++ "\nThis option is read-only." ++ ansi.RESET, .{});
     }
 }
 

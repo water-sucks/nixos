@@ -77,6 +77,7 @@ pub const Config = struct {
         use_nom: bool = false,
         use_git_commit_msg: bool = false,
     } = .{},
+    color: bool = true,
     config_location: []const u8 = "/etc/nixos",
     enter: struct {
         mount_resolv_conf: bool = true,
@@ -206,11 +207,7 @@ pub fn deinit() void {
 }
 
 fn configError(comptime fmt: []const u8, args: anytype) void {
-    if (Constants.use_color) {
-        log.print(ansi.BOLD ++ ansi.RED ++ "error" ++ ansi.RESET ++ ": ", .{});
-    } else {
-        log.print("error: ", .{});
-    }
+    log.print(ansi.BOLD ++ ansi.RED ++ "error" ++ ansi.RESET ++ ": ", .{});
     log.print("invalid setting: ", .{});
     log.print(fmt ++ "\n", args);
 }

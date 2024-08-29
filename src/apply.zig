@@ -173,6 +173,10 @@ pub const ApplyCommand = struct {
                 const next_args = try getNextArgs(args, arg, 2);
                 try parsed.build_options.appendSlice(&.{ arg, next_args[0], next_args[1] });
             } else {
+                if (argparse.isFlag(arg)) {
+                    return arg;
+                }
+
                 if (opts.flake and parsed.flake == null) {
                     parsed.flake = arg;
                 } else {
