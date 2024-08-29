@@ -3,25 +3,31 @@
 //! does not filter output based on build type.
 
 const std = @import("std");
+const io = std.io;
+const mem = std.mem;
 
 const utils = @import("utils.zig");
 const ansi = utils.ansi;
+const ANSIFilter = ansi.ANSIFilter;
 
-const Constants = @import("constants.zig");
+/// Print to stderr. This makes sure that ANSI codes are handled
+/// according to whether or not they are disabled.
+pub fn print(comptime fmt: []const u8, args: anytype) void {
+    const stderr = std.io.getStdErr().writer();
+    std.debug.lockStdErr();
+    defer std.debug.unlockStdErr();
+
+    var color_filter = ANSIFilter(@TypeOf(stderr)){ .raw_writer = stderr };
+    const writer = color_filter.writer();
+    writer.print(fmt, args) catch return;
+}
 
 /// Base logging function with no level. Prints a newline automatically.
 fn log(comptime prefix: []const u8, comptime fmt: []const u8, args: anytype) void {
     const real_prefix = prefix ++ (if (prefix.len != 0) ": " else "");
 
-    const stderr = std.io.getStdErr().writer();
-    std.debug.lockStdErr();
-    defer std.debug.unlockStdErr();
-    nosuspend stderr.print(real_prefix ++ fmt ++ "\n", args) catch return;
+    print(real_prefix ++ fmt ++ "\n", args);
 }
-
-/// Bare print that gets rid of the `std.debug` prefix,
-/// which is clunky.
-pub const print = std.debug.print;
 
 /// Global step counter. This will increase every single time step() is invoked.
 var step_num: usize = 0;
@@ -32,57 +38,36 @@ pub fn step(comptime fmt: []const u8, args: anytype) void {
     if (step_num > 1) {
         print("\n", .{});
     }
-    if (Constants.use_color) {
-        print(ansi.BOLD ++ ansi.MAGENTA, .{});
-    }
+
+    print(ansi.BOLD ++ ansi.MAGENTA, .{});
 
     print("{d}. ", .{step_num});
     print(fmt, args);
 
-    if (Constants.use_color) {
-        print(ansi.RESET, .{});
-    }
-    print("\n", .{});
+    print(ansi.RESET ++ "\n", .{});
 }
 
 /// Pretty-print a command that will be ran.
 pub fn cmd(argv: []const []const u8) void {
-    if (Constants.use_color) {
-        print(ansi.BLUE, .{});
-    }
+    print(ansi.BLUE, .{});
 
-    print("$ ", .{});
+    print(ansi.BLUE ++ "$ ", .{});
     for (argv) |arg| {
         print("{s} ", .{arg});
     }
-
-    if (Constants.use_color) {
-        print(ansi.RESET, .{});
-    }
+    print(ansi.RESET, .{});
 
     print("\n", .{});
 }
 
 pub fn err(comptime fmt: []const u8, args: anytype) void {
-    if (Constants.use_color) {
-        log(ansi.BOLD ++ ansi.RED ++ "error" ++ ansi.RESET, fmt, args);
-    } else {
-        log("error", fmt, args);
-    }
+    log(ansi.BOLD ++ ansi.RED ++ "error" ++ ansi.RESET, fmt, args);
 }
 
 pub fn warn(comptime fmt: []const u8, args: anytype) void {
-    if (Constants.use_color) {
-        log(ansi.BOLD ++ ansi.YELLOW ++ "warning" ++ ansi.RESET, fmt, args);
-    } else {
-        log("warning", fmt, args);
-    }
+    log(ansi.BOLD ++ ansi.YELLOW ++ "warning" ++ ansi.RESET, fmt, args);
 }
 
 pub fn info(comptime fmt: []const u8, args: anytype) void {
-    if (Constants.use_color) {
-        log(ansi.GREEN ++ "info" ++ ansi.RESET, fmt, args);
-    } else {
-        log("info", fmt, args);
-    }
+    log(ansi.GREEN ++ "info" ++ ansi.RESET, fmt, args);
 }

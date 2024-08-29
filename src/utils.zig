@@ -18,14 +18,22 @@ const config = @import("config.zig");
 const Constants = @import("constants.zig");
 
 const log = @import("./log.zig");
+const ANSIFilter = log.ANSIFilter;
 
 /// Print to a writer, ignoring errors.
 pub fn print(out: anytype, comptime format: []const u8, args: anytype) void {
-    out.print(format, args) catch return;
+    var color_filter = ANSIFilter(@TypeOf(out)){ .raw_writer = out };
+    const writer = color_filter.writer();
+
+    writer.print(format, args) catch return;
 }
+
 /// Print to a writer with a newline, ignoring errors.
 pub fn println(out: anytype, comptime format: []const u8, args: anytype) void {
-    out.print(format ++ "\n", args) catch return;
+    var color_filter = ANSIFilter(@TypeOf(out)){ .raw_writer = out };
+    const writer = color_filter.writer();
+
+    writer.print(format ++ "\n", args) catch return;
 }
 
 /// Result from a command; output of commands meant for
