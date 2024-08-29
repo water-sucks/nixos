@@ -77,6 +77,7 @@ pub const Config = struct {
         use_nom: bool = false,
         use_git_commit_msg: bool = false,
     } = .{},
+    color: bool = true,
     config_location: []const u8 = "/etc/nixos",
     enter: struct {
         mount_resolv_conf: bool = true,

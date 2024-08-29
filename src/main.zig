@@ -51,6 +51,7 @@ const println = utils.println;
 const MainArgs = struct {
     allocator: Allocator,
     config_values: ArrayList([]const u8),
+    color_always: bool = false,
     subcommand: ?Subcommand = null,
 
     const Self = @This();
@@ -91,6 +92,7 @@ const MainArgs = struct {
         \\
         \\Options:
         \\    -c, --config <KEY>=<VALUE>    Set a configuration value
+        \\    -C, --color-always            Always color output when possible
         \\    -h, --help                    Show this help menu
         \\    -v, --version                 Print version information
         \\
@@ -112,6 +114,8 @@ const MainArgs = struct {
             if (argparse.argIs(arg, "--config", "-c")) {
                 const next = (try getNextArgs(argv, arg, 1))[0];
                 try result.config_values.append(next);
+            } else if (argparse.argIs(arg, "--color-always", "-C")) {
+                result.color_always = true;
             } else if (argparse.argIs(arg, "--help", "-h")) {
                 log.print(usage, .{});
                 return ArgParseError.HelpInvoked;
@@ -239,7 +243,10 @@ pub fn main() !u8 {
     config.parseConfig(allocator) catch {};
     defer config.deinit();
 
-    Constants.use_color = !mem.eql(u8, posix.getenv("NO_COLOR") orelse "", "1") and
+    // This initially sets NO_COLOR to a reasonable value before the configuration
+    // and arguments are parsed. This will be re-set later.
+    const no_color_is_set = mem.eql(u8, posix.getenv("NO_COLOR") orelse "", "1");
+    Constants.use_color = !no_color_is_set and
         io.getStdOut().supportsAnsiEscapeCodes() and
         io.getStdErr().supportsAnsiEscapeCodes();
 
@@ -276,6 +283,24 @@ pub fn main() !u8 {
         config.setConfigValue(pair) catch return 2;
     }
     config.validateConfig(allocator) catch return 2;
+
+    const c = config.getConfig();
+
+    // Now that we have the real color settings from parsing
+    // the configuration and command-line arguments, set it.
+    //
+    // Precedence of color settings:
+    // 1. -C flag -> true
+    // 2. NO_COLOR=1 -> false
+    // 3. `color` setting from config (default: true)
+    if (structured_args.color_always) {
+        Constants.use_color = true;
+    } else if (no_color_is_set) {
+        Constants.use_color = false;
+    } else {
+        Constants.use_color = c.color and io.getStdOut().supportsAnsiEscapeCodes() and
+            io.getStdErr().supportsAnsiEscapeCodes();
+    }
 
     const status = switch (structured_args.subcommand.?) {
         .aliases => |args| {
