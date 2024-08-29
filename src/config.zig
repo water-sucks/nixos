@@ -75,6 +75,7 @@ pub const Config = struct {
         imply_impure_with_tag: bool = false,
         specialisation: ?[]const u8 = null,
         use_nom: bool = false,
+        use_git_commit_msg: bool = false,
     } = .{},
     config_location: []const u8 = "/etc/nixos",
     enter: struct {

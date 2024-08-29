@@ -370,42 +370,81 @@ pub const KVPair = struct {
 
 /// Verify legacy configuration exists, if needed. This
 /// is implicitly used by the "<nixpkgs/nixos>" attribute.
-pub fn verifyLegacyConfigurationExists(allocator: Allocator, verbose: bool) !void {
+///
+/// Returns the directory name where the configuration is
+/// located. Caller does not own returned memory.
+pub fn findLegacyConfiguration(verbose: bool) ![]const u8 {
     if (verbose) log.info("looking for legacy configuration", .{});
 
-    if (posix.getenv("NIXOS_CONFIG")) |dir| {
+    var configuration: []const u8 = undefined;
+
+    if (posix.getenv("NIXOS_CONFIG")) |cfg| {
         if (verbose) log.info("$NIXOS_CONFIG set, using automatically", .{});
-
-        const filename = try fs.path.join(allocator, &.{ dir, "default.nix" });
-        defer allocator.free(filename);
-
-        if (!fileExistsAbsolute(filename)) {
-            log.err("no configuration found, expected {s} to exist", .{filename});
-            return error.NotFound;
-        } else {
-            if (verbose) log.info("found legacy configuration at {s}", .{filename});
-        }
+        configuration = cfg;
     } else {
         if (verbose) log.info("$NIXOS_CONFIG not set, using NIX_PATH to find configuration", .{});
 
         const nix_path = posix.getenv("NIX_PATH") orelse "";
         var paths = mem.tokenize(u8, nix_path, ":");
 
-        var configuration: ?[]const u8 = null;
+        var found_path = false;
         while (paths.next()) |path| {
             var kv = mem.tokenize(u8, path, "=");
             if (mem.eql(u8, kv.next() orelse "", "nixos-config")) {
-                configuration = kv.next();
+                const value = kv.next() orelse "";
+                if (value.len == 0) {
+                    log.warn("nixos-config in NIX_PATH has no value", .{});
+                } else {
+                    configuration = value;
+                    found_path = true;
+                }
                 break;
             }
         }
 
-        if (configuration) |conf| {
-            if (verbose) log.info("found legacy configuration at {s}", .{conf});
-        } else {
+        if (!found_path) {
             log.err("no configuration found, expected 'nixos-config' attribute to exist in NIX_PATH", .{});
             return error.NotFound;
         }
+    }
+
+    var config_file = fs.cwd().openFile(configuration, .{}) catch |err| {
+        log.err("unable to open {s}: {s}", .{ configuration, @errorName(err) });
+        return err;
+    };
+    defer config_file.close();
+
+    const metadata = config_file.stat() catch |err| {
+        log.err("failed to retrieve metadata of {s}: {s}", .{ configuration, @errorName(err) });
+        return err;
+    };
+
+    if (metadata.kind == .file) {
+        // This is a file (likely a configuration.nix), and the
+        // dirname of it should be returned instead.
+        const real_config_dirname = fs.path.dirname(configuration).?;
+        if (verbose) log.info("found legacy configuration at {s}", .{real_config_dirname});
+        return real_config_dirname;
+    } else if (metadata.kind == .directory) {
+        var config_dir = fs.cwd().openDir(configuration, .{}) catch |err| {
+            log.err("unable to open {s}: {s}", .{ configuration, @errorName(err) });
+            return err;
+        };
+        defer config_dir.close();
+
+        _ = config_dir.statFile("default.nix") catch {
+            log.err("no configuration found, expected {s}/default.nix to exist and be accessable", .{configuration});
+            return error.NotFound;
+        };
+
+        if (verbose) log.info("found legacy configuration at {s}", .{configuration});
+
+        // A default.nix should exist inside this directory,
+        // so just return the value itself.
+        return configuration;
+    } else {
+        log.err("{s} has an unexpected filetype of {s}", .{ configuration, @tagName(metadata.kind) });
+        return error.NotFound;
     }
 }
 

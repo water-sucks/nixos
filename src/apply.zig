@@ -377,6 +377,56 @@ fn nixBuild(
     return result.stdout.?;
 }
 
+const GitMessageError = error{
+    GitTreeDirty,
+    NotGitRepo,
+    CommandFailed,
+} || Allocator.Error;
+
+/// Find the most recent Git commit message.
+///
+/// This will only be relevant for clean Git trees, to mirror the
+/// behavior of Nix. This is done by using `git diff --quiet`.
+fn fetchLastGitCommitMessage(allocator: Allocator) GitMessageError![]const u8 {
+    const check_argv = &.{ "git", "diff", "--quiet" };
+    errdefer log.warn("skipping commit message retrieval", .{});
+
+    const dirty_check_result = runCmd(.{
+        .allocator = allocator,
+        .argv = check_argv,
+        .stdout_type = .Inherit,
+    }) catch |err| {
+        log.err("`git diff` for status check failed: {s}", .{@errorName(err)});
+        return GitMessageError.CommandFailed;
+    };
+
+    if (dirty_check_result.status == 1) {
+        log.warn("git tree is dirty, ignoring use_git_commit_msg setting", .{});
+        return GitMessageError.GitTreeDirty;
+    } else if (dirty_check_result.status == 129) {
+        log.warn("configuration directory is not a git repository", .{});
+        return error.NotGitRepo;
+    }
+
+    const diff_argv = &.{ "git", "log", "-1", "--pretty=%B" };
+
+    const commit_message_result = runCmd(.{
+        .allocator = allocator,
+        .argv = diff_argv,
+    }) catch |err| {
+        log.warn("`git log` failed to run: {s}", .{@errorName(err)});
+        return GitMessageError.CommandFailed;
+    };
+    defer allocator.free(commit_message_result.stdout.?);
+
+    if (commit_message_result.status == 1) {
+        log.warn("`git log` exited with status {d}", .{commit_message_result.status});
+        return GitMessageError.CommandFailed;
+    }
+
+    return try allocator.dupe(u8, mem.sliceTo(commit_message_result.stdout.?, '\n'));
+}
+
 /// Build a NixOS configuration located in a flake
 fn nixBuildFlake(
     allocator: Allocator,
@@ -579,6 +629,10 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
     var flake_ref: FlakeRef = undefined;
     var hostname_buf: [posix.HOST_NAME_MAX]u8 = undefined;
 
+    // The directory name where the configuration is, if it is a path.
+    // This could not be the case with remotely-defined configurations.
+    var config_dirname: []const u8 = undefined;
+
     if (opts.flake) {
         if (verbose) log.info("looking for flake configuration", .{});
         flake_ref = blk: {
@@ -593,8 +647,29 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
         flake_ref.inferSystemNameIfNeeded(&hostname_buf) catch return ApplyError.ConfigurationNotFound;
 
         if (verbose) log.info("found flake configuration {s}#{s}", .{ flake_ref.uri, flake_ref.system });
+        config_dirname = flake_ref.uri;
     } else {
-        utils.verifyLegacyConfigurationExists(allocator, verbose) catch return ApplyError.ConfigurationNotFound;
+        config_dirname = utils.findLegacyConfiguration(verbose) catch return ApplyError.ConfigurationNotFound;
+    }
+
+    var config_dir: ?fs.Dir = fs.cwd().openDir(config_dirname, .{}) catch |err| blk: {
+        // A rough heuristic for determining if this was intended
+        // to be a path to a configuration or not. Only absolute
+        // paths are allowed; in the case of non-paths such as
+        // remote flake refs, do not display any warnings.
+        if (fs.path.isAbsolute(config_dirname)) {
+            log.warn("unable to open {s}: {s}", .{ config_dirname, @errorName(err) });
+            log.warn("some features that depend on this existing will be unavailable", .{});
+        }
+        break :blk null;
+    };
+    defer if (config_dir) |*dir| dir.close();
+    if (config_dir) |dir| {
+        if (verbose) log.info("setting working directory to {s}", .{config_dirname});
+        dir.setAsCwd() catch |err| {
+            log.err("unable to set {s} as working dir: {s}", .{ config_dirname, @errorName(err) });
+            return ApplyError.ResourceAccessFailed;
+        };
     }
 
     // Upgrade all channels
@@ -635,6 +710,25 @@ fn apply(allocator: Allocator, args: ApplyCommand) ApplyError!void {
         log.warn("falling back to `nix` command for building", .{});
         use_nom = false;
     }
+
+    var tag_alloc = false;
+    const tag: ?[]const u8 = blk: {
+        if (args.tag) |t| {
+            if (c.apply.use_git_commit_msg) {
+                log.info("explicit generation tag was given, ignoring apply.use_git_commit_msg setting", .{});
+            }
+            break :blk t;
+        }
+
+        if (c.apply.use_git_commit_msg) {
+            const message = fetchLastGitCommitMessage(allocator) catch break :blk null;
+            tag_alloc = true;
+            break :blk message;
+        }
+
+        break :blk null;
+    };
+    defer if (tag_alloc and tag != null) allocator.free(tag.?);
 
     if (opts.flake) {
         result = nixBuildFlake(allocator, build_type, flake_ref, .{
