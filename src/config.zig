@@ -206,11 +206,7 @@ pub fn deinit() void {
 }
 
 fn configError(comptime fmt: []const u8, args: anytype) void {
-    if (Constants.use_color) {
-        log.print(ansi.BOLD ++ ansi.RED ++ "error" ++ ansi.RESET ++ ": ", .{});
-    } else {
-        log.print("error: ", .{});
-    }
+    log.print(ansi.BOLD ++ ansi.RED ++ "error" ++ ansi.RESET ++ ": ", .{});
     log.print("invalid setting: ", .{});
     log.print(fmt ++ "\n", args);
 }

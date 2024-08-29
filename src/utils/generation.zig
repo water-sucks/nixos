@@ -174,58 +174,46 @@ pub const GenerationMetadata = struct {
     }
 
     pub fn prettyPrint(self: Self, options: struct {
-        color: bool = true,
         show_current_marker: bool = true,
     }, writer: anytype) !void {
+        var color_filter = ansi.ANSIFilter(@TypeOf(writer)){ .raw_writer = writer };
+        const w = color_filter.writer();
+
         const nixos_version = self.nixos_version orelse "NixOS";
 
         const show_current = self.current and options.show_current_marker;
 
-        if (options.color) {
-            try writer.print(ansi.BOLD ++ ansi.ITALIC ++ "{s}\n" ++ ansi.RESET, .{nixos_version});
-        } else {
-            try writer.print("{s}\n", .{nixos_version});
-        }
+        try w.print(ansi.BOLD ++ ansi.ITALIC ++ "{s}\n" ++ ansi.RESET, .{nixos_version});
         for (0..nixos_version.len) |_| {
-            try writer.print("-", .{});
+            try w.print("-", .{});
         }
-        try writer.print("\n", .{});
+        try w.print("\n", .{});
 
-        try prettyPrintKeyValue(writer, "Generation", self.generation, .{ .color = options.color });
-
+        try prettyPrintKeyValue(w, "Generation", self.generation, .{});
         const formatted_date: ?[]const u8 = if (self.date) |date|
             try fmt.allocPrint(self.allocator, "{s} {d:0>2}, {d} {d:0>2}:{d:0>2}:{d:0>2}", .{ date.month.name(), date.day, date.year, date.hour, date.minute, date.second })
         else
             null;
         defer if (formatted_date) |date| self.allocator.free(date);
-        try prettyPrintKeyValue(writer, "Creation Date", formatted_date, .{ .color = options.color });
+        try prettyPrintKeyValue(w, "Creation Date", formatted_date, .{});
 
         if (self.description) |_| {
-            try prettyPrintKeyValue(writer, "Description", self.description, .{ .color = options.color });
+            try prettyPrintKeyValue(w, "Description", self.description, .{});
         }
 
-        try prettyPrintKeyValue(writer, "Nixpkgs Revision", self.nixpkgs_revision, .{ .color = options.color });
-        try prettyPrintKeyValue(writer, "Config Revision", self.configuration_revision, .{ .color = options.color });
-        try prettyPrintKeyValue(writer, "Kernel Version", self.kernel_version, .{ .color = options.color });
+        try prettyPrintKeyValue(w, "Nixpkgs Revision", self.nixpkgs_revision, .{});
+        try prettyPrintKeyValue(w, "Config Revision", self.configuration_revision, .{});
+        try prettyPrintKeyValue(w, "Kernel Version", self.kernel_version, .{});
 
         const specialisations: ?[]const u8 = if (self.specialisations != null and self.specialisations.?.len > 0)
             try utils.concatStringsSep(self.allocator, self.specialisations orelse &.{}, ", ")
         else
             null;
         defer if (specialisations) |s| self.allocator.free(s);
-        try prettyPrintKeyValue(writer, "Specialisations", specialisations, .{
-            .color = options.color,
-            .default = "(none)",
-        });
+        try prettyPrintKeyValue(w, "Specialisations", specialisations, .{ .default = "(none)" });
 
-        if (options.color) {
-            if (show_current) {
-                try writer.print(ansi.RED ++ ansi.BOLD ++ "This generation is currently active.\n" ++ ansi.RESET, .{});
-            }
-        } else {
-            if (show_current) {
-                try writer.print("This generation is currently active.\n", .{});
-            }
+        if (show_current) {
+            try w.print(ansi.RED ++ ansi.BOLD ++ "This generation is currently active.\n" ++ ansi.RESET, .{});
         }
     }
 
@@ -239,37 +227,20 @@ pub const GenerationMetadata = struct {
     });
 
     fn prettyPrintKeyValue(writer: anytype, title: []const u8, value: anytype, options: struct {
-        color: bool = true,
         default: []const u8 = "unknown",
     }) !void {
-        if (options.color) {
-            try writer.print(ansi.CYAN ++ "{s: <" ++ key_column_length ++ "}" ++ ansi.RESET ++ ":: ", .{title});
-        } else {
-            try writer.print("{s: <" ++ key_column_length ++ "}" ++ ":: ", .{title});
-        }
+        try writer.print(ansi.CYAN ++ "{s: <" ++ key_column_length ++ "}" ++ ansi.RESET ++ ":: ", .{title});
 
         const typ = @TypeOf(value);
 
         if (typ == ?usize) {
-            if (options.color) {
-                if (value) |v| {
-                    try writer.print(ansi.ITALIC ++ "{d}" ++ ansi.RESET ++ "\n", .{v});
-                } else {
-                    try writer.print(ansi.ITALIC ++ "{s}" ++ ansi.RESET ++ "\n", .{options.default});
-                }
+            if (value) |v| {
+                try writer.print(ansi.ITALIC ++ "{d}" ++ ansi.RESET ++ "\n", .{v});
             } else {
-                if (value) |v| {
-                    try writer.print("{d}\n", .{v});
-                } else {
-                    try writer.print("{s}\n", .{options.default});
-                }
+                try writer.print(ansi.ITALIC ++ "{s}" ++ ansi.RESET ++ "\n", .{options.default});
             }
         } else if (typ == ?[]const u8) {
-            if (options.color) {
-                try writer.print(ansi.ITALIC ++ "{s}" ++ ansi.RESET ++ "\n", .{value orelse options.default});
-            } else {
-                try writer.print("{s}\n", .{value orelse options.default});
-            }
+            try writer.print(ansi.ITALIC ++ "{s}" ++ ansi.RESET ++ "\n", .{value orelse options.default});
         } else {
             @compileError("prettyPrintKeyValue can only take usize or []const u8 values");
         }

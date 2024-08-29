@@ -18,7 +18,7 @@ const config = @import("config.zig");
 const Constants = @import("constants.zig");
 
 const log = @import("./log.zig");
-const ANSIFilter = log.ANSIFilter;
+const ANSIFilter = ansi.ANSIFilter;
 
 /// Print to a writer, ignoring errors.
 pub fn print(out: anytype, comptime format: []const u8, args: anytype) void {
@@ -463,11 +463,7 @@ pub fn confirmationInput(prompt: []const u8) !bool {
     var input_buf: [100]u8 = undefined;
     const stdin = io.getStdIn().reader();
 
-    if (Constants.use_color) {
-        log.print(ansi.GREEN ++ "|> {s}?" ++ ansi.RESET ++ "\n[y/n]: ", .{prompt});
-    } else {
-        log.print("|> {s}?\n[y/n]: ", .{prompt});
-    }
+    log.print(ansi.GREEN ++ "|> {s}?" ++ ansi.RESET ++ "\n[y/n]: ", .{prompt});
 
     const input = stdin.readUntilDelimiter(&input_buf, '\n') catch |err| {
         log.err("unable to read stdin for confirmation: {s}", .{@errorName(err)});

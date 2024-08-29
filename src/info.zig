@@ -159,7 +159,6 @@ fn info(allocator: Allocator, args: InfoCommand) InfoError!void {
     }
 
     generation_info.prettyPrint(.{
-        .color = Constants.use_color,
         .show_current_marker = false,
     }, stdout) catch unreachable;
 }
