@@ -184,8 +184,13 @@ configuration is located in [`config.sample.toml`](./config.sample.toml).
 Check the [issues](https://github.com/water-sucks/nixos/issues) page for more on
 this; this is just a high-level overview.
 
-### Possible Future Commands
+## Talk!
+
+Join the Matrix room at [#nixos-cli:matrix.org](https://matrix.to/#/#nixos-cli:matrix.org)!
+It's open for chatting about NixOS in general, and for making it a better
+experience for all that involved.
 
 I would like for this to become a standard NixOS tool, which means that I want
 to cater to potentially many interests. If you would like for any commands
-to be implemented that you think fit this project, please file an issue.
+to be implemented that you think fit this project, talk to me on Matrix or
+file a GitHub issue.
