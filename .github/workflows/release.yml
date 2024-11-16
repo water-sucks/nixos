@@ -1,0 +1,32 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      git-ref:
+        description: "Git ref to publish to Cachix"
+        required: true
+        type: string
+  release:
+    types: [created]
+
+jobs:
+  publish-to-cachix:
+    name: Publish to Cache
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git-ref }}
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Initialize Cachix
+        uses: cachix/cachix-action@v14
+        with:
+          name: watersucks
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+
+      - name: Build Nix packages
+        run: nix build .#{nixos,nixosLegacy}
