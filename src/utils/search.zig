@@ -31,7 +31,7 @@ pub fn rankCandidates(
 
     var index: usize = 0;
     for (candidates) |candidate| {
-        if (zf.rank(candidate, tokens, case_sensitive, plain)) |rank| {
+        if (zf.rank(candidate, tokens, .{ .plain = plain, .to_lower = !case_sensitive })) |rank| {
             ranked[index] = .{ .str = candidate, .rank = rank };
             index += 1;
         }
@@ -79,7 +79,7 @@ pub fn rankCandidatesStruct(
             }
         };
 
-        if (zf.rank(candidate_str, tokens, case_sensitive, plain)) |rank| {
+        if (zf.rank(candidate_str, tokens, .{ .plain = plain, .to_lower = !case_sensitive })) |rank| {
             ranked[index] = .{ .value = candidate, .rank = rank };
             index += 1;
         }
