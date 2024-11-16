@@ -3,6 +3,24 @@
 
 ## Introduction
 
+<table class="alert-warn" align=center>
+<tr>
+    <td>🚨</td>
+    <td>
+      This project will be undergoing a rewrite to make it more feasible to
+      work on certain features, and also to make development time faster.
+      If you want to use this rewrite early, point to the
+      <a href="https://github.com/water-sucks/nixos/tree/rewrite">
+        <code>rewrite</code>
+      </a> branch.
+      <p>
+        The rewrite will also bring some substantial UX improvements, and
+        hopefully some new things on the roadmap. Stay tuned!
+      </p>
+    </td>
+</tr>
+</table>
+
 This is a unification of all the different pick NixOS tooling into one executable.
 NixOS has its various tools spread out between several large scripts that have
 become on the verge of unmaintainable. This tool has one goal: to create a modular
