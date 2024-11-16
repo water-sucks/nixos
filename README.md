@@ -51,10 +51,57 @@ the recommended way to use this program.
     nixosConfigurations.system-name = nixpkgs.lib.nixosSystem {
       modules = [
         nixos-cli.nixosModules.nixos-cli
+        {
+          services.nixos-cli = {
+            enable = true;
+            # Other configuration for nixos-cli
+          };
+        }
         # other configuration goes here
       ];
     };
   };
+}
+```
+
+### Cache
+
+There is a Cachix cache available. Add the following to your NixOS configuration
+to avoid lengthy rebuilds and fetching extra build-time dependencies:
+
+```nix
+{
+  nix.settings = {
+    substituters = [ "https://watersucks.cachix.org" ];
+    trusted-public-keys = [
+      "watersucks.cachix.org-1:6gadPC5R8iLWQ3EUtfu3GFrVY7X6I4Fwz/ihW25Jbv8="
+    ];
+  };
+}
+```
+
+Or if using the Cachix CLI outside a NixOS environment:
+
+```sh
+$ cachix use watersucks
+```
+
+There are rare cases in which you want to automatically configure a cache when
+using flakes, such as when installing NixOS configurations using this tool.
+The following configuration in the `flake.nix` can help with this (beware
+though, as this is a fairly undocumented feature!):
+
+```nix
+{
+  nixConfig = {
+    extra-substituters = [ "https://watersucks.cachix.org" ];
+    extra-trusted-public-keys = [
+      "watersucks.cachix.org-1:6gadPC5R8iLWQ3EUtfu3GFrVY7X6I4Fwz/ihW25Jbv8="
+    ];
+  };
+
+  inputs = {}; # Whatever you normally have here
+  outputs = inputs: {}; # Whatever you normally have here
 }
 ```
 
@@ -83,6 +130,7 @@ in {
   services.nixos-cli = {
     enable = true;
     package = nixos-cli.packages.${pkgs.system}.nixosLegacy;
+    # Other configuration for nixos-cli
   };
 
   nix.settings.extra-experimental-features = ["flakes"];
