@@ -16,7 +16,7 @@ pub fn appendToTextBuffer(allocator: Allocator, vx: vaxis.Vaxis, buf: *TextViewB
 
     try buf.append(allocator, .{
         .bytes = content,
-        .gd = &vx.unicode.grapheme_data,
+        .gd = &vx.unicode.width_data.g_data,
         .wd = &vx.unicode.width_data,
     });
 

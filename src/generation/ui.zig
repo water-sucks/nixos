@@ -84,8 +84,9 @@ pub const GenerationTUI = struct {
 
             .gen_list = gen_list,
             .gen_list_ctx = .{
+                .active_bg = .{ .index = 1 },
                 .selected_bg = .{ .index = 1 },
-                .row = current_gen_idx,
+                .row = @truncate(current_gen_idx),
             },
             .candidate_filter_buf = candidate_filter_buf,
             .filtered_gen_list = initial_filtered_gen_slice,
@@ -148,7 +149,7 @@ pub const GenerationTUI = struct {
                     } else {
                         try self.search_input.update(.{ .key_press = key });
 
-                        const search_query = self.search_input.buf.items;
+                        const search_query = self.getSearchQuery();
                         const tokens: []const []const u8 = toks: {
                             var items = ArrayList([]const u8).init(allocator);
                             errdefer items.deinit();
@@ -165,7 +166,7 @@ pub const GenerationTUI = struct {
                         self.gen_list_ctx.row = if (self.filtered_gen_list.len == 0)
                             0
                         else
-                            self.filtered_gen_list.len - 1;
+                            @truncate(self.filtered_gen_list.len - 1);
                     }
                 } else {
                     if (key.matchesAny(&.{ vaxis.Key.up, 'k' }, .{})) {
@@ -226,8 +227,8 @@ pub const GenerationTUI = struct {
         const root_win = self.vx.window();
 
         var main_win = root_win.child(.{
-            .width = .{ .limit = root_win.width / 6 },
-            .height = .{ .limit = root_win.height },
+            .width = root_win.width / 6,
+            .height = root_win.height,
             .border = .{
                 .where = .all,
                 .style = .{ .fg = .{ .index = 7 } },
@@ -238,13 +239,13 @@ pub const GenerationTUI = struct {
             .text = "Generations",
             .style = .{ .bold = true },
         };
-        const title_bar_win: vaxis.Window = main_win.child(.{ .height = .{ .limit = 1 } });
+        const title_bar_win: vaxis.Window = main_win.child(.{ .height = 1 });
         const centered: vaxis.Window = vaxis.widgets.alignment.center(title_bar_win, title_seg.text.len, 2);
-        _ = try centered.printSegment(title_seg, .{});
+        _ = centered.printSegment(title_seg, .{});
 
         const table_win: vaxis.Window = main_win.child(.{
             .y_off = 2,
-            .height = .{ .limit = main_win.height - 2 },
+            .height = main_win.height - 2,
         });
 
         const gen_list = self.filtered_gen_list;
@@ -262,9 +263,9 @@ pub const GenerationTUI = struct {
             if (ctx.row < ctx.start)
                 break :tableStart ctx.start - (ctx.start - ctx.row);
             if (ctx.row >= gen_list.len - 1)
-                ctx.row = gen_list.len - 1;
+                ctx.row = @truncate(gen_list.len - 1);
             if (ctx.row >= end)
-                break :tableStart ctx.start + (ctx.row - end + 1);
+                break :tableStart @truncate(ctx.start + (ctx.row - end + 1));
             break :tableStart ctx.start;
         };
         end = ctx.start + max_items;
@@ -276,9 +277,9 @@ pub const GenerationTUI = struct {
             const gen = data.value;
 
             const tile = table_win.child(.{
-                .y_off = i,
-                .width = .{ .limit = table_win.width },
-                .height = .{ .limit = 1 },
+                .y_off = @intCast(i),
+                .width = table_win.width,
+                .height = 1,
             });
 
             const generation_segment: vaxis.Segment = .{
@@ -298,18 +299,18 @@ pub const GenerationTUI = struct {
                 break :blk false;
             };
 
-            _ = try tile.printSegment(generation_segment, .{ .col_offset = 3 });
+            _ = tile.printSegment(generation_segment, .{ .col_offset = 3 });
             if (deletion_toggled) {
-                _ = try tile.printSegment(.{ .text = "*" }, .{ .col_offset = 1 });
+                _ = tile.printSegment(.{ .text = "*" }, .{ .col_offset = 1 });
             }
         }
 
         const mode_win: vaxis.Window = main_win.child(.{
             .y_off = main_win.height - 1,
-            .height = .{ .limit = 1 },
+            .height = 1,
         });
         const mode_seg: vaxis.Segment = .{ .text = try fmt.allocPrint(allocator, "{s}", .{@tagName(self.mode)}) };
-        _ = try mode_win.printSegment(mode_seg, .{});
+        _ = mode_win.printSegment(mode_seg, .{});
 
         return main_win;
     }
@@ -321,8 +322,8 @@ pub const GenerationTUI = struct {
         const search_bar_win = root_win.child(.{
             .x_off = root_win.width / 6,
             .y_off = root_win.height - 3,
-            .width = .{ .limit = root_win.width - (root_win.width / 6) },
-            .height = .{ .limit = 3 },
+            .width = root_win.width - (root_win.width / 6),
+            .height = 3,
             .border = .{
                 .where = .all,
                 .style = .{ .fg = .{ .index = 7 } },
@@ -343,9 +344,9 @@ pub const GenerationTUI = struct {
             .text = value,
             .style = .{ .italic = true },
         };
-        _ = try win.printSegment(gen_number_title_seg, .{ .row_offset = row_offset.*, .col_offset = 3 });
+        _ = win.printSegment(gen_number_title_seg, .{ .row_offset = @truncate(row_offset.*), .col_offset = 3 });
         row_offset.* += 1;
-        _ = try win.printSegment(gen_number_seg, .{ .row_offset = row_offset.*, .col_offset = 3 });
+        _ = win.printSegment(gen_number_seg, .{ .row_offset = @truncate(row_offset.*), .col_offset = 3 });
         row_offset.* += 2;
     }
 
@@ -355,8 +356,8 @@ pub const GenerationTUI = struct {
 
         const main_win: vaxis.Window = root_win.child(.{
             .x_off = root_win.width / 6,
-            .width = .{ .limit = root_win.width / 2 },
-            .height = .{ .limit = root_win.height - 3 },
+            .width = root_win.width / 2,
+            .height = root_win.height - 3,
             .border = .{
                 .where = .all,
                 .style = .{ .fg = .{ .index = 7 } },
@@ -367,13 +368,13 @@ pub const GenerationTUI = struct {
             .text = "Information",
             .style = .{ .bold = true },
         };
-        const title_bar_win: vaxis.Window = main_win.child(.{ .height = .{ .limit = 1 } });
+        const title_bar_win: vaxis.Window = main_win.child(.{ .height = 1 });
         const centered: vaxis.Window = vaxis.widgets.alignment.center(title_bar_win, title_seg.text.len, 2);
-        _ = try centered.printSegment(title_seg, .{});
+        _ = centered.printSegment(title_seg, .{});
 
         const info_win: vaxis.Window = main_win.child(.{
             .y_off = 2,
-            .height = .{ .limit = main_win.height - 2 },
+            .height = main_win.height - 2,
         });
 
         if (self.filtered_gen_list.len == 0) {
@@ -381,7 +382,7 @@ pub const GenerationTUI = struct {
                 .text = "No generations found",
                 .style = .{ .italic = true },
             };
-            _ = try info_win.printSegment(no_selected_gen_seg, .{ .col_offset = 3 });
+            _ = info_win.printSegment(no_selected_gen_seg, .{ .col_offset = 3 });
             return main_win;
         }
 
@@ -420,8 +421,8 @@ pub const GenerationTUI = struct {
 
         const main_win: vaxis.Window = root.child(.{
             .x_off = (root.width * 2) / 3,
-            .width = .{ .limit = root.width / 3 },
-            .height = .{ .limit = root.height / 2 },
+            .width = root.width / 3,
+            .height = root.height / 2,
             .border = .{
                 .where = .all,
                 .style = .{
@@ -434,13 +435,13 @@ pub const GenerationTUI = struct {
             .text = "Selected Generations",
             .style = .{ .bold = true },
         };
-        const title_win: vaxis.Window = main_win.child(.{ .height = .{ .limit = 1 } });
+        const title_win: vaxis.Window = main_win.child(.{ .height = 1 });
         const centered: vaxis.Window = vaxis.widgets.alignment.center(title_win, title_seg.text.len, 2);
-        _ = try centered.printSegment(title_seg, .{});
+        _ = centered.printSegment(title_seg, .{});
 
         const info_win: vaxis.Window = main_win.child(.{
             .y_off = 2,
-            .height = .{ .limit = main_win.height - 2 },
+            .height = main_win.height - 2,
         });
 
         const selected_gens = self.gens_to_delete.items;
@@ -452,7 +453,7 @@ pub const GenerationTUI = struct {
             }
             break :blk try utils.concatStringsSep(allocator, gen_number_strs.items, ", ");
         };
-        _ = try info_win.printSegment(.{ .text = selected_gens_str }, .{ .wrap = .word });
+        _ = info_win.printSegment(.{ .text = selected_gens_str }, .{ .wrap = .word });
 
         return main_win;
     }
@@ -464,8 +465,8 @@ pub const GenerationTUI = struct {
         const main_win: vaxis.Window = root_win.child(.{
             .x_off = (root_win.width * 2) / 3,
             .y_off = root_win.height / 2,
-            .width = .{ .limit = root_win.width / 3 },
-            .height = .{ .limit = root_win.height / 2 - 2 },
+            .width = root_win.width / 3,
+            .height = root_win.height / 2 - 2,
             .border = .{
                 .where = .all,
                 .style = .{ .fg = .{ .index = 7 } },
@@ -476,13 +477,13 @@ pub const GenerationTUI = struct {
             .text = "Keybinds",
             .style = .{ .bold = true },
         };
-        const title_win: vaxis.Window = main_win.child(.{ .height = .{ .limit = 1 } });
+        const title_win: vaxis.Window = main_win.child(.{ .height = 1 });
         const centered: vaxis.Window = vaxis.widgets.alignment.center(title_win, title_seg.text.len, 2);
-        _ = try centered.printSegment(title_seg, .{});
+        _ = centered.printSegment(title_seg, .{});
 
         const info_win: vaxis.Window = main_win.child(.{
             .y_off = 2,
-            .height = .{ .limit = main_win.height - 2 },
+            .height = main_win.height - 2,
         });
 
         const keybinds: []const []const []const u8 = &.{
@@ -516,12 +517,16 @@ pub const GenerationTUI = struct {
                 .text = " :: " ++ key_desc,
             };
 
-            _ = try info_win.printSegment(key_seg, .{ .row_offset = row_offset, .col_offset = 1 });
-            _ = try info_win.printSegment(key_desc_seg, .{ .row_offset = row_offset, .col_offset = desc_col_offset });
+            _ = info_win.printSegment(key_seg, .{ .row_offset = row_offset, .col_offset = 1 });
+            _ = info_win.printSegment(key_desc_seg, .{ .row_offset = row_offset, .col_offset = desc_col_offset });
             row_offset += 1;
         }
 
         return main_win;
+    }
+
+    fn getSearchQuery(self: Self) []const u8 {
+        return self.search_input.buf.buffer[0..self.search_input.buf.realLength()];
     }
 
     pub fn deinit(self: *Self) void {

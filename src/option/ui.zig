@@ -204,7 +204,7 @@ pub const OptionSearchTUI = struct {
                     break :blk;
                 }
                 if (key.matches(vaxis.Key.enter, .{})) {
-                    if (self.search_input.buf.items.len == 0 or self.option_results.len == 0) break :blk;
+                    if (self.search_input.buf.realLength() == 0 or self.option_results.len == 0) break :blk;
                     self.active_window = .value;
                     const orig_counter = self.value_cmd_ctr.fetchAdd(1, .seq_cst);
                     const thread = std.Thread.spawn(.{ .allocator = self.allocator }, OptionSearchTUI.evaluateOptionValue, .{ self, orig_counter, loop }) catch null;
@@ -234,9 +234,7 @@ pub const OptionSearchTUI = struct {
                         break :blk;
                     } else {
                         try self.search_input.update(.{ .key_press = key });
-
-                        const tokens = try utils.splitScalarAlloc(allocator, self.search_input.buf.items, ' ');
-
+                        const tokens = try utils.splitScalarAlloc(allocator, self.getSearchQuery(), ' ');
                         const results = utils.search.rankCandidatesStruct(NixosOption, "name", self.candidate_filter_buf, self.options, tokens, true, true);
                         std.sort.block(OptionCandidate, results, {}, compareOptionCandidates);
                         ctx.row = 0;
@@ -292,11 +290,11 @@ pub const OptionSearchTUI = struct {
         };
         const help_prompt_row_win = win.child(.{
             .y_off = win.height - 2,
-            .height = .{ .limit = 1 },
+            .height = 1,
         });
         const centered = vaxis.widgets.alignment.center(help_prompt_row_win, help_seg.text.len, 1);
         if (self.active_window != .value) {
-            _ = try centered.printSegment(help_seg, .{});
+            _ = centered.printSegment(help_seg, .{});
         }
 
         _ = try self.drawResultsList(root_win, allocator);
@@ -319,7 +317,7 @@ pub const OptionSearchTUI = struct {
         });
 
         const title_win = main_win.child(.{
-            .height = .{ .limit = 2 },
+            .height = 2,
             .border = .{
                 .where = .bottom,
                 .style = .{ .fg = .{ .index = 7 } },
@@ -331,12 +329,12 @@ pub const OptionSearchTUI = struct {
             .style = .{ .bold = true },
         };
         const centered = vaxis.widgets.alignment.center(title_win, title_seg.text.len, 1);
-        _ = try centered.printSegment(title_seg, .{});
+        _ = centered.printSegment(title_seg, .{});
 
         const info_win = main_win.child(.{
             .y_off = 2,
             .x_off = 1,
-            .height = .{ .limit = root_win.height - 2 },
+            .height = root_win.height - 2,
         });
         main_win.hideCursor();
 
@@ -414,8 +412,8 @@ pub const OptionSearchTUI = struct {
 
     fn drawResultsList(self: *Self, root_win: vaxis.Window, allocator: Allocator) !vaxis.Window {
         var main_win = root_win.child(.{
-            .width = .{ .limit = root_win.width / 2 },
-            .height = .{ .limit = root_win.height - 3 },
+            .width = root_win.width / 2,
+            .height = root_win.height - 3,
             .border = .{
                 .where = .all,
                 .style = .{ .fg = .{ .index = if (self.active_window == .input) 5 else 7 } },
@@ -423,15 +421,15 @@ pub const OptionSearchTUI = struct {
             },
         });
 
-        const query = self.search_input.buf.items;
+        const query = self.getSearchQuery();
 
         const title_seg: vaxis.Segment = .{
             .text = "Results",
             .style = .{ .bold = true },
         };
-        const title_win: vaxis.Window = main_win.child(.{ .height = .{ .limit = 1 } });
+        const title_win: vaxis.Window = main_win.child(.{ .height = 1 });
         const centered: vaxis.Window = vaxis.widgets.alignment.center(title_win, title_seg.text.len, 2);
-        _ = try centered.printSegment(title_seg, .{});
+        _ = centered.printSegment(title_seg, .{});
 
         // Don't show all results if the search bar is empty.
         if (query.len == 0) {
@@ -440,7 +438,7 @@ pub const OptionSearchTUI = struct {
 
         const table_win: vaxis.Window = main_win.child(.{
             .y_off = 2,
-            .height = .{ .limit = main_win.height - 2 },
+            .height = main_win.height - 2,
         });
         const options = self.option_results;
 
@@ -472,7 +470,7 @@ pub const OptionSearchTUI = struct {
         if (end > options.len) end = options.len;
 
         const selected_row = ctx.row;
-        const tokens = try utils.splitScalarAlloc(allocator, self.search_input.buf.items, ' ');
+        const tokens = try utils.splitScalarAlloc(allocator, self.getSearchQuery(), ' ');
 
         const matches_buf = blk: {
             var size: usize = 0;
@@ -486,9 +484,9 @@ pub const OptionSearchTUI = struct {
             const option = data.value;
 
             const tile = table_win.child(.{
-                .y_off = table_win.height -| i -| 1,
-                .width = .{ .limit = table_win.width },
-                .height = .{ .limit = 1 },
+                .y_off = @intCast(table_win.height -| i -| 1),
+                .width = table_win.width,
+                .height = 1,
             });
 
             const selected = ctx.start + i == selected_row;
@@ -504,9 +502,9 @@ pub const OptionSearchTUI = struct {
                     .bg = tile_bg,
                 },
             };
-            _ = try tile.printSegment(option_name_seg, .{ .col_offset = 3 });
+            _ = tile.printSegment(option_name_seg, .{ .col_offset = 3 });
 
-            const matches = zf.highlight(option.name, tokens, true, true, matches_buf);
+            const matches = zf.highlight(option.name, tokens, matches_buf, .{ .plain = true, .to_lower = false });
             for (matches) |idx| {
                 const cell: vaxis.Cell = .{
                     .char = .{ .grapheme = option.name[idx..(idx + 1)] },
@@ -515,7 +513,7 @@ pub const OptionSearchTUI = struct {
                         .bg = tile_bg,
                     },
                 };
-                tile.writeCell(3 + idx, 0, cell);
+                tile.writeCell(@truncate(3 + idx), 0, cell);
             }
 
             if (selected) {
@@ -526,7 +524,7 @@ pub const OptionSearchTUI = struct {
                         .bg = tile_bg,
                     },
                 };
-                _ = try tile.printSegment(selected_arrow_seg, .{});
+                _ = tile.printSegment(selected_arrow_seg, .{});
             }
         }
 
@@ -534,12 +532,12 @@ pub const OptionSearchTUI = struct {
     }
 
     fn drawSearchBar(self: *Self, root_win: vaxis.Window, allocator: Allocator) !vaxis.Window {
-        const query = self.search_input.buf.items;
+        const query = self.search_input.buf.buffer;
 
         const search_bar_win = root_win.child(.{
             .y_off = root_win.height - 3,
-            .width = .{ .limit = root_win.width / 2 },
-            .height = .{ .limit = 3 },
+            .width = root_win.width / 2,
+            .height = 3,
             .border = .{
                 .where = .all,
                 .style = .{ .fg = .{ .index = if (self.active_window == .input) 5 else 7 } },
@@ -553,23 +551,23 @@ pub const OptionSearchTUI = struct {
                 .fg = .{ .index = 4 },
             },
         };
-        _ = try search_bar_win.printSegment(.{ .text = ">" }, .{});
+        _ = search_bar_win.printSegment(.{ .text = ">" }, .{});
 
         const count_seg: vaxis.Segment = .{
             .text = if (query.len != 0) try fmt.allocPrint(allocator, "{d} / {d}", .{ self.option_results.len, self.options.len }) else "",
             .style = .{ .fg = .{ .index = 4 } },
         };
         if (count_seg.text.len != 0) {
-            _ = try search_bar_win.printSegment(count_seg, .{ .col_offset = search_bar_win.width - count_seg.text.len });
+            _ = search_bar_win.printSegment(count_seg, .{ .col_offset = @truncate(search_bar_win.width - count_seg.text.len) });
         }
 
         var input_win = search_bar_win.child(.{
             .x_off = 2,
-            .width = .{ .limit = search_bar_win.width - 2 - count_seg.text.len },
+            .width = @truncate(search_bar_win.width - 2 - count_seg.text.len),
         });
         self.search_input.draw(input_win);
-        if (self.search_input.buf.items.len == 0) {
-            _ = try input_win.printSegment(placeholder_seg, .{});
+        if (self.search_input.buf.buffer.len == 0) {
+            _ = input_win.printSegment(placeholder_seg, .{});
         }
 
         return search_bar_win;
@@ -578,7 +576,7 @@ pub const OptionSearchTUI = struct {
     fn drawResultPreview(self: *Self, root_win: vaxis.Window, allocator: Allocator) !vaxis.Window {
         const main_win = root_win.child(.{
             .x_off = root_win.width / 2,
-            .width = .{ .limit = root_win.width / 2 },
+            .width = root_win.width / 2,
             .border = .{
                 .where = .all,
                 .style = .{ .fg = .{ .index = if (self.active_window == .preview) 5 else 7 } },
@@ -590,21 +588,21 @@ pub const OptionSearchTUI = struct {
             .text = "Option Preview",
             .style = .{ .bold = true },
         };
-        const title_win: vaxis.Window = main_win.child(.{ .height = .{ .limit = 1 } });
+        const title_win: vaxis.Window = main_win.child(.{ .height = 1 });
         const centered: vaxis.Window = vaxis.widgets.alignment.center(title_win, title_seg.text.len, 2);
-        _ = try centered.printSegment(title_seg, .{});
+        _ = centered.printSegment(title_seg, .{});
 
         const info_win: vaxis.Window = main_win.child(.{
             .y_off = 2,
-            .height = .{ .limit = main_win.height - 2 },
+            .height = main_win.height - 2,
         });
 
-        if (self.search_input.buf.items.len == 0) {
+        if (self.search_input.buf.buffer.len == 0) {
             return main_win;
         }
 
         if (self.option_results.len == 0) {
-            _ = try info_win.printSegment(.{
+            _ = info_win.printSegment(.{
                 .text = "No results found.",
                 .style = .{
                     .italic = true,
@@ -697,7 +695,7 @@ pub const OptionSearchTUI = struct {
         buf.clear(self.allocator);
 
         const title_win = main_win.child(.{
-            .height = .{ .limit = 2 },
+            .height = 2,
             .border = .{
                 .where = .bottom,
                 .style = .{ .fg = .{ .index = 7 } },
@@ -708,12 +706,12 @@ pub const OptionSearchTUI = struct {
             .text = opt_name,
             .style = .{ .bold = true },
         };
-        const title_centered_win = vaxis.widgets.alignment.center(title_win, title_seg.text.len, 1);
-        _ = try title_centered_win.printSegment(title_seg, .{});
+        const title_centered_win = vaxis.widgets.alignment.center(title_win, @truncate(title_seg.text.len), 1);
+        _ = title_centered_win.printSegment(title_seg, .{});
 
         const info_win = main_win.child(.{
             .y_off = 2,
-            .height = .{ .limit = main_win.height - 2 },
+            .height = main_win.height - 2,
         });
 
         switch (self.option_eval_value) {
@@ -753,6 +751,10 @@ pub const OptionSearchTUI = struct {
                 .success => |payload| self.allocator.free(payload),
             }
         }
+    }
+
+    fn getSearchQuery(self: Self) []const u8 {
+        return self.search_input.buf.buffer[0..self.search_input.buf.realLength()];
     }
 
     pub fn deinit(self: *Self) void {
