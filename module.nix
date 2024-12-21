@@ -1,4 +1,4 @@
-self: {
+{
   options,
   config,
   pkgs,
@@ -17,7 +17,7 @@ in {
 
     package = lib.mkOption {
       type = types.package;
-      default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+      default = import ./default.nix;
       description = "Package to use for nixos-cli";
     };
 
