@@ -30,9 +30,9 @@
           default = nixos;
 
           nixos = callPackage (import ./package.nix) {
-            revision = self.rev or "dirty";
+            revision = self.dirtyRev;
           };
-          # nixosLegacy = nixos.override {flake = false;};
+          nixosLegacy = nixos.override {flake = false;};
         };
 
         devShells.default = mkShell {

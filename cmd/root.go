@@ -6,6 +6,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	buildVars "github.com/water-sucks/nixos/internal/build"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd"
 )
 
@@ -28,8 +29,7 @@ func mainCommand() *cli.Command {
 		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 			return ctx, nil
 		},
-		// TODO: use version from compiled information
-		Version: "0.12.0-dev",
+		Version: buildVars.Version,
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{
 				Name:        "config",
@@ -63,7 +63,10 @@ func init() {
 	defaultTemplate := `{{template "descriptionTemplate" .}}
 
 Usage:
-   {{if .UsageText}}{{wrap .UsageText 3}}{{else}}{{.FullName}} {{if .VisibleFlags}}[options]{{end}}{{if .VisibleCommands}} [command [command options]]{{end}}{{if .ArgsUsage}} {{.ArgsUsage}}{{else}}{{if .Arguments}} [arguments...]{{end}}{{end}}{{end}}{{if .VisibleCommands}}
+   {{if .UsageText}}{{wrap .UsageText 3}}{{else}}{{.FullName}} {{if .VisibleFlags}}[options]{{end}}{{if .VisibleCommands}} [command [command options]]{{end}}{{if .Arguments}} [arguments]{{end}}{{end}}{{if .Arguments}}
+
+Arguments:{{range .Arguments}}
+   [{{.Name}}]  {{.Usage}}{{end}}{{end}}{{if .VisibleCommands}}
 
 Commands:{{template "visibleCommandCategoryTemplate" .}}{{end}}{{if .VisibleFlagCategories}}
 

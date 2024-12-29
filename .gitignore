@@ -1,5 +1,6 @@
-result
-zig-out
-zig-cache
-.zig-cache
-.direnv
+# Nix/direnv
+/result
+/.direnv/
+
+# Binary destination from `make`
+/nixos
