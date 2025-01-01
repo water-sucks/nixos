@@ -65,6 +65,7 @@ func mainCommand() *cobra.Command {
 	cmd.Flags().BoolVarP(&opts.ColorAlways, "color-always", "C", false, "Always color output when possible")
 	cmd.Flags().StringToStringVarP(&opts.ConfigValues, "config", "c", map[string]string{}, "Set a configuration `key=value`")
 
+	cmd.AddCommand(aliasesCmd())
 	cmd.AddCommand(completionCmd())
 
 	return &cmd
