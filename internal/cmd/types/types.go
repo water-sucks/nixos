@@ -112,3 +112,11 @@ type InfoOpts struct {
 	DisplayJson     bool
 	DisplayMarkdown bool
 }
+
+type InitOpts struct {
+	Directory          string
+	ForceWrite         bool
+	NoFSGeneration     bool
+	Root               string
+	ShowHardwareConfig bool
+}
