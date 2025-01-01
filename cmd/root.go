@@ -66,6 +66,7 @@ func mainCommand() *cobra.Command {
 	cmd.Flags().StringToStringVarP(&opts.ConfigValues, "config", "c", map[string]string{}, "Set a configuration `key=value`")
 
 	cmd.AddCommand(aliasesCmd())
+	cmd.AddCommand(applyCmd())
 	cmd.AddCommand(completionCmd())
 
 	return &cmd
