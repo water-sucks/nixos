@@ -68,6 +68,7 @@ func mainCommand() *cobra.Command {
 	cmd.AddCommand(aliasesCmd())
 	cmd.AddCommand(applyCmd())
 	cmd.AddCommand(completionCmd())
+	cmd.AddCommand(enterCmd())
 
 	return &cmd
 }
