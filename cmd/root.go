@@ -6,17 +6,14 @@ import (
 	"github.com/spf13/cobra"
 	buildVars "github.com/water-sucks/nixos/internal/build"
 
+	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+
 	aliasesCmd "github.com/water-sucks/nixos/cmd/aliases"
 	applyCmd "github.com/water-sucks/nixos/cmd/apply"
 	completionCmd "github.com/water-sucks/nixos/cmd/completion"
 	enterCmd "github.com/water-sucks/nixos/cmd/enter"
 	featuresCmd "github.com/water-sucks/nixos/cmd/features"
 )
-
-type mainOptions struct {
-	ColorAlways  bool
-	ConfigValues map[string]string
-}
 
 const helpTemplate = `Usage:{{if .Runnable}}
   {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
@@ -42,7 +39,7 @@ Flags:
 `
 
 func mainCommand() *cobra.Command {
-	opts := mainOptions{}
+	opts := cmdTypes.MainOpts{}
 
 	// TODO: add config, logger to context
 

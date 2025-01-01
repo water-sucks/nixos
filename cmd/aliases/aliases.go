@@ -6,15 +6,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	cmdUtils "github.com/water-sucks/nixos/internal/cmd"
+	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 )
 
-type aliasesOpts struct {
-	DisplayJson bool
-}
-
 func AliasCommand() *cobra.Command {
-	opts := aliasesOpts{}
+	opts := cmdTypes.AliasesOpts{}
 
 	cmd := cobra.Command{
 		Use:   "aliases",
@@ -32,7 +29,7 @@ func AliasCommand() *cobra.Command {
 	return &cmd
 }
 
-func aliasesMain(_ *cobra.Command, opts *aliasesOpts) error {
+func aliasesMain(_ *cobra.Command, opts *cmdTypes.AliasesOpts) error {
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
 	fmt.Printf("aliases: %v\n", string(bytes))
 	return nil

@@ -6,56 +6,13 @@ import (
 
 	"github.com/spf13/cobra"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
-	cmdUtils "github.com/water-sucks/nixos/internal/cmd"
+	nixOpts "github.com/water-sucks/nixos/internal/cmd/nixopts"
+	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 )
 
-type applyOpts struct {
-	Dry                   bool
-	InstallBootloader     bool
-	NoActivate            bool
-	NoBoot                bool
-	OutputPath            string
-	ProfileName           string
-	Specialisation        string
-	GenerationTag         string
-	UseNom                bool
-	Verbosity             []bool
-	BuildVM               bool
-	BuildVMWithBootloader bool
-	AlwaysConfirm         bool
-	FlakeRef              string
-
-	NixOptions struct {
-		Quiet          bool
-		PrintBuildLogs bool
-		NoBuildOutput  bool
-		ShowTrace      bool
-		KeepGoing      bool
-		KeepFailed     bool
-		Fallback       bool
-		Refresh        bool
-		Repair         bool
-		Impure         bool
-		Offline        bool
-		NoNet          bool
-		MaxJobs        int
-		Cores          int
-		Builders       []string
-		LogFormat      string
-		Options        map[string]string
-
-		RecreateLockFile bool
-		NoUpdateLockFile bool
-		NoWriteLockFile  bool
-		NoUseRegistries  bool
-		CommitLockFile   bool
-		UpdateInputs     []string
-		OverrideInputs   map[string]string
-	}
-}
-
 func ApplyCommand() *cobra.Command {
-	opts := applyOpts{}
+	opts := cmdTypes.ApplyOpts{}
 
 	cmd := cobra.Command{
 		Use:   "apply [FLAKE-REF]",
@@ -99,32 +56,32 @@ func ApplyCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.BuildVMWithBootloader, "vm-with-bootloader", false, "Build a NixOS VM script with a bootloader")
 	cmd.Flags().BoolVarP(&opts.AlwaysConfirm, "yes", "y", false, "Automatically confirm activation")
 
-	cmdUtils.AddQuietNixOption(&cmd, &opts.NixOptions.Quiet)
-	cmdUtils.AddPrintBuildLogsNixOption(&cmd, &opts.NixOptions.PrintBuildLogs)
-	cmdUtils.AddNoBuildOutputNixOption(&cmd, &opts.NixOptions.NoBuildOutput)
-	cmdUtils.AddShowTraceNixOption(&cmd, &opts.NixOptions.ShowTrace)
-	cmdUtils.AddKeepGoingNixOption(&cmd, &opts.NixOptions.KeepGoing)
-	cmdUtils.AddKeepFailedNixOption(&cmd, &opts.NixOptions.KeepFailed)
-	cmdUtils.AddFallbackNixOption(&cmd, &opts.NixOptions.Fallback)
-	cmdUtils.AddRefreshNixOption(&cmd, &opts.NixOptions.Refresh)
-	cmdUtils.AddRepairNixOption(&cmd, &opts.NixOptions.Repair)
-	cmdUtils.AddImpureNixOption(&cmd, &opts.NixOptions.Impure)
-	cmdUtils.AddOfflineNixOption(&cmd, &opts.NixOptions.Offline)
-	cmdUtils.AddNoNetNixOption(&cmd, &opts.NixOptions.NoNet)
-	cmdUtils.AddMaxJobsNixOption(&cmd, &opts.NixOptions.MaxJobs)
-	cmdUtils.AddCoresNixOption(&cmd, &opts.NixOptions.Cores)
-	cmdUtils.AddBuildersNixOption(&cmd, &opts.NixOptions.Builders)
-	cmdUtils.AddLogFormatNixOption(&cmd, &opts.NixOptions.LogFormat)
-	cmdUtils.AddOptionNixOption(&cmd, &opts.NixOptions.Options)
+	nixOpts.AddQuietNixOption(&cmd, &opts.NixOptions.Quiet)
+	nixOpts.AddPrintBuildLogsNixOption(&cmd, &opts.NixOptions.PrintBuildLogs)
+	nixOpts.AddNoBuildOutputNixOption(&cmd, &opts.NixOptions.NoBuildOutput)
+	nixOpts.AddShowTraceNixOption(&cmd, &opts.NixOptions.ShowTrace)
+	nixOpts.AddKeepGoingNixOption(&cmd, &opts.NixOptions.KeepGoing)
+	nixOpts.AddKeepFailedNixOption(&cmd, &opts.NixOptions.KeepFailed)
+	nixOpts.AddFallbackNixOption(&cmd, &opts.NixOptions.Fallback)
+	nixOpts.AddRefreshNixOption(&cmd, &opts.NixOptions.Refresh)
+	nixOpts.AddRepairNixOption(&cmd, &opts.NixOptions.Repair)
+	nixOpts.AddImpureNixOption(&cmd, &opts.NixOptions.Impure)
+	nixOpts.AddOfflineNixOption(&cmd, &opts.NixOptions.Offline)
+	nixOpts.AddNoNetNixOption(&cmd, &opts.NixOptions.NoNet)
+	nixOpts.AddMaxJobsNixOption(&cmd, &opts.NixOptions.MaxJobs)
+	nixOpts.AddCoresNixOption(&cmd, &opts.NixOptions.Cores)
+	nixOpts.AddBuildersNixOption(&cmd, &opts.NixOptions.Builders)
+	nixOpts.AddLogFormatNixOption(&cmd, &opts.NixOptions.LogFormat)
+	nixOpts.AddOptionNixOption(&cmd, &opts.NixOptions.Options)
 
 	if buildOpts.Flake == "true" {
-		cmdUtils.AddRecreateLockFileNixOption(&cmd, &opts.NixOptions.RecreateLockFile)
-		cmdUtils.AddNoUpdateLockFileNixOption(&cmd, &opts.NixOptions.NoUpdateLockFile)
-		cmdUtils.AddNoWriteLockFileNixOption(&cmd, &opts.NixOptions.NoWriteLockFile)
-		cmdUtils.AddNoUseRegistriesNixOption(&cmd, &opts.NixOptions.NoUseRegistries)
-		cmdUtils.AddCommitLockFileNixOption(&cmd, &opts.NixOptions.CommitLockFile)
-		cmdUtils.AddUpdateInputNixOption(&cmd, &opts.NixOptions.UpdateInputs)
-		cmdUtils.AddOverrideInputNixOption(&cmd, &opts.NixOptions.OverrideInputs)
+		nixOpts.AddRecreateLockFileNixOption(&cmd, &opts.NixOptions.RecreateLockFile)
+		nixOpts.AddNoUpdateLockFileNixOption(&cmd, &opts.NixOptions.NoUpdateLockFile)
+		nixOpts.AddNoWriteLockFileNixOption(&cmd, &opts.NixOptions.NoWriteLockFile)
+		nixOpts.AddNoUseRegistriesNixOption(&cmd, &opts.NixOptions.NoUseRegistries)
+		nixOpts.AddCommitLockFileNixOption(&cmd, &opts.NixOptions.CommitLockFile)
+		nixOpts.AddUpdateInputNixOption(&cmd, &opts.NixOptions.UpdateInputs)
+		nixOpts.AddOverrideInputNixOption(&cmd, &opts.NixOptions.OverrideInputs)
 	}
 
 	cmd.MarkFlagsMutuallyExclusive("dry", "output")
@@ -143,7 +100,7 @@ Check the Nix manual page for more details on what options are available.
 	return &cmd
 }
 
-func applyMain(_ *cobra.Command, opts *applyOpts) error {
+func applyMain(_ *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
 	fmt.Printf("apply: %v\n", string(bytes))
 	return nil

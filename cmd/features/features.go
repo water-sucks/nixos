@@ -5,15 +5,12 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	cmdUtils "github.com/water-sucks/nixos/internal/cmd"
+	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 )
 
-type featuresOpts struct {
-	DisplayJson bool
-}
-
 func FeatureCommand() *cobra.Command {
-	opts := featuresOpts{}
+	opts := cmdTypes.FeaturesOpts{}
 
 	cmd := cobra.Command{
 		Use:   "features",
@@ -31,7 +28,7 @@ func FeatureCommand() *cobra.Command {
 	return &cmd
 }
 
-func featuresMain(_ *cobra.Command, opts *featuresOpts) error {
+func featuresMain(_ *cobra.Command, opts *cmdTypes.FeaturesOpts) error {
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
 	fmt.Printf("features: %v\n", string(bytes))
 	return nil

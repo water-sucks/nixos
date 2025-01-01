@@ -5,20 +5,13 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	cmdUtils "github.com/water-sucks/nixos/internal/cmd"
+
+	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 )
 
-type enterOpts struct {
-	Command      string
-	CommandArray []string
-	RootLocation string
-	System       string
-	Silent       bool
-	Verbose      bool
-}
-
 func EnterCommand() *cobra.Command {
-	opts := enterOpts{}
+	opts := cmdTypes.EnterOpts{}
 
 	cmd := cobra.Command{
 		Use:   "enter [flags] [-- ARGS...]",
@@ -52,7 +45,7 @@ double dash (--) is required. Otherwise, unexpected behavior may occur.
 	return &cmd
 }
 
-func enterMain(_ *cobra.Command, opts *enterOpts) error {
+func enterMain(_ *cobra.Command, opts *cmdTypes.EnterOpts) error {
 	if len(opts.CommandArray) > 0 && len(opts.Command) > 1 {
 		fmt.Println("warning: preferring --command flag over positional args, both were specified")
 	}
