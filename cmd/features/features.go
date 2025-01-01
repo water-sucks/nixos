@@ -12,7 +12,7 @@ type featuresOpts struct {
 	DisplayJson bool
 }
 
-func featuresCmd() *cobra.Command {
+func FeatureCommand() *cobra.Command {
 	opts := featuresOpts{}
 
 	cmd := cobra.Command{

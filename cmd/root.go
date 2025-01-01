@@ -5,6 +5,12 @@ import (
 
 	"github.com/spf13/cobra"
 	buildVars "github.com/water-sucks/nixos/internal/build"
+
+	aliasesCmd "github.com/water-sucks/nixos/cmd/aliases"
+	applyCmd "github.com/water-sucks/nixos/cmd/apply"
+	completionCmd "github.com/water-sucks/nixos/cmd/completion"
+	enterCmd "github.com/water-sucks/nixos/cmd/enter"
+	featuresCmd "github.com/water-sucks/nixos/cmd/features"
 )
 
 type mainOptions struct {
@@ -65,11 +71,11 @@ func mainCommand() *cobra.Command {
 	cmd.Flags().BoolVarP(&opts.ColorAlways, "color-always", "C", false, "Always color output when possible")
 	cmd.Flags().StringToStringVarP(&opts.ConfigValues, "config", "c", map[string]string{}, "Set a configuration `key=value`")
 
-	cmd.AddCommand(aliasesCmd())
-	cmd.AddCommand(applyCmd())
-	cmd.AddCommand(completionCmd())
-	cmd.AddCommand(enterCmd())
-	cmd.AddCommand(featuresCmd())
+	cmd.AddCommand(aliasesCmd.AliasCommand())
+	cmd.AddCommand(applyCmd.ApplyCommand())
+	cmd.AddCommand(completionCmd.CompletionCommand())
+	cmd.AddCommand(enterCmd.EnterCommand())
+	cmd.AddCommand(featuresCmd.FeatureCommand())
 
 	return &cmd
 }

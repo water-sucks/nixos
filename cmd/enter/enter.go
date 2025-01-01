@@ -17,7 +17,7 @@ type enterOpts struct {
 	Verbose      bool
 }
 
-func enterCmd() *cobra.Command {
+func EnterCommand() *cobra.Command {
 	opts := enterOpts{}
 
 	cmd := cobra.Command{

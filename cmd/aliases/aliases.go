@@ -13,7 +13,7 @@ type aliasesOpts struct {
 	DisplayJson bool
 }
 
-func aliasesCmd() *cobra.Command {
+func AliasCommand() *cobra.Command {
 	opts := aliasesOpts{}
 
 	cmd := cobra.Command{

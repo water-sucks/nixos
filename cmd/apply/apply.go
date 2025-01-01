@@ -54,7 +54,7 @@ type applyOpts struct {
 	}
 }
 
-func applyCmd() *cobra.Command {
+func ApplyCommand() *cobra.Command {
 	opts := applyOpts{}
 
 	cmd := cobra.Command{
