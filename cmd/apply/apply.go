@@ -14,13 +14,25 @@ import (
 func ApplyCommand() *cobra.Command {
 	opts := cmdTypes.ApplyOpts{}
 
+	usage := "apply"
+	if buildOpts.Flake == "true" {
+		usage += " [FLAKE-REF]"
+	}
+
 	cmd := cobra.Command{
-		Use:   "apply [FLAKE-REF]",
+		Use:   usage,
 		Short: "Build/activate a NixOS configuration",
 		Long:  "Build and activate a NixOS system from a given configuration.",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if buildOpts.Flake == "true" {
 				if err := cobra.MaximumNArgs(1)(cmd, args); err != nil {
+					return err
+				}
+				if len(args) > 0 {
+					opts.FlakeRef = args[0]
+				}
+			} else {
+				if err := cobra.NoArgs(cmd, args); err != nil {
 					return err
 				}
 			}
@@ -36,9 +48,6 @@ func ApplyCommand() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 && buildOpts.Flake == "true" {
-				opts.FlakeRef = args[0]
-			}
 			return applyMain(cmd, &opts)
 		},
 	}
@@ -88,14 +97,20 @@ func ApplyCommand() *cobra.Command {
 	cmd.MarkFlagsMutuallyExclusive("vm", "vm-with-bootloader")
 	cmd.MarkFlagsMutuallyExclusive("no-activate", "specialisation")
 
-	cmdUtils.SetHelpFlagText(&cmd)
-	cmd.SetHelpTemplate(cmd.HelpTemplate() + `
+	helpTemplate := cmd.HelpTemplate()
+	if buildOpts.Flake == "true" {
+		helpTemplate += `
 Arguments:
   [FLAKE-REF]  Flake ref to build configuration from (default: $NIXOS_CONFIG)
-
+`
+	}
+	helpTemplate += `
 This command also forwards Nix options passed here to all relevant Nix invocations.
 Check the Nix manual page for more details on what options are available.
-`)
+`
+
+	cmdUtils.SetHelpFlagText(&cmd)
+	cmd.SetHelpTemplate(helpTemplate)
 
 	return &cmd
 }
