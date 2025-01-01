@@ -88,7 +88,7 @@ func ApplyCommand() *cobra.Command {
 	cmd.MarkFlagsMutuallyExclusive("vm", "vm-with-bootloader")
 	cmd.MarkFlagsMutuallyExclusive("no-activate", "specialisation")
 
-	cmdUtils.SetHelpFlagText(cmd)
+	cmdUtils.SetHelpFlagText(&cmd)
 	cmd.SetHelpTemplate(cmd.HelpTemplate() + `
 Arguments:
   [FLAKE-REF]  Flake ref to build configuration from (default: $NIXOS_CONFIG)

@@ -24,7 +24,7 @@ func AliasCommand() *cobra.Command {
 
 	cmd.Flags().BoolVarP(&opts.DisplayJson, "json", "j", false, "Output information in JSON format")
 
-	cmdUtils.SetHelpFlagText(cmd)
+	cmdUtils.SetHelpFlagText(&cmd)
 
 	return &cmd
 }

@@ -33,7 +33,7 @@ func EnterCommand() *cobra.Command {
 
 	cmd.MarkFlagsMutuallyExclusive("silent", "verbose")
 
-	cmdUtils.SetHelpFlagText(cmd)
+	cmdUtils.SetHelpFlagText(&cmd)
 	cmd.SetHelpTemplate(cmd.HelpTemplate() + `
 Arguments:
   [ARGS...]  Interpret arguments as the command to run directly
