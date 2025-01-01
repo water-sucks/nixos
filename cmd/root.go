@@ -1,93 +1,77 @@
 package cmd
 
 import (
-	"context"
 	"os"
 
-	"github.com/urfave/cli/v3"
-
+	"github.com/spf13/cobra"
 	buildVars "github.com/water-sucks/nixos/internal/build"
-	cmdUtils "github.com/water-sucks/nixos/internal/cmd"
 )
 
 type mainOptions struct {
 	ColorAlways  bool
-	ConfigValues []string
+	ConfigValues map[string]string
 }
 
-func mainCommand() *cli.Command {
+const helpTemplate = `Usage:{{if .Runnable}}
+  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+Aliases:
+  {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+Examples:
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
+
+Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+
+{{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+
+Additional Commands:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}
+`
+
+func mainCommand() *cobra.Command {
 	opts := mainOptions{}
 
-	cmd := cli.Command{
-		Name:                   "nixos",
-		Usage:                  "A tool for managing NixOS installations",
-		Description:            "A tool for managing NixOS installations.",
-		UseShortOptionHandling: true,
-		Suggest:                true,
-		HideHelpCommand:        true,
-		// TODO: add init code in Before
-		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
-			return ctx, nil
+	// TODO: add config, logger to context
+
+	cmd := cobra.Command{
+		Use:                        "nixos {command} [flags]",
+		Short:                      "nixos-cli",
+		Long:                       "A tool for managing NixOS installations",
+		Version:                    buildVars.Version,
+		SilenceUsage:               true,
+		SuggestionsMinimumDistance: 4,
+		CompletionOptions: cobra.CompletionOptions{
+			HiddenDefaultCmd: true,
 		},
-		Version: buildVars.Version,
-		Flags: []cli.Flag{
-			&cli.StringSliceFlag{
-				Name:        "config",
-				Aliases:     []string{"c"},
-				Usage:       "Set a configuration value",
-				Destination: &opts.ConfigValues,
-				HideDefault: true,
-			},
-			&cli.BoolFlag{
-				Name:        "color-always",
-				Aliases:     []string{"C"},
-				Usage:       "Always color output when possible",
-				Destination: &opts.ColorAlways,
-				HideDefault: true,
-			},
-		},
-		CommandNotFound: cmdUtils.CommandNotFound,
-		OnUsageError:    cmdUtils.OnUsageError,
 	}
+
+	// TODO: handle colors for error prefix
+
+	cmd.SetErrPrefix("error:")
+
+	cmd.SetHelpCommand(&cobra.Command{Hidden: true})
+	cmd.SetUsageTemplate(helpTemplate)
+
+	cmd.Flags().BoolP("help", "h", false, "Show this help menu")
+	cmd.Flags().BoolP("version", "v", false, "Display version information")
+
+	cmd.Flags().BoolVarP(&opts.ColorAlways, "color-always", "C", false, "Always color output when possible")
+	cmd.Flags().StringToStringVarP(&opts.ConfigValues, "config", "c", map[string]string{}, "Set a configuration `key=value`")
+
+	cmd.AddCommand(completionCmd())
 
 	return &cmd
 }
 
 func Execute() {
-	if err := mainCommand().Run(context.Background(), os.Args); err != nil {
+	if err := mainCommand().Execute(); err != nil {
 		os.Exit(1)
-	}
-}
-
-func init() {
-	defaultTemplate := `{{template "descriptionTemplate" .}}
-
-Usage:
-   {{if .UsageText}}{{wrap .UsageText 3}}{{else}}{{.FullName}} {{if .VisibleFlags}}[options]{{end}}{{if .VisibleCommands}} [command [command options]]{{end}}{{if .Arguments}} [arguments]{{end}}{{end}}{{if .Arguments}}
-
-Arguments:{{range .Arguments}}
-   [{{.Name}}]  {{.Usage}}{{end}}{{end}}{{if .VisibleCommands}}
-
-Commands:{{template "visibleCommandCategoryTemplate" .}}{{end}}{{if .VisibleFlagCategories}}
-
-Options:{{template "visibleFlagCategoryTemplate" .}}{{else if .VisibleFlags}}
-
-Options:{{template "visibleFlagTemplate" .}}{{end}}
-`
-
-	cli.CommandHelpTemplate = defaultTemplate
-	cli.RootCommandHelpTemplate = defaultTemplate
-
-	cli.VersionFlag = &cli.BoolFlag{
-		Name:        "version",
-		Aliases:     []string{"v"},
-		Usage:       "Display version information",
-		HideDefault: true,
-	}
-	cli.HelpFlag = &cli.BoolFlag{
-		Name:        "help",
-		Aliases:     []string{"h"},
-		Usage:       "Show this help menu",
-		HideDefault: true,
 	}
 }

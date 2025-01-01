@@ -2,6 +2,7 @@
   lib,
   buildGoModule,
   nix-gitignore,
+  installShellFiles,
   revision ? "unknown",
   flake ? true,
   ...
@@ -11,7 +12,9 @@ buildGoModule rec {
   version = "0.11.1-dev";
   src = nix-gitignore.gitignoreSource [] ./.;
 
-  vendorHash = "sha256-wP2XfIiERzZALWyb38ouy7aVgggz6k9x3dgxB2fvZVg=";
+  vendorHash = "sha256-hocnLCzWN8srQcO3BMNkd2lt0m54Qe7sqAhUxVZlz1k=";
+
+  nativeBuildInputs = [installShellFiles];
 
   buildPhase = ''
     runHook preBuild
@@ -26,6 +29,11 @@ buildGoModule rec {
     runHook preInstall
     install -Dm755 ./nixos -t $out/bin
     runHook postInstall
+
+    installShellCompletion --cmd nixos \
+      --bash <($out/bin/nixos completion bash) \
+      --fish <($out/bin/nixos completion fish) \
+      --zsh <($out/bin/nixos completion zsh)
   '';
 
   meta = with lib; {
