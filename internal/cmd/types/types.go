@@ -107,3 +107,8 @@ type GenerationRollbackOpts struct {
 	Verbose        bool
 	AlwaysConfirm  bool
 }
+
+type InfoOpts struct {
+	DisplayJson     bool
+	DisplayMarkdown bool
+}
