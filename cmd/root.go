@@ -13,6 +13,7 @@ import (
 	completionCmd "github.com/water-sucks/nixos/cmd/completion"
 	enterCmd "github.com/water-sucks/nixos/cmd/enter"
 	featuresCmd "github.com/water-sucks/nixos/cmd/features"
+	generationCmd "github.com/water-sucks/nixos/cmd/generation"
 )
 
 const helpTemplate = `Usage:{{if .Runnable}}
@@ -35,7 +36,10 @@ Additional Commands:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCo
   {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
 
 Flags:
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}
 `
 
 func mainCommand() *cobra.Command {
@@ -73,6 +77,7 @@ func mainCommand() *cobra.Command {
 	cmd.AddCommand(completionCmd.CompletionCommand())
 	cmd.AddCommand(enterCmd.EnterCommand())
 	cmd.AddCommand(featuresCmd.FeatureCommand())
+	cmd.AddCommand(generationCmd.GenerationCommand())
 
 	return &cmd
 }

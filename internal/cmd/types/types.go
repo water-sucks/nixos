@@ -66,3 +66,44 @@ type EnterOpts struct {
 type FeaturesOpts struct {
 	DisplayJson bool
 }
+
+type GenerationOpts struct {
+	ProfileName string
+}
+
+type GenerationDiffOpts struct {
+	Before uint
+	After  uint
+}
+
+type GenerationDeleteOpts struct {
+	All           bool
+	LowerBound    uint
+	Keep          []uint
+	MinimumToKeep uint
+	// TODO: convert to a systemd time span
+	OlderThan     string
+	UpperBound    uint
+	AlwaysConfirm bool
+	Delete        []uint
+}
+
+type GenerationListOpts struct {
+	Interactive bool
+	DisplayJson bool
+}
+
+type GenerationSwitchOpts struct {
+	Dry            bool
+	Specialisation string
+	Verbose        bool
+	AlwaysConfirm  bool
+	Generation     uint
+}
+
+type GenerationRollbackOpts struct {
+	Dry            bool
+	Specialisation string
+	Verbose        bool
+	AlwaysConfirm  bool
+}
