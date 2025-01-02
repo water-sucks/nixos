@@ -120,3 +120,41 @@ type InitOpts struct {
 	Root               string
 	ShowHardwareConfig bool
 }
+
+type InstallOpts struct {
+	Channel        string
+	NoBootloader   bool
+	NoChannelCopy  bool
+	NoRootPassword bool
+	Root           string
+	SystemClosure  string
+	Verbose        bool
+	FlakeRef       string
+
+	NixOptions struct {
+		Quiet          bool
+		PrintBuildLogs bool
+		NoBuildOutput  bool
+		ShowTrace      bool
+		KeepGoing      bool
+		KeepFailed     bool
+		Fallback       bool
+		Refresh        bool
+		Repair         bool
+		Impure         bool
+		Offline        bool
+		NoNet          bool
+		MaxJobs        int
+		Cores          int
+		LogFormat      string
+		Options        map[string]string
+
+		RecreateLockFile bool
+		NoUpdateLockFile bool
+		NoWriteLockFile  bool
+		NoUseRegistries  bool
+		CommitLockFile   bool
+		UpdateInputs     []string
+		OverrideInputs   map[string]string
+	}
+}
