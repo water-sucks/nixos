@@ -167,3 +167,8 @@ type OptionOpts struct {
 	DisplayValueOnly bool
 	OptionInput      string
 }
+
+type ReplOpts struct {
+	NixPathIncludes []string
+	FlakeRef        string
+}

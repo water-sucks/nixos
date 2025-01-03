@@ -19,6 +19,7 @@ import (
 	installCmd "github.com/water-sucks/nixos/cmd/install"
 	manualCmd "github.com/water-sucks/nixos/cmd/manual"
 	optionCmd "github.com/water-sucks/nixos/cmd/option"
+	replCmd "github.com/water-sucks/nixos/cmd/repl"
 )
 
 const helpTemplate = `Usage:{{if .Runnable}}
@@ -88,6 +89,7 @@ func mainCommand() *cobra.Command {
 	cmd.AddCommand(installCmd.InstallCommand())
 	cmd.AddCommand(manualCmd.ManualCommand())
 	cmd.AddCommand(optionCmd.OptionCommand())
+	cmd.AddCommand(replCmd.ReplCommand())
 
 	return &cmd
 }
