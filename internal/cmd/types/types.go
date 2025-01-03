@@ -158,3 +158,12 @@ type InstallOpts struct {
 		OverrideInputs   map[string]string
 	}
 }
+
+type OptionOpts struct {
+	Interactive      bool
+	NixPathIncludes  []string
+	DisplayJson      bool
+	NoUseCache       bool
+	DisplayValueOnly bool
+	OptionInput      string
+}
