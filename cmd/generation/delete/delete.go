@@ -9,6 +9,7 @@ import (
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/time"
 )
 
 func GenerationDeleteCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
@@ -25,6 +26,12 @@ func GenerationDeleteCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 					return fmt.Errorf("[GEN] must be integer value, got '%v'", v)
 				}
 				opts.Delete = append(opts.Delete, uint(value))
+			}
+			if cmd.Flags().Changed("older-than") {
+				// Make sure older-than is a valid systemd.time(7) string
+				if _, err := time.DurationFromTimeSpan(opts.OlderThan); err != nil {
+					return fmt.Errorf("invalid value for --older-than: %v", err.Error())
+				}
 			}
 			return nil
 		},

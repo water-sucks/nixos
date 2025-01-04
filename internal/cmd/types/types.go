@@ -81,7 +81,6 @@ type GenerationDeleteOpts struct {
 	LowerBound    uint
 	Keep          []uint
 	MinimumToKeep uint
-	// TODO: convert to a systemd time span
 	OlderThan     string
 	UpperBound    uint
 	AlwaysConfirm bool
