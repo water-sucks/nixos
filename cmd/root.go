@@ -42,10 +42,7 @@ Additional Commands:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCo
   {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
 
 Flags:
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
-
-Global Flags:
-{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}
 `
 
 func mainCommand() *cobra.Command {
@@ -75,8 +72,8 @@ func mainCommand() *cobra.Command {
 	cmd.Flags().BoolP("help", "h", false, "Show this help menu")
 	cmd.Flags().BoolP("version", "v", false, "Display version information")
 
-	cmd.Flags().BoolVarP(&opts.ColorAlways, "color-always", "C", false, "Always color output when possible")
-	cmd.Flags().StringToStringVarP(&opts.ConfigValues, "config", "c", map[string]string{}, "Set a configuration `key=value`")
+	cmd.PersistentFlags().BoolVarP(&opts.ColorAlways, "color-always", "C", false, "Always color output when possible")
+	cmd.PersistentFlags().StringToStringVarP(&opts.ConfigValues, "config", "c", map[string]string{}, "Set a configuration `key=value`")
 
 	cmd.AddCommand(aliasesCmd.AliasCommand())
 	cmd.AddCommand(applyCmd.ApplyCommand())
