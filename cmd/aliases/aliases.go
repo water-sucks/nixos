@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/spf13/cobra"
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
 func AliasCommand() *cobra.Command {
@@ -29,8 +29,11 @@ func AliasCommand() *cobra.Command {
 	return &cmd
 }
 
-func aliasesMain(_ *cobra.Command, opts *cmdTypes.AliasesOpts) error {
+func aliasesMain(cmd *cobra.Command, opts *cmdTypes.AliasesOpts) error {
+	log := logger.FromContext(cmd.Context())
+
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
-	fmt.Printf("aliases: %v\n", string(bytes))
+	log.Infof("aliases: %v", string(bytes))
+
 	return nil
 }

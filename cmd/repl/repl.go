@@ -2,11 +2,11 @@ package repl
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 
 	buildOpts "github.com/water-sucks/nixos/internal/build"
 )
@@ -46,8 +46,10 @@ Arguments:
 	return &cmd
 }
 
-func replMain(_ *cobra.Command, opts *cmdTypes.ReplOpts) error {
+func replMain(cmd *cobra.Command, opts *cmdTypes.ReplOpts) error {
+	log := logger.FromContext(cmd.Context())
+
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
-	fmt.Printf("repl: %v\n", string(bytes))
+	log.Infof("repl: %v", string(bytes))
 	return nil
 }

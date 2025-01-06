@@ -2,11 +2,11 @@ package option
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
 func OptionCommand() *cobra.Command {
@@ -52,8 +52,11 @@ Arguments:
 	return &cmd
 }
 
-func optionMain(_ *cobra.Command, opts *cmdTypes.OptionOpts) error {
+func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
+	log := logger.FromContext(cmd.Context())
+
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
-	fmt.Printf("options: %v\n", string(bytes))
+	log.Infof("options: %v", string(bytes))
+
 	return nil
 }

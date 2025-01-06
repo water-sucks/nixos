@@ -2,12 +2,12 @@ package list
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/spf13/cobra"
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
 func GenerationListCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
@@ -30,10 +30,12 @@ func GenerationListCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 	return &cmd
 }
 
-func generationListMain(_ *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationListOpts) error {
+func generationListMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationListOpts) error {
+	log := logger.FromContext(cmd.Context())
+
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
 	bytes2, _ := json.MarshalIndent(genOpts, "", "  ")
 
-	fmt.Printf("generation list: %v, %v\n", string(bytes2), string(bytes))
+	log.Infof("generation list: %v, %v", string(bytes2), string(bytes))
 	return nil
 }

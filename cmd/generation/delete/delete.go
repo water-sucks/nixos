@@ -9,6 +9,7 @@ import (
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/time"
 )
 
@@ -62,10 +63,12 @@ The 'period' parameter in --older-than is a systemd.time(7) span
 	return &cmd
 }
 
-func generationDeleteMain(_ *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationDeleteOpts) error {
+func generationDeleteMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationDeleteOpts) error {
+	log := logger.FromContext(cmd.Context())
+
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
 	bytes2, _ := json.MarshalIndent(genOpts, "", "  ")
 
-	fmt.Printf("generation delete: %v, %v\n", string(bytes2), string(bytes))
+	log.Infof("generation delete: %v, %v", string(bytes2), string(bytes))
 	return nil
 }

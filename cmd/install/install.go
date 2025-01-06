@@ -10,6 +10,7 @@ import (
 	nixOpts "github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
 func InstallCommand() *cobra.Command {
@@ -108,8 +109,11 @@ Check the Nix manual page for more details on what options are available.
 	return &cmd
 }
 
-func installMain(_ *cobra.Command, opts *cmdTypes.InstallOpts) error {
+func installMain(cmd *cobra.Command, opts *cmdTypes.InstallOpts) error {
+	log := logger.FromContext(cmd.Context())
+
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
-	fmt.Printf("install: %v\n", string(bytes))
+	log.Infof("install: %v", string(bytes))
+
 	return nil
 }

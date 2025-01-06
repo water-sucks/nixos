@@ -9,6 +9,7 @@ import (
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
 func GenerationDiffCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
@@ -52,10 +53,12 @@ Arguments:
 	return &cmd
 }
 
-func generationDiffMain(_ *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationDiffOpts) error {
+func generationDiffMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationDiffOpts) error {
+	log := logger.FromContext(cmd.Context())
+
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
 	bytes2, _ := json.MarshalIndent(genOpts, "", "  ")
 
-	fmt.Printf("generation diff: %v, %v\n", string(bytes2), string(bytes))
+	log.Infof("generation diff: %v, %v", string(bytes2), string(bytes))
 	return nil
 }

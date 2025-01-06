@@ -9,6 +9,7 @@ import (
 	nixOpts "github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
 func ApplyCommand() *cobra.Command {
@@ -115,8 +116,11 @@ Check the Nix manual page for more details on what options are available.
 	return &cmd
 }
 
-func applyMain(_ *cobra.Command, opts *cmdTypes.ApplyOpts) error {
+func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
+	log := logger.FromContext(cmd.Context())
+
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
-	fmt.Printf("apply: %v\n", string(bytes))
+	log.Infof("apply: %v", string(bytes))
+
 	return nil
 }

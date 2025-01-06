@@ -9,6 +9,7 @@ import (
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
 func GenerationSwitchCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
@@ -51,10 +52,12 @@ Arguments:
 	return &cmd
 }
 
-func generationSwitchMain(_ *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationSwitchOpts) error {
+func generationSwitchMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationSwitchOpts) error {
+	log := logger.FromContext(cmd.Context())
+
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
 	bytes2, _ := json.MarshalIndent(genOpts, "", "  ")
 
-	fmt.Printf("generation switch: %v, %v\n", string(bytes2), string(bytes))
+	log.Infof("generation switch: %v, %v", string(bytes2), string(bytes))
 	return nil
 }

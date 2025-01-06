@@ -2,11 +2,11 @@ package info
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
 func InfoCommand() *cobra.Command {
@@ -29,8 +29,12 @@ func InfoCommand() *cobra.Command {
 	return &cmd
 }
 
-func infoMain(_ *cobra.Command, opts *cmdTypes.InfoOpts) error {
+func infoMain(cmd *cobra.Command, opts *cmdTypes.InfoOpts) error {
+	log := logger.FromContext(cmd.Context())
+
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
-	fmt.Printf("info: %v\n", string(bytes))
+	// Haha, info's gonna be repeated.
+	log.Infof("info: %v", string(bytes))
+
 	return nil
 }

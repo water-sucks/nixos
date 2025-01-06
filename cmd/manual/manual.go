@@ -1,10 +1,9 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
 func ManualCommand() *cobra.Command {
@@ -23,7 +22,9 @@ func ManualCommand() *cobra.Command {
 	return &cmd
 }
 
-func manualMain(_ *cobra.Command) error {
-	fmt.Println("manual")
+func manualMain(cmd *cobra.Command) error {
+	log := logger.FromContext(cmd.Context())
+
+	log.Info("manual")
 	return nil
 }

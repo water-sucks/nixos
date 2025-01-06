@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"os"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	buildVars "github.com/water-sucks/nixos/internal/build"
+	"github.com/water-sucks/nixos/internal/logger"
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 
@@ -48,7 +51,10 @@ Flags:
 func mainCommand() *cobra.Command {
 	opts := cmdTypes.MainOpts{}
 
-	// TODO: add config, logger to context
+	log := logger.NewLogger()
+	cmdCtx := logger.WithLogger(context.Background(), log)
+
+	// TODO: add config to context
 
 	cmd := cobra.Command{
 		Use:                        "nixos {command} [flags]",
@@ -56,15 +62,21 @@ func mainCommand() *cobra.Command {
 		Long:                       "A tool for managing NixOS installations",
 		Version:                    buildVars.Version,
 		SilenceUsage:               true,
-		SuggestionsMinimumDistance: 4,
+		SuggestionsMinimumDistance: 1,
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,
 		},
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if opts.ColorAlways {
+				color.NoColor = false
+			}
+			log.RefreshColorPrefixes()
+		},
 	}
 
-	// TODO: handle colors for error prefix
+	cmd.SetContext(cmdCtx)
 
-	cmd.SetErrPrefix("error:")
+	cmd.SetErrPrefix(color.RedString("error:"))
 
 	cmd.SetHelpCommand(&cobra.Command{Hidden: true})
 	cmd.SetUsageTemplate(helpTemplate)

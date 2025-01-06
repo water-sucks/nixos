@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/spf13/cobra"
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
 func EnterCommand() *cobra.Command {
@@ -45,13 +45,15 @@ double dash (--) is required. Otherwise, unexpected behavior may occur.
 	return &cmd
 }
 
-func enterMain(_ *cobra.Command, opts *cmdTypes.EnterOpts) error {
+func enterMain(cmd *cobra.Command, opts *cmdTypes.EnterOpts) error {
+	log := logger.FromContext(cmd.Context())
+
 	if len(opts.CommandArray) > 0 && len(opts.Command) > 1 {
-		fmt.Println("warning: preferring --command flag over positional args, both were specified")
+		log.Warn("preferring --command flag over positional args, both were specified")
 	}
 
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
-	fmt.Printf("enter: %v\n", string(bytes))
+	log.Infof("enter: %v", string(bytes))
 
 	return nil
 }

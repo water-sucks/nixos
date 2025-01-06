@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
 func InitCommand() *cobra.Command {
@@ -32,8 +32,11 @@ func InitCommand() *cobra.Command {
 	return &cmd
 }
 
-func initMain(_ *cobra.Command, opts *cmdTypes.InitOpts) error {
+func initMain(cmd *cobra.Command, opts *cmdTypes.InitOpts) error {
+	log := logger.FromContext(cmd.Context())
+
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
-	fmt.Printf("init: %v\n", string(bytes))
+	log.Infof("init: %v\n", string(bytes))
+
 	return nil
 }

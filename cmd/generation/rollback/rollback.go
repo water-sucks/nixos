@@ -2,12 +2,12 @@ package rollback
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/spf13/cobra"
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
 func GenerationRollbackCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
@@ -32,10 +32,12 @@ func GenerationRollbackCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command 
 	return &cmd
 }
 
-func generationRollbackMain(_ *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationRollbackOpts) error {
+func generationRollbackMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationRollbackOpts) error {
+	log := logger.FromContext(cmd.Context())
+
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
 	bytes2, _ := json.MarshalIndent(genOpts, "", "  ")
 
-	fmt.Printf("generation rollback: %v, %v\n", string(bytes2), string(bytes))
+	log.Infof("generation rollback: %v, %v", string(bytes2), string(bytes))
 	return nil
 }
