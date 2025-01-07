@@ -2,13 +2,13 @@ package config
 
 import "fmt"
 
-type ConfigErrors []error
+type ConfigErrors []ConfigError
 
-type ValidationError struct {
+type ConfigError struct {
 	Field   string
 	Message string
 }
 
-func (e ValidationError) Error() string {
+func (e ConfigError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Field, e.Message)
 }

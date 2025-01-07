@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/fatih/color"
@@ -67,10 +67,13 @@ func mainCommand() (*cobra.Command, error) {
 		log.Error(err)
 		return nil, err
 	}
-	cmdCtx = config.WithConfig(cmdCtx, cfg)
 
-	bytes, _ := json.MarshalIndent(cfg, "", "  ")
-	log.Infof("config: %v", string(bytes))
+	errs := cfg.Validate()
+	for _, err := range errs {
+		log.Warn(err.Error())
+	}
+
+	cmdCtx = config.WithConfig(cmdCtx, cfg)
 
 	cmd := cobra.Command{
 		Use:                        "nixos {command} [flags]",
@@ -82,11 +85,24 @@ func mainCommand() (*cobra.Command, error) {
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,
 		},
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if opts.ColorAlways {
 				color.NoColor = false
 				log.RefreshColorPrefixes()
 			}
+			for key, value := range opts.ConfigValues {
+				err := cfg.SetValue(key, value)
+				if err != nil {
+					return fmt.Errorf("failed to set %v: %w", key, err)
+				}
+			}
+
+			errs := cfg.Validate()
+			for _, err := range errs {
+				log.Warn(err.Error())
+			}
+
+			return nil
 		},
 	}
 
