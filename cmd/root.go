@@ -2,11 +2,14 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	buildVars "github.com/water-sucks/nixos/internal/build"
+	"github.com/water-sucks/nixos/internal/config"
+	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/logger"
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
@@ -48,13 +51,26 @@ Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}
 `
 
-func mainCommand() *cobra.Command {
+func mainCommand() (*cobra.Command, error) {
 	opts := cmdTypes.MainOpts{}
 
 	log := logger.NewLogger()
 	cmdCtx := logger.WithLogger(context.Background(), log)
 
-	// TODO: add config to context
+	configLocation := os.Getenv("NIXOS_CLI_CONFIG")
+	if configLocation == "" {
+		configLocation = constants.DefaultConfigLocation
+	}
+
+	cfg, err := config.ParseConfig(configLocation)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	cmdCtx = config.WithConfig(cmdCtx, cfg)
+
+	bytes, _ := json.MarshalIndent(cfg, "", "  ")
+	log.Infof("config: %v", string(bytes))
 
 	cmd := cobra.Command{
 		Use:                        "nixos {command} [flags]",
@@ -69,8 +85,8 @@ func mainCommand() *cobra.Command {
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if opts.ColorAlways {
 				color.NoColor = false
+				log.RefreshColorPrefixes()
 			}
-			log.RefreshColorPrefixes()
 		},
 	}
 
@@ -100,11 +116,16 @@ func mainCommand() *cobra.Command {
 	cmd.AddCommand(optionCmd.OptionCommand())
 	cmd.AddCommand(replCmd.ReplCommand())
 
-	return &cmd
+	return &cmd, nil
 }
 
 func Execute() {
-	if err := mainCommand().Execute(); err != nil {
+	cmd, err := mainCommand()
+	if err != nil {
+		os.Exit(1)
+	}
+
+	if err = cmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }

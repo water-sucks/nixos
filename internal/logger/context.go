@@ -13,7 +13,7 @@ func WithLogger(ctx context.Context, logger *Logger) context.Context {
 func FromContext(ctx context.Context) *Logger {
 	logger, ok := ctx.Value(loggerCtxKey).(*Logger)
 	if !ok {
-		panic("user not present in context")
+		panic("logger not present in context")
 	}
 	return logger
 }
