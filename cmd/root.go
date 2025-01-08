@@ -65,7 +65,8 @@ func mainCommand() (*cobra.Command, error) {
 	cfg, err := config.ParseConfig(configLocation)
 	if err != nil {
 		log.Error(err)
-		return nil, err
+		log.Warn("proceeding with defaults only, you have been warned")
+		cfg = config.NewConfig()
 	}
 
 	errs := cfg.Validate()
@@ -116,8 +117,8 @@ func mainCommand() (*cobra.Command, error) {
 	cmd.Flags().BoolP("help", "h", false, "Show this help menu")
 	cmd.Flags().BoolP("version", "v", false, "Display version information")
 
-	cmd.PersistentFlags().BoolVarP(&opts.ColorAlways, "color-always", "C", false, "Always color output when possible")
-	cmd.PersistentFlags().StringToStringVarP(&opts.ConfigValues, "config", "c", map[string]string{}, "Set a configuration `key=value`")
+	cmd.PersistentFlags().BoolVar(&opts.ColorAlways, "color-always", false, "Always color output when possible")
+	cmd.PersistentFlags().StringToStringVar(&opts.ConfigValues, "config", map[string]string{}, "Set a configuration `key=value`")
 
 	cmd.AddCommand(aliasesCmd.AliasCommand())
 	cmd.AddCommand(applyCmd.ApplyCommand())
