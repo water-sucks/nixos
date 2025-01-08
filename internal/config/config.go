@@ -13,7 +13,7 @@ import (
 )
 
 type Config struct {
-	Aliases        map[string][]string `koanf:"aliases"`
+	Aliases        map[string][]string `koanf:"aliases" noset:"true"`
 	Apply          *ApplyConfig        `koanf:"apply"`
 	UseColor       bool                `koanf:"use_color"`
 	ConfigLocation string              `koanf:"config_location"`
@@ -38,8 +38,8 @@ type EnterConfig struct {
 type InitConfig struct {
 	EnableXserver bool              `koanf:"xserver_enabled"`
 	DesktopConfig string            `koanf:"desktop_config"`
-	ExtraAttrs    map[string]string `koanf:"extra_attrs"`
-	ExtraConfig   string            `koanf:"extra_config"`
+	ExtraAttrs    map[string]string `koanf:"extra_attrs" noset:"true"`
+	ExtraConfig   string            `koanf:"extra_config" noset:"true"`
 }
 
 type OptionConfig struct {
@@ -47,14 +47,8 @@ type OptionConfig struct {
 	Prettify bool    `koanf:"prettify"`
 }
 
-func ParseConfig(location string) (*Config, error) {
-	k := koanf.New(".")
-
-	if err := k.Load(file.Provider(location), toml.Parser()); err != nil {
-		return nil, err
-	}
-
-	config := Config{
+func NewConfig() *Config {
+	return &Config{
 		ConfigLocation: "/etc/nixos",
 		Enter: &EnterConfig{
 			MountResolvConf: true,
@@ -64,13 +58,23 @@ func ParseConfig(location string) (*Config, error) {
 			Prettify: true,
 		},
 	}
+}
 
-	err := k.Unmarshal("", &config)
+func ParseConfig(location string) (*Config, error) {
+	k := koanf.New(".")
+
+	if err := k.Load(file.Provider(location), toml.Parser()); err != nil {
+		return nil, err
+	}
+
+	config := NewConfig()
+
+	err := k.Unmarshal("", config)
 	if err != nil {
 		return nil, err
 	}
 
-	return &config, nil
+	return config, nil
 }
 
 var hasWhitespaceRegex = regexp.MustCompile(`\s`)
@@ -175,4 +179,13 @@ func (cfg *Config) SetValue(key string, value string) error {
 	}
 
 	return nil
+}
+
+func isSettable(value *reflect.Value) bool {
+	switch value.Kind() {
+	case reflect.String, reflect.Bool, reflect.Int, reflect.Int64, reflect.Float64:
+		return true
+	}
+
+	return false
 }
