@@ -1,3 +1,7 @@
+# Enable colors or not. Prefer setting NO_COLOR or -C over
+# using this option to ensure colors always match even
+# in case of errors.
+color = true
 # Where to look for configuration by default
 config_location = "/etc/nixos"
 # Disable confirmation dialogs. This is good for ensuring

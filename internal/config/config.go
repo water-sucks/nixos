@@ -15,7 +15,7 @@ import (
 type Config struct {
 	Aliases        map[string][]string `koanf:"aliases" noset:"true"`
 	Apply          *ApplyConfig        `koanf:"apply"`
-	UseColor       bool                `koanf:"use_color"`
+	UseColor       bool                `koanf:"color"`
 	ConfigLocation string              `koanf:"config_location"`
 	Enter          *EnterConfig        `koanf:"enter"`
 	Init           *InitConfig         `koanf:"init"`
@@ -49,6 +49,7 @@ type OptionConfig struct {
 
 func NewConfig() *Config {
 	return &Config{
+		UseColor:       true,
 		ConfigLocation: "/etc/nixos",
 		Enter: &EnterConfig{
 			MountResolvConf: true,

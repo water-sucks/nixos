@@ -38,10 +38,10 @@ func TestCompleteConfigFlag(t *testing.T) {
 		{"bruh.lmao", []string{}},
 
 		// Boolean field value completion
-		{"use_color=", []string{"use_color=true", "use_color=false"}},
-		{"use_color=t", []string{"use_color=true"}},
-		{"use_color=f", []string{"use_color=false"}},
-		{"use_color=invalid", []string{}},
+		{"color=", []string{"color=true", "color=false"}},
+		{"color=t", []string{"color=true"}},
+		{"color=f", []string{"color=false"}},
+		{"color=invalid", []string{}},
 	}
 
 	for _, testCase := range testCases {

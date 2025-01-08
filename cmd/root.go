@@ -87,10 +87,6 @@ func mainCommand() (*cobra.Command, error) {
 			HiddenDefaultCmd: true,
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if opts.ColorAlways {
-				color.NoColor = false
-				log.RefreshColorPrefixes()
-			}
 			for key, value := range opts.ConfigValues {
 				err := cfg.SetValue(key, value)
 				if err != nil {
@@ -101,6 +97,21 @@ func mainCommand() (*cobra.Command, error) {
 			errs := cfg.Validate()
 			for _, err := range errs {
 				log.Warn(err.Error())
+			}
+
+			// Now that we have the real color settings from parsing
+			// the configuration and command-line arguments, set it.
+			//
+			// Precedence of color settings:
+			// 1. -C flag -> true
+			// 2. NO_COLOR=1 -> false, fatih/color already takes this into account
+			// 3. `color` setting from config (default: true)
+			if opts.ColorAlways {
+				color.NoColor = false
+				log.RefreshColorPrefixes()
+			} else if os.Getenv("NO_COLOR") == "" {
+				color.NoColor = !cfg.UseColor
+				log.RefreshColorPrefixes()
 			}
 
 			return nil

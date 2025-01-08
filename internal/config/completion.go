@@ -173,7 +173,7 @@ var completionValueFuncs = map[string]CompletionValueFunc{
 	"apply.imply_impure_with_tag": boolCompletionFunc,
 	"apply.use_nom":               boolCompletionFunc,
 	"apply.use_git_commit_msg":    boolCompletionFunc,
-	"use_color":                   boolCompletionFunc,
+	"color":                       boolCompletionFunc,
 	"use_nvd":                     boolCompletionFunc,
 }
 
