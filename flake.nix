@@ -30,7 +30,7 @@
           default = nixos;
 
           nixos = callPackage (import ./package.nix) {
-            revision = self.dirtyRev;
+            revision = self.rev or self.dirtyRev or "unknown";
           };
           nixosLegacy = nixos.override {flake = false;};
         };
