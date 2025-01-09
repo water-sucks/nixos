@@ -9,10 +9,11 @@ import (
 	nixOpts "github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/logger"
 )
 
-func ApplyCommand() *cobra.Command {
+func ApplyCommand(cfg *config.Config) *cobra.Command {
 	opts := cmdTypes.ApplyOpts{}
 
 	usage := "apply"
@@ -44,7 +45,11 @@ func ApplyCommand() *cobra.Command {
 				return fmt.Errorf("--install-bootloader requires activation, remove --no-activate and/or --no-boot to use this option")
 			}
 			if buildOpts.Flake == "true" && opts.GenerationTag != "" && !opts.NixOptions.Impure {
-				return fmt.Errorf("--impure is required when using --tag for flake configurations")
+				if cfg.Apply.ImplyImpureWithTag {
+					opts.NixOptions.Impure = true
+				} else {
+					return fmt.Errorf("--impure is required when using --tag for flake configurations")
+				}
 			}
 			return nil
 		},

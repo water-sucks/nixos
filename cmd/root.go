@@ -137,7 +137,7 @@ func mainCommand() (*cobra.Command, error) {
 	}
 
 	cmd.AddCommand(aliasesCmd.AliasCommand())
-	cmd.AddCommand(applyCmd.ApplyCommand())
+	cmd.AddCommand(applyCmd.ApplyCommand(cfg))
 	cmd.AddCommand(completionCmd.CompletionCommand())
 	cmd.AddCommand(enterCmd.EnterCommand())
 	cmd.AddCommand(featuresCmd.FeatureCommand())
