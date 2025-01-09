@@ -8,8 +8,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func findFieldCompletions(value interface{}, prefix string) ([]string, bool) {
-	var candidates []string
+type fieldCompleteResult struct {
+	Name        string
+	Description string
+}
+
+func findFieldCompletions(value interface{}, prefix string) ([]fieldCompleteResult, bool) {
+	var candidates []fieldCompleteResult
 
 	fieldNames := strings.Split(prefix, ".")
 
@@ -43,7 +48,7 @@ func findFieldCompletions(value interface{}, prefix string) ([]string, bool) {
 		}
 
 		if !found {
-			return []string{}, false
+			return []fieldCompleteResult{}, false
 		}
 	}
 
@@ -55,7 +60,7 @@ func findFieldCompletions(value interface{}, prefix string) ([]string, bool) {
 	}
 
 	if current.Kind() != reflect.Struct {
-		return []string{}, false
+		return []fieldCompleteResult{}, false
 	}
 
 	for i := 0; i < current.Type().NumField(); i++ {
@@ -66,23 +71,33 @@ func findFieldCompletions(value interface{}, prefix string) ([]string, bool) {
 		}
 
 		name := structField.Tag.Get("koanf")
+		description := structField.Tag.Get("description")
 
 		if name == finalFieldComponent {
 			field := current.Field(i)
 			isComplete := isSettable(&field)
 
 			completeCandidate := strings.Join(append(previousComponents, name), ".")
-			return []string{completeCandidate}, isComplete
+
+			result := fieldCompleteResult{
+				Name:        completeCandidate,
+				Description: description,
+			}
+
+			return []fieldCompleteResult{result}, isComplete
 		}
 
 		if strings.HasPrefix(name, finalFieldComponent) {
-			candidates = append(candidates, name)
+			candidates = append(candidates, fieldCompleteResult{
+				Name:        name,
+				Description: description,
+			})
 		}
 	}
 
 	isComplete := false
 	if len(candidates) == 1 {
-		candidate := candidates[0]
+		candidate := candidates[0].Name
 
 		var autocompleted string = ""
 
@@ -100,14 +115,14 @@ func findFieldCompletions(value interface{}, prefix string) ([]string, bool) {
 		}
 
 		if autocompleted != "" {
-			candidates[0] = autocompleted
+			candidates[0].Name = autocompleted
 		} else {
-			panic("bruh")
+			panic("no autocompleted result for name " + candidate + " when there should be one")
 		}
 	}
 
 	for i, v := range candidates {
-		candidates[i] = strings.Join(append(previousComponents, v), ".")
+		candidates[i].Name = strings.Join(append(previousComponents, v.Name), ".")
 	}
 
 	return candidates, isComplete
@@ -135,18 +150,26 @@ func completeKeys(candidate string) ([]string, cobra.ShellCompDirective) {
 	//    - Add a '.', more input is needed
 	// 3. Single candidate, and complete key is found
 	//    - Add a '=' to signify start of value completions, if they exist
-
 	if len(completionCandidates) == 1 {
 		if complete {
-			completionCandidates[0] = completionCandidates[0] + "="
+			completionCandidates[0].Name = completionCandidates[0].Name + "="
 		} else {
-			completionCandidates[0] = completionCandidates[0] + "."
+			completionCandidates[0].Name = completionCandidates[0].Name + "."
+		}
+	}
+
+	candidates := make([]string, len(completionCandidates))
+	for i, v := range completionCandidates {
+		if v.Description != "" {
+			candidates[i] = fmt.Sprintf("%v\t%v", v.Name, v.Description)
+		} else {
+			candidates[i] = v.Name
 		}
 	}
 
 	// Completion of keys should never end with a space, since the value
 	// is required.
-	return completionCandidates, cobra.ShellCompDirectiveNoSpace
+	return candidates, cobra.ShellCompDirectiveNoSpace
 }
 
 type CompletionValueFunc func(key string, candidate string) ([]string, cobra.ShellCompDirective)

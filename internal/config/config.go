@@ -13,38 +13,38 @@ import (
 )
 
 type Config struct {
-	Aliases        map[string][]string `koanf:"aliases" noset:"true"`
-	Apply          *ApplyConfig        `koanf:"apply"`
-	UseColor       bool                `koanf:"color"`
-	ConfigLocation string              `koanf:"config_location"`
-	Enter          *EnterConfig        `koanf:"enter"`
-	Init           *InitConfig         `koanf:"init"`
-	NoConfirm      bool                `koanf:"no_confirm"`
-	Option         *OptionConfig       `koanf:"option"`
-	UseNvd         bool                `koanf:"use_nvd"`
+	Aliases        map[string][]string `koanf:"aliases" noset:"true" description:"Shortcuts for long commands"`
+	Apply          *ApplyConfig        `koanf:"apply" description:"Settings for 'apply' command"`
+	UseColor       bool                `koanf:"color" description:"Enable colored output"`
+	ConfigLocation string              `koanf:"config_location" description:"Where to look for configuration by default"`
+	Enter          *EnterConfig        `koanf:"enter" description:"Settings for 'enter' command"`
+	Init           *InitConfig         `koanf:"init" description:"Settings for 'init' command"`
+	NoConfirm      bool                `koanf:"no_confirm" description:"Disable interactive confirmation input"`
+	Option         *OptionConfig       `koanf:"option" description:"Settings for 'option' command"`
+	UseNvd         bool                `koanf:"use_nvd" description:"Use 'nvd' instead of 'nix store diff-closures'"`
 }
 
 type ApplyConfig struct {
-	ImplyImpureWithTag    bool   `koanf:"imply_impure_with_tag"`
-	DefaultSpecialisation string `koanf:"specialisation"`
-	UseNom                bool   `koanf:"use_nom"`
-	UseGitCommitMsg       bool   `koanf:"use_git_commit_msg"`
+	ImplyImpureWithTag    bool   `koanf:"imply_impure_with_tag" description:"Add --impure automatically when using --tag with flakes"`
+	DefaultSpecialisation string `koanf:"specialisation" description:"Name of specialisation to use by default when activating"`
+	UseNom                bool   `koanf:"use_nom" description:"Use 'nix-output-monitor' as an alternative 'nix build' frontend"`
+	UseGitCommitMsg       bool   `koanf:"use_git_commit_msg" description:"Use last git commit message for --tag by default"`
 }
 
 type EnterConfig struct {
-	MountResolvConf bool `koanf:"mount_resolv_conf"`
+	MountResolvConf bool `koanf:"mount_resolv_conf" description:"Bind-mount host 'resolv.conf' inside chroot for internet accesss"`
 }
 
 type InitConfig struct {
-	EnableXserver bool              `koanf:"xserver_enabled"`
-	DesktopConfig string            `koanf:"desktop_config"`
-	ExtraAttrs    map[string]string `koanf:"extra_attrs" noset:"true"`
-	ExtraConfig   string            `koanf:"extra_config" noset:"true"`
+	EnableXserver bool              `koanf:"xserver_enabled" description:"Generate options to enable X11 display server"`
+	DesktopConfig string            `koanf:"desktop_config" description:"Config options for desktop environment"`
+	ExtraAttrs    map[string]string `koanf:"extra_attrs" noset:"true" description:"Extra config attrs to append to 'configuration.nix'"`
+	ExtraConfig   string            `koanf:"extra_config" noset:"true" description:"Extra config string to append to 'configuration.nix'"`
 }
 
 type OptionConfig struct {
-	MaxRank  float64 `koanf:"max_rank"`
-	Prettify bool    `koanf:"prettify"`
+	MaxRank  float64 `koanf:"max_rank" description:"Maximum distance score allowed for search results"`
+	Prettify bool    `koanf:"prettify" description:"Attempt to prettify option descriptions"`
 }
 
 func NewConfig() *Config {
