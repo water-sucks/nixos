@@ -2,11 +2,14 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
+	"runtime"
 
 	"github.com/spf13/cobra"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
-	"github.com/water-sucks/nixos/internal/logger"
+
+	buildOpts "github.com/water-sucks/nixos/internal/build"
 )
 
 func FeatureCommand() *cobra.Command {
@@ -16,8 +19,8 @@ func FeatureCommand() *cobra.Command {
 		Use:   "features",
 		Short: "Show metadata about this application",
 		Long:  "Show metadata about this application and configured options.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return featuresMain(cmd, &opts)
+		Run: func(cmd *cobra.Command, args []string) {
+			featuresMain(cmd, &opts)
 		},
 	}
 
@@ -28,11 +31,43 @@ func FeatureCommand() *cobra.Command {
 	return &cmd
 }
 
-func featuresMain(cmd *cobra.Command, opts *cmdTypes.FeaturesOpts) error {
-	log := logger.FromContext(cmd.Context())
+type features struct {
+	Version            string              `json:"version"`
+	GitRevision        string              `json:"git_rev"`
+	GoVersion          string              `json:"go_version"`
+	CompilationOptions complilationOptions `json:"options"`
+}
 
-	bytes, _ := json.MarshalIndent(opts, "", "  ")
-	log.Infof("features: %v", string(bytes))
+type complilationOptions struct {
+	NixpkgsVersion string `json:"nixpkgs_version"`
+	Flake          bool   `json:"flake"`
+}
 
-	return nil
+func featuresMain(_ *cobra.Command, opts *cmdTypes.FeaturesOpts) {
+	features := features{
+		Version:     buildOpts.Version,
+		GitRevision: buildOpts.GitRevision,
+		GoVersion:   runtime.Version(),
+		CompilationOptions: complilationOptions{
+			NixpkgsVersion: buildOpts.NixpkgsVersion,
+			Flake:          buildOpts.Flake == "true",
+		},
+	}
+
+	if opts.DisplayJson {
+		bytes, _ := json.MarshalIndent(features, "", "  ")
+		fmt.Printf("%v\n", string(bytes))
+
+		return
+	}
+
+	fmt.Printf("nixos %v\n", features.Version)
+	fmt.Printf("git rev: %v\n", features.GitRevision)
+	fmt.Printf("go version: %v\n\n", features.GoVersion)
+
+	fmt.Println("Compilation Options")
+	fmt.Println("-------------------")
+
+	fmt.Printf("flake           :: %v\n", features.CompilationOptions.Flake)
+	fmt.Printf("nixpkgs_version :: %v\n", features.CompilationOptions.NixpkgsVersion)
 }
