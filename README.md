@@ -7,15 +7,16 @@
 <tr>
     <td>🚨</td>
     <td>
-      This project will be undergoing a rewrite to make it more feasible to
+      <p>
+      This project is undergoing a rewrite to make it more feasible to
       work on certain features, and also to make development time faster.
-      If you want to use this rewrite early, point to the
-      <a href="https://github.com/water-sucks/nixos/tree/rewrite">
-        <code>rewrite</code>
-      </a> branch.
+      The rewrite is here, but will be missing many features as I am rewriting
+      them. Use the `main` branch if you are not willing to put up with this.
+      </p>
       <p>
         The rewrite will also bring some substantial UX improvements, and
-        hopefully some new things on the roadmap. Stay tuned!
+        hopefully some new things on the roadmap. Check the [TODO](#todo)
+        section for a list of things that this rewrite will bring.
       </p>
     </td>
 </tr>
@@ -154,32 +155,35 @@ configuration is located in [`config.sample.toml`](./config.sample.toml).
 
 ## TODO
 
-### Implemented Commands/Flags
+Checklist of what needs to happen before this rewrite can be merged back into
+`main` and released (in order):
 
-- ➖ `apply`
-- ❌ `container`
-- ✅ `enter`
-- ✅ `info`
-- ✅ `init`
-- ➖ `install`
-- ✅ `generation`
-  - ✅ `list`
-  - ✅ `switch`
-  - ✅ `rollback`
-  - ✅ `delete`
-  - ✅ `diff`
-- ✅ `manual`
-- ✅ `option`
-- ✅ `repl`
+- ✅ Remove Zig/replace with Go application
+- ✅ Setup CLI interface
+- ✅ Setup basic completions
+- ✅ Setup config
+- ✅ Setup logging
+- ❌ `apply`
+- ❌ `generation`
+  - ❌ `list`
+  - ❌ `switch`
+  - ❌ `rollback`
+  - ❌ `delete`
+  - ❌ `diff`
+- ❌ `info`
+- ❌ `enter`
+- ❌ `repl`
+- ❌ `option`
+- ❌ `init`
+- ❌ `install`
+- ❌ `manual`
 
-### Roadmap
+### Roadmap (for after rewrite)
 
-- ❌ CLI completion
 - ❌ Documentation (via man pages)
-- ✅ Options search (a la https://search.nixos.org)
-- ❌ Remote installation (a la [`nixos-anywhere`](https;//github.com/numtide/nixos-anywhere))
 - ❌ Remote application of configurations
-- ❌ Container management (Maybe? This is lower priority.)
+- ❌ Remote installation (a la [`nixos-anywhere`](https;//github.com/numtide/nixos-anywhere))
+- ❌ Container management (a la `nixos-container`, lower priority)
 
 Check the [issues](https://github.com/water-sucks/nixos/issues) page for more on
 this; this is just a high-level overview.
