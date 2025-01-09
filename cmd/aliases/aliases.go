@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
-	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/water-sucks/nixos/internal/config"
 )
 
 func AliasCommand() *cobra.Command {
@@ -17,8 +19,8 @@ func AliasCommand() *cobra.Command {
 		Use:   "aliases",
 		Short: "List configured aliases",
 		Long:  "List configured aliases and what commands they resolve to.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return aliasesMain(cmd, &opts)
+		Run: func(cmd *cobra.Command, args []string) {
+			aliasesMain(cmd, &opts)
 		},
 	}
 
@@ -29,11 +31,41 @@ func AliasCommand() *cobra.Command {
 	return &cmd
 }
 
-func aliasesMain(cmd *cobra.Command, opts *cmdTypes.AliasesOpts) error {
-	log := logger.FromContext(cmd.Context())
+func aliasesMain(cmd *cobra.Command, opts *cmdTypes.AliasesOpts) {
+	cfg := config.FromContext(cmd.Context())
+	aliases := cfg.Aliases
 
-	bytes, _ := json.MarshalIndent(opts, "", "  ")
-	log.Infof("aliases: %v", string(bytes))
+	if opts.DisplayJson {
+		bytes, _ := json.MarshalIndent(aliases, "", "  ")
+		fmt.Println(string(bytes))
+		return
+	}
 
-	return nil
+	maxColumnLength := 0
+	for alias := range aliases {
+		length := len(alias)
+		if length > maxColumnLength {
+			maxColumnLength = length
+		}
+	}
+
+	for alias, resolved := range aliases {
+		fmt.Printf("%-*s :: %s\n", maxColumnLength, alias, escapeAndJoinArgs(resolved))
+	}
+}
+
+func escapeAndJoinArgs(args []string) string {
+	var escapedArgs []string
+
+	for _, arg := range args {
+		if strings.ContainsAny(arg, " \t\n\"'\\") {
+			arg = strings.ReplaceAll(arg, "\\", "\\\\")
+			arg = strings.ReplaceAll(arg, "\"", "\\\"")
+			escapedArgs = append(escapedArgs, fmt.Sprintf("\"%s\"", arg))
+		} else {
+			escapedArgs = append(escapedArgs, arg)
+		}
+	}
+
+	return strings.Join(escapedArgs, " ")
 }
