@@ -149,6 +149,13 @@ func mainCommand() (*cobra.Command, error) {
 	cmd.AddCommand(optionCmd.OptionCommand())
 	cmd.AddCommand(replCmd.ReplCommand())
 
+	for alias, resolved := range cfg.Aliases {
+		err := addAliasCmd(&cmd, alias, resolved)
+		if err != nil {
+			log.Warnf("failed to add alias '%v': %v", alias, err.Error())
+		}
+	}
+
 	return &cmd, nil
 }
 

@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -50,22 +49,6 @@ func aliasesMain(cmd *cobra.Command, opts *cmdTypes.AliasesOpts) {
 	}
 
 	for alias, resolved := range aliases {
-		fmt.Printf("%-*s :: %s\n", maxColumnLength, alias, escapeAndJoinArgs(resolved))
+		fmt.Printf("%-*s :: %s\n", maxColumnLength, alias, cmdUtils.EscapeAndJoinArgs(resolved))
 	}
-}
-
-func escapeAndJoinArgs(args []string) string {
-	var escapedArgs []string
-
-	for _, arg := range args {
-		if strings.ContainsAny(arg, " \t\n\"'\\") {
-			arg = strings.ReplaceAll(arg, "\\", "\\\\")
-			arg = strings.ReplaceAll(arg, "\"", "\\\"")
-			escapedArgs = append(escapedArgs, fmt.Sprintf("\"%s\"", arg))
-		} else {
-			escapedArgs = append(escapedArgs, arg)
-		}
-	}
-
-	return strings.Join(escapedArgs, " ")
 }
