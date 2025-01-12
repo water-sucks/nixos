@@ -14,7 +14,6 @@ import (
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 
-	aliasesCmd "github.com/water-sucks/nixos/cmd/aliases"
 	applyCmd "github.com/water-sucks/nixos/cmd/apply"
 	completionCmd "github.com/water-sucks/nixos/cmd/completion"
 	enterCmd "github.com/water-sucks/nixos/cmd/enter"
@@ -39,12 +38,12 @@ Examples:
 {{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
 
 Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{if not .AllChildCommandsHaveGroup}}
 
-{{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+Commands:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{range $group := .Groups}}
 
-Additional Commands:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+{{.Title}}:{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
   {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
 
 Flags:
@@ -136,7 +135,6 @@ func mainCommand() (*cobra.Command, error) {
 		return nil, err
 	}
 
-	cmd.AddCommand(aliasesCmd.AliasCommand())
 	cmd.AddCommand(applyCmd.ApplyCommand(cfg))
 	cmd.AddCommand(completionCmd.CompletionCommand())
 	cmd.AddCommand(enterCmd.EnterCommand())

@@ -20,11 +20,18 @@ func addAliasCmd(parent *cobra.Command, alias string, args []string) error {
 		}
 	}
 
+	if !parent.ContainsGroup("aliases") {
+		parent.AddGroup(&cobra.Group{
+			ID:    "aliases",
+			Title: "Aliases",
+		})
+	}
+
 	cmd := &cobra.Command{
-		Use:   alias,
-		Short: description,
-		Long:  description,
-		// Aliases can be viewed through `nixos aliases`
+		Use:                alias,
+		Short:              description,
+		Long:               description,
+		GroupID:            "aliases",
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, passedArgs []string) error {
 			fullArgsList := append(args, passedArgs...)
