@@ -3,11 +3,14 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/spf13/cobra"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/logger"
 
 	buildOpts "github.com/water-sucks/nixos/internal/build"
 )
@@ -35,6 +38,7 @@ type features struct {
 	Version            string              `json:"version"`
 	GitRevision        string              `json:"git_rev"`
 	GoVersion          string              `json:"go_version"`
+	DetectedNixVersion string              `json:"nix_version"`
 	CompilationOptions complilationOptions `json:"options"`
 }
 
@@ -43,7 +47,9 @@ type complilationOptions struct {
 	Flake          bool   `json:"flake"`
 }
 
-func featuresMain(_ *cobra.Command, opts *cmdTypes.FeaturesOpts) {
+func featuresMain(cmd *cobra.Command, opts *cmdTypes.FeaturesOpts) {
+	log := logger.FromContext(cmd.Context())
+
 	features := features{
 		Version:     buildOpts.Version,
 		GitRevision: buildOpts.GitRevision,
@@ -52,6 +58,15 @@ func featuresMain(_ *cobra.Command, opts *cmdTypes.FeaturesOpts) {
 			NixpkgsVersion: buildOpts.NixpkgsVersion,
 			Flake:          buildOpts.Flake == "true",
 		},
+	}
+
+	nixVersionCmd := exec.Command("nix", "--version")
+	nixVersionOutput, _ := nixVersionCmd.Output()
+	if nixVersionCmd.ProcessState.ExitCode() != 0 {
+		log.Warn("nix version command failed to run, unable to detect nix version")
+		features.DetectedNixVersion = "unknown"
+	} else {
+		features.DetectedNixVersion = strings.Trim(string(nixVersionOutput), "\n ")
 	}
 
 	if opts.DisplayJson {
@@ -63,7 +78,8 @@ func featuresMain(_ *cobra.Command, opts *cmdTypes.FeaturesOpts) {
 
 	fmt.Printf("nixos %v\n", features.Version)
 	fmt.Printf("git rev: %v\n", features.GitRevision)
-	fmt.Printf("go version: %v\n\n", features.GoVersion)
+	fmt.Printf("go version: %v\n", features.GoVersion)
+	fmt.Printf("nix version: %v\n\n", features.DetectedNixVersion)
 
 	fmt.Println("Compilation Options")
 	fmt.Println("-------------------")
