@@ -14,14 +14,21 @@ type Logger struct {
 	info  *log.Logger
 	warn  *log.Logger
 	error *log.Logger
+
+	stepNumber uint
 }
 
 func NewLogger() *Logger {
+	green := color.New(color.FgGreen)
+	boldYellow := color.New(color.FgYellow).Add(color.Bold)
+	boldRed := color.New(color.FgRed).Add(color.Bold)
+
 	return &Logger{
-		print: log.New(os.Stderr, "", 0),
-		info:  log.New(os.Stderr, color.GreenString("info: "), 0),
-		warn:  log.New(os.Stderr, color.YellowString("warning: "), 0),
-		error: log.New(os.Stderr, color.RedString("error: "), 0),
+		print:      log.New(os.Stderr, "", 0),
+		info:       log.New(os.Stderr, green.Sprint("info: "), 0),
+		warn:       log.New(os.Stderr, boldYellow.Sprint("warning: "), 0),
+		error:      log.New(os.Stderr, boldRed.Sprint("error: "), 0),
+		stepNumber: 0,
 	}
 }
 
@@ -58,12 +65,26 @@ func (l *Logger) Errorf(format string, v ...interface{}) {
 }
 
 func (l *Logger) CmdArray(argv []string) {
-	l.print.Printf("$ %v\n", cmdUtils.EscapeAndJoinArgs(argv))
+	msg := color.New(color.FgBlue).Sprintf("$ %v", cmdUtils.EscapeAndJoinArgs(argv))
+	l.print.Printf("%v\n", msg)
+}
+
+func (l *Logger) Step(message string) {
+	l.stepNumber++
+	if l.stepNumber > 1 {
+		l.print.Println()
+	}
+	msg := color.New(color.FgMagenta).Add(color.Bold).Sprintf("%v. %v", l.stepNumber, message)
+	l.print.Println(msg)
 }
 
 // Call this when the colors have been enabled or disabled.
 func (l *Logger) RefreshColorPrefixes() {
-	l.info.SetPrefix(color.GreenString("info: "))
-	l.warn.SetPrefix(color.YellowString("warning: "))
-	l.error.SetPrefix(color.RedString("error: "))
+	green := color.New(color.FgGreen)
+	boldYellow := color.New(color.FgYellow).Add(color.Bold)
+	boldRed := color.New(color.FgRed).Add(color.Bold)
+
+	l.info.SetPrefix(green.Sprint("info: "))
+	l.warn.SetPrefix(boldYellow.Sprint("warning: "))
+	l.error.SetPrefix(boldRed.Sprint("error: "))
 }
