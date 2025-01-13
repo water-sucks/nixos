@@ -34,7 +34,7 @@ func GenerationSwitchCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return generationSwitchMain(cmd, genOpts, &opts)
+			return cmdUtils.CommandErrorHandler(generationSwitchMain(cmd, genOpts, &opts))
 		},
 	}
 

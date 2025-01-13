@@ -31,7 +31,7 @@ func ReplCommand() *cobra.Command {
 			return cobra.NoArgs(cmd, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return replMain(cmd, &opts)
+			return cmdUtils.CommandErrorHandler(replMain(cmd, &opts))
 		},
 	}
 

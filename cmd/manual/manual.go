@@ -13,7 +13,7 @@ func ManualCommand() *cobra.Command {
 		Long:  "Open the NixOS manual in a browser.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return manualMain(cmd)
+			return cmdUtils.CommandErrorHandler(manualMain(cmd))
 		},
 	}
 

@@ -54,7 +54,7 @@ func ApplyCommand(cfg *config.Config) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return applyMain(cmd, &opts)
+			return cmdUtils.CommandErrorHandler(applyMain(cmd, &opts))
 		},
 	}
 
@@ -127,5 +127,5 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	bytes, _ := json.MarshalIndent(opts, "", "  ")
 	log.Infof("apply: %v", string(bytes))
 
-	return nil
+	return fmt.Errorf("not implemented")
 }

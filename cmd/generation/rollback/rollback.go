@@ -18,7 +18,7 @@ func GenerationRollbackCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command 
 		Short: "Activate the previous generation",
 		Long:  "Rollback to the previous NixOS generation.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return generationRollbackMain(cmd, genOpts, &opts)
+			return cmdUtils.CommandErrorHandler(generationRollbackMain(cmd, genOpts, &opts))
 		},
 	}
 

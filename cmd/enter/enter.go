@@ -17,11 +17,14 @@ func EnterCommand() *cobra.Command {
 		Use:   "enter [flags] [-- ARGS...]",
 		Short: "Chroot into a NixOS installation",
 		Long:  "Enter a NixOS chroot environment.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				opts.CommandArray = args
 			}
-			return enterMain(cmd, &opts)
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmdUtils.CommandErrorHandler(enterMain(cmd, &opts))
 		},
 	}
 

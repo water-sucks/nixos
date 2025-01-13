@@ -17,7 +17,7 @@ func InitCommand() *cobra.Command {
 		Short: "Initialize a NixOS configuration",
 		Long:  "Initialize a NixOS configuration template and/or hardware options.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return initMain(cmd, &opts)
+			return cmdUtils.CommandErrorHandler(initMain(cmd, &opts))
 		},
 	}
 

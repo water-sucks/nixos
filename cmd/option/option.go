@@ -31,7 +31,7 @@ func OptionCommand() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return optionMain(cmd, &opts)
+			return cmdUtils.CommandErrorHandler(optionMain(cmd, &opts))
 		},
 	}
 

@@ -39,7 +39,7 @@ func GenerationDiffCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return generationDiffMain(cmd, genOpts, &opts)
+			return cmdUtils.CommandErrorHandler(generationDiffMain(cmd, genOpts, &opts))
 		},
 	}
 

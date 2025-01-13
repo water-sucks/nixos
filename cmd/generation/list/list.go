@@ -18,7 +18,7 @@ func GenerationListCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 		Short: "List all NixOS generations in a profile",
 		Long:  "List all generations in a NixOS profile and their details.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return generationListMain(cmd, genOpts, &opts)
+			return cmdUtils.CommandErrorHandler(generationListMain(cmd, genOpts, &opts))
 		},
 	}
 

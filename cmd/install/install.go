@@ -49,7 +49,7 @@ func InstallCommand() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return installMain(cmd, &opts)
+			return cmdUtils.CommandErrorHandler(installMain(cmd, &opts))
 		},
 	}
 

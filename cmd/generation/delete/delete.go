@@ -37,7 +37,7 @@ func GenerationDeleteCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return generationDeleteMain(cmd, genOpts, &opts)
+			return cmdUtils.CommandErrorHandler(generationDeleteMain(cmd, genOpts, &opts))
 		},
 	}
 

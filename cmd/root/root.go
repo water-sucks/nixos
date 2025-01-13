@@ -119,8 +119,6 @@ func mainCommand() (*cobra.Command, error) {
 
 	cmd.SetContext(cmdCtx)
 
-	cmd.SetErrPrefix(color.RedString("error:"))
-
 	cmd.SetHelpCommand(&cobra.Command{Hidden: true})
 	cmd.SetUsageTemplate(helpTemplate)
 

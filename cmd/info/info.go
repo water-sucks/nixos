@@ -17,7 +17,7 @@ func InfoCommand() *cobra.Command {
 		Short: "Show info about the currently running generation",
 		Long:  "Show information about the currently running NixOS generation.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return infoMain(cmd, &opts)
+			return cmdUtils.CommandErrorHandler(infoMain(cmd, &opts))
 		},
 	}
 
