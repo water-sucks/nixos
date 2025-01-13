@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
@@ -11,6 +11,16 @@ import (
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/water-sucks/nixos/internal/utils"
+)
+
+type buildType int
+
+const (
+	buildTypeSystem buildType = iota
+	buildTypeSystemActivation
+	buildTypeVM
+	buildTypeVMWithBootloader
 )
 
 func ApplyCommand(cfg *config.Config) *cobra.Command {
@@ -123,9 +133,27 @@ Check the Nix manual page for more details on what options are available.
 
 func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	log := logger.FromContext(cmd.Context())
+	cfg := config.FromContext(cmd.Context())
 
-	bytes, _ := json.MarshalIndent(opts, "", "  ")
-	log.Infof("apply: %v", string(bytes))
+	buildType := buildTypeSystemActivation
+	if opts.BuildVM {
+		buildType = buildTypeVM
+	} else if opts.BuildVMWithBootloader {
+		buildType = buildTypeVMWithBootloader
+	} else if opts.NoActivate && opts.NoBoot {
+		buildType = buildTypeSystem
+	}
 
-	return fmt.Errorf("not implemented")
+	if os.Geteuid() != 0 {
+		err := utils.ExecAsRoot(log, cfg.RootCommand)
+		if err != nil {
+			log.Errorf("failed to re-exec command as root: %v", err)
+			return err
+		}
+		log.Warn("should be unreachable")
+	}
+
+	log.Printf("buildType: %v", buildType)
+
+	return nil
 }

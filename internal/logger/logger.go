@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/fatih/color"
+
+	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 )
 
 type Logger struct {
@@ -53,6 +55,10 @@ func (l *Logger) Error(v ...interface{}) {
 
 func (l *Logger) Errorf(format string, v ...interface{}) {
 	l.error.Printf(format+"\n", v...)
+}
+
+func (l *Logger) CmdArray(argv []string) {
+	l.print.Printf("$ %v\n", cmdUtils.EscapeAndJoinArgs(argv))
 }
 
 // Call this when the colors have been enabled or disabled.

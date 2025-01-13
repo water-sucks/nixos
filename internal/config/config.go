@@ -21,6 +21,7 @@ type Config struct {
 	Init           *InitConfig         `koanf:"init" description:"Settings for 'init' command"`
 	NoConfirm      bool                `koanf:"no_confirm" description:"Disable interactive confirmation input"`
 	Option         *OptionConfig       `koanf:"option" description:"Settings for 'option' command"`
+	RootCommand    string              `koanf:"root_command" description:"Command to use to promote process to root"`
 	UseNvd         bool                `koanf:"use_nvd" description:"Use 'nvd' instead of 'nix store diff-closures'"`
 }
 
@@ -54,6 +55,7 @@ func NewConfig() *Config {
 		Enter: &EnterConfig{
 			MountResolvConf: true,
 		},
+		RootCommand: "sudo",
 		Option: &OptionConfig{
 			MaxRank:  3.00,
 			Prettify: true,
