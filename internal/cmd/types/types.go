@@ -19,7 +19,7 @@ type ApplyOpts struct {
 	Specialisation        string
 	GenerationTag         string
 	UseNom                bool
-	Verbosity             []bool
+	Verbose               bool
 	BuildVM               bool
 	BuildVMWithBootloader bool
 	AlwaysConfirm         bool

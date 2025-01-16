@@ -76,7 +76,7 @@ func ApplyCommand(cfg *config.Config) *cobra.Command {
 	cmd.Flags().StringVarP(&opts.ProfileName, "profile-name", "p", "", "Store generations using the profile `name`")
 	cmd.Flags().StringVarP(&opts.Specialisation, "specialisation", "s", "", "Activate the specialisation with `name`")
 	cmd.Flags().StringVarP(&opts.GenerationTag, "tag", "t", "", "Tag this generation with a `description`")
-	cmd.Flags().BoolSliceVarP(&opts.Verbosity, "verbose", "v", opts.Verbosity, "Show verbose logging")
+	cmd.Flags().BoolVarP(&opts.Verbose, "verbose", "v", opts.Verbose, "Show verbose logging")
 	cmd.Flags().BoolVar(&opts.BuildVM, "vm", false, "Build a NixOS VM script")
 	cmd.Flags().BoolVar(&opts.BuildVMWithBootloader, "vm-with-bootloader", false, "Build a NixOS VM script with a bootloader")
 	cmd.Flags().BoolVarP(&opts.AlwaysConfirm, "yes", "y", false, "Automatically confirm activation")
@@ -143,6 +143,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	} else if opts.NoActivate && opts.NoBoot {
 		buildType = buildTypeSystem
 	}
+	_ = buildType
 
 	if os.Geteuid() != 0 {
 		err := utils.ExecAsRoot(log, cfg.RootCommand)
@@ -150,10 +151,56 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 			log.Errorf("failed to re-exec command as root: %v", err)
 			return err
 		}
-		log.Warn("should be unreachable")
 	}
 
-	log.Printf("buildType: %v", buildType)
+	if opts.Verbose {
+		log.Step("Looking for configuration...")
+	}
+
+	var flakeRef *utils.FlakeRef
+	var configDirname string
+
+	if buildOpts.Flake == "true" {
+		if opts.Verbose {
+			log.Info("looking for flake configuration")
+		}
+
+		if opts.FlakeRef != "" {
+			flakeRef = utils.FlakeRefFromString(opts.FlakeRef)
+		} else {
+			f, err := utils.FlakeRefFromEnv(cfg.ConfigLocation)
+			if err != nil {
+				log.Errorf("failed to find flake configuration: %v", err)
+				return err
+			}
+			flakeRef = f
+		}
+
+		if err := flakeRef.InferSystemFromHostnameIfNeeded(); err != nil {
+			log.Errorf("failed to infer system name from hostname: %v", err)
+			return err
+		}
+
+		if opts.Verbose {
+			log.Infof("found flake configuration: %s#%s", flakeRef.URI, flakeRef.System)
+		}
+	} else {
+		c, err := utils.FindLegacyConfiguration(log, opts.Verbose)
+		if err != nil {
+			log.Errorf("failed to find configuration: %v", err)
+			return err
+		}
+		configDirname = c
+	}
+
+	if configDirname != "" {
+		// Change to the configuration directory, if it exists:
+		// this will likely fail for remote configurations or
+		// configurations accessed through the registry, which
+		// should be a rare occurrence, but valid, so ignore any
+		// errors in that case.
+		_ = os.Chdir(configDirname)
+	}
 
 	return nil
 }
