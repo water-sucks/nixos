@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/spf13/cobra"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
@@ -76,6 +77,7 @@ func ApplyCommand(cfg *config.Config) *cobra.Command {
 	cmd.Flags().StringVarP(&opts.ProfileName, "profile-name", "p", "", "Store generations using the profile `name`")
 	cmd.Flags().StringVarP(&opts.Specialisation, "specialisation", "s", "", "Activate the specialisation with `name`")
 	cmd.Flags().StringVarP(&opts.GenerationTag, "tag", "t", "", "Tag this generation with a `description`")
+	cmd.Flags().BoolVar(&opts.UseNom, "use-nom", false, "Tag this generation with a `description`")
 	cmd.Flags().BoolVarP(&opts.Verbose, "verbose", "v", opts.Verbose, "Show verbose logging")
 	cmd.Flags().BoolVar(&opts.BuildVM, "vm", false, "Build a NixOS VM script")
 	cmd.Flags().BoolVar(&opts.BuildVMWithBootloader, "vm-with-bootloader", false, "Build a NixOS VM script with a bootloader")
@@ -201,6 +203,18 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		// errors in that case.
 		_ = os.Chdir(configDirname)
 	}
+
+	useNom := cfg.Apply.UseNom || opts.UseNom
+	nomPath, _ := exec.LookPath("nom")
+	nomFound := nomPath != ""
+	if opts.UseNom && !nomFound {
+		log.Error("--use-nom was specified, but `nom` is not executable")
+	} else if cfg.Apply.UseNom && !nomFound {
+		log.Warn("apply.use_nom is specified in config, but `nom` is not executable")
+		log.Warn("falling back to `nix` command for building")
+		useNom = false
+	}
+	_ = useNom
 
 	return nil
 }
