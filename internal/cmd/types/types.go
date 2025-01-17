@@ -25,33 +25,35 @@ type ApplyOpts struct {
 	AlwaysConfirm         bool
 	FlakeRef              string
 
-	NixOptions struct {
-		Quiet          bool
-		PrintBuildLogs bool
-		NoBuildOutput  bool
-		ShowTrace      bool
-		KeepGoing      bool
-		KeepFailed     bool
-		Fallback       bool
-		Refresh        bool
-		Repair         bool
-		Impure         bool
-		Offline        bool
-		NoNet          bool
-		MaxJobs        int
-		Cores          int
-		Builders       []string
-		LogFormat      string
-		Options        map[string]string
+	NixOptions ApplyNixOptions
+}
 
-		RecreateLockFile bool
-		NoUpdateLockFile bool
-		NoWriteLockFile  bool
-		NoUseRegistries  bool
-		CommitLockFile   bool
-		UpdateInputs     []string
-		OverrideInputs   map[string]string
-	}
+type ApplyNixOptions struct {
+	Quiet          bool
+	PrintBuildLogs bool
+	NoBuildOutput  bool
+	ShowTrace      bool
+	KeepGoing      bool
+	KeepFailed     bool
+	Fallback       bool
+	Refresh        bool
+	Repair         bool
+	Impure         bool
+	Offline        bool
+	NoNet          bool
+	MaxJobs        int
+	Cores          int
+	Builders       []string
+	LogFormat      string
+	Options        map[string]string
+
+	RecreateLockFile bool
+	NoUpdateLockFile bool
+	NoWriteLockFile  bool
+	NoUseRegistries  bool
+	CommitLockFile   bool
+	UpdateInputs     []string
+	OverrideInputs   map[string]string
 }
 
 type EnterOpts struct {

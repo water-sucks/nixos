@@ -1,9 +1,10 @@
-package cmd
+package apply
 
 import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
@@ -13,16 +14,8 @@ import (
 	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/water-sucks/nixos/internal/system"
 	"github.com/water-sucks/nixos/internal/utils"
-)
-
-type buildType int
-
-const (
-	buildTypeSystem buildType = iota
-	buildTypeSystemActivation
-	buildTypeVM
-	buildTypeVMWithBootloader
 )
 
 func ApplyCommand(cfg *config.Config) *cobra.Command {
@@ -137,6 +130,7 @@ Check the Nix manual page for more details on what options are available.
 func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := config.FromContext(cmd.Context())
+	s := system.NewLocalSystem()
 
 	buildType := buildTypeSystemActivation
 	if opts.BuildVM {
@@ -215,7 +209,55 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		log.Warn("falling back to `nix` command for building")
 		useNom = false
 	}
-	_ = useNom
+
+	// Dry activation requires a real build, so --dry-run shouldn't be set
+	// if --activate or --boot is set
+	dryBuild := opts.Dry && buildType == buildTypeSystem
+
+	buildOptions := &buildOptions{
+		NixOpts:        &opts.NixOptions,
+		ResultLocation: opts.OutputPath,
+		DryBuild:       dryBuild,
+		UseNom:         useNom,
+		GenerationTag:  opts.GenerationTag,
+	}
+
+	var resultLocation string
+	if buildOpts.Flake == "true" {
+		buildOutput, err := buildFlake(s, flakeRef, buildType, buildOptions)
+		if err != nil {
+			log.Errorf("failed to build configuration: %v", err)
+			return err
+		}
+		resultLocation = buildOutput
+	} else {
+		buildOutput, err := buildLegacy(s, buildType, buildOptions)
+		if err != nil {
+			log.Errorf("failed to build configuration: %v", err)
+			return err
+		}
+		resultLocation = buildOutput
+	}
+
+	if buildType.IsVM() && !dryBuild {
+		matches, err := filepath.Glob(fmt.Sprintf("%v/bin/run-*-vm", resultLocation))
+		if err != nil || len(matches) == 0 {
+			msg := fmt.Sprintf("Failed to find VM binary; look in %v for the script to run the VM.", resultLocation)
+			log.Errorf(msg)
+			return fmt.Errorf("%v", msg)
+		}
+		log.Printf("Done. The virtual machine can be started by running `%v`.\n", matches[0])
+		return nil
+	}
+
+	log.Infof("built %s configuration", resultLocation)
+
+	if buildType == buildTypeSystem {
+		if opts.Verbose {
+			log.Infof("this is a dry build, no activation will be performed")
+		}
+		return nil
+	}
 
 	return nil
 }

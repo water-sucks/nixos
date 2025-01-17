@@ -1,6 +1,9 @@
 package system
 
-import "os"
+import (
+	"io"
+	"os"
+)
 
 type CommandRunner interface {
 	Run(cmd *Command) (int, error)
@@ -9,9 +12,9 @@ type CommandRunner interface {
 type Command struct {
 	Name   string
 	Args   []string
-	Stdin  *os.File
-	Stdout *os.File
-	Stderr *os.File
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
 	Env    map[string]string
 }
 
