@@ -11,6 +11,7 @@ import (
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/config"
+	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/utils"
 )
@@ -159,7 +160,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		log.Step("Looking for configuration...")
 	}
 
-	var flakeRef *utils.FlakeRef
+	var flakeRef *configuration.FlakeRef
 	var configDirname string
 
 	if buildOpts.Flake == "true" {
@@ -168,9 +169,9 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		}
 
 		if opts.FlakeRef != "" {
-			flakeRef = utils.FlakeRefFromString(opts.FlakeRef)
+			flakeRef = configuration.FlakeRefFromString(opts.FlakeRef)
 		} else {
-			f, err := utils.FlakeRefFromEnv(cfg.ConfigLocation)
+			f, err := configuration.FlakeRefFromEnv(cfg.ConfigLocation)
 			if err != nil {
 				log.Errorf("failed to find flake configuration: %v", err)
 				return err
@@ -187,7 +188,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 			log.Infof("found flake configuration: %s#%s", flakeRef.URI, flakeRef.System)
 		}
 	} else {
-		c, err := utils.FindLegacyConfiguration(log, opts.Verbose)
+		c, err := configuration.FindLegacyConfiguration(log, opts.Verbose)
 		if err != nil {
 			log.Errorf("failed to find configuration: %v", err)
 			return err

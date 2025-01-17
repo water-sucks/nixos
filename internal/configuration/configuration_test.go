@@ -1,55 +1,55 @@
-package utils_test
+package configuration_test
 
 import (
 	"reflect"
 	"testing"
 
-	"github.com/water-sucks/nixos/internal/utils"
+	"github.com/water-sucks/nixos/internal/configuration"
 )
 
 func TestFlakeRefFromString(t *testing.T) {
 	tests := []struct {
 		input    string
-		expected *utils.FlakeRef
+		expected *configuration.FlakeRef
 	}{
 		{
 			input: "github:owner/repo#linux",
-			expected: &utils.FlakeRef{
+			expected: &configuration.FlakeRef{
 				URI:    "github:owner/repo",
 				System: "linux",
 			},
 		},
 		{
 			input: "github:owner/repo",
-			expected: &utils.FlakeRef{
+			expected: &configuration.FlakeRef{
 				URI:    "github:owner/repo",
 				System: "",
 			},
 		},
 		{
 			input: "github:owner/repo#",
-			expected: &utils.FlakeRef{
+			expected: &configuration.FlakeRef{
 				URI:    "github:owner/repo",
 				System: "",
 			},
 		},
 		{
 			input: "#linux",
-			expected: &utils.FlakeRef{
+			expected: &configuration.FlakeRef{
 				URI:    "",
 				System: "linux",
 			},
 		},
 		{
 			input: "",
-			expected: &utils.FlakeRef{
+			expected: &configuration.FlakeRef{
 				URI:    "",
 				System: "",
 			},
 		},
 		{
 			input: "github:owner/repo#linux#extra",
-			expected: &utils.FlakeRef{
+			expected: &configuration.FlakeRef{
 				URI:    "github:owner/repo",
 				System: "linux#extra",
 			},
@@ -58,7 +58,7 @@ func TestFlakeRefFromString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := utils.FlakeRefFromString(tt.input)
+			result := configuration.FlakeRefFromString(tt.input)
 
 			if !reflect.DeepEqual(result, tt.expected) {
 				t.Errorf("FlakeRefFromString(%q) = %+v, want %+v", tt.input, result, tt.expected)
