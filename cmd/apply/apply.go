@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
-	nixOpts "github.com/water-sucks/nixos/internal/cmd/nixopts"
+	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/config"
@@ -84,32 +84,32 @@ func ApplyCommand(cfg *config.Config) *cobra.Command {
 	cmd.Flags().BoolVar(&opts.BuildVMWithBootloader, "vm-with-bootloader", false, "Build a NixOS VM script with a bootloader")
 	cmd.Flags().BoolVarP(&opts.AlwaysConfirm, "yes", "y", false, "Automatically confirm activation")
 
-	nixOpts.AddQuietNixOption(&cmd, &opts.NixOptions.Quiet)
-	nixOpts.AddPrintBuildLogsNixOption(&cmd, &opts.NixOptions.PrintBuildLogs)
-	nixOpts.AddNoBuildOutputNixOption(&cmd, &opts.NixOptions.NoBuildOutput)
-	nixOpts.AddShowTraceNixOption(&cmd, &opts.NixOptions.ShowTrace)
-	nixOpts.AddKeepGoingNixOption(&cmd, &opts.NixOptions.KeepGoing)
-	nixOpts.AddKeepFailedNixOption(&cmd, &opts.NixOptions.KeepFailed)
-	nixOpts.AddFallbackNixOption(&cmd, &opts.NixOptions.Fallback)
-	nixOpts.AddRefreshNixOption(&cmd, &opts.NixOptions.Refresh)
-	nixOpts.AddRepairNixOption(&cmd, &opts.NixOptions.Repair)
-	nixOpts.AddImpureNixOption(&cmd, &opts.NixOptions.Impure)
-	nixOpts.AddOfflineNixOption(&cmd, &opts.NixOptions.Offline)
-	nixOpts.AddNoNetNixOption(&cmd, &opts.NixOptions.NoNet)
-	nixOpts.AddMaxJobsNixOption(&cmd, &opts.NixOptions.MaxJobs)
-	nixOpts.AddCoresNixOption(&cmd, &opts.NixOptions.Cores)
-	nixOpts.AddBuildersNixOption(&cmd, &opts.NixOptions.Builders)
-	nixOpts.AddLogFormatNixOption(&cmd, &opts.NixOptions.LogFormat)
-	nixOpts.AddOptionNixOption(&cmd, &opts.NixOptions.Options)
+	nixopts.AddQuietNixOption(&cmd, &opts.NixOptions.Quiet)
+	nixopts.AddPrintBuildLogsNixOption(&cmd, &opts.NixOptions.PrintBuildLogs)
+	nixopts.AddNoBuildOutputNixOption(&cmd, &opts.NixOptions.NoBuildOutput)
+	nixopts.AddShowTraceNixOption(&cmd, &opts.NixOptions.ShowTrace)
+	nixopts.AddKeepGoingNixOption(&cmd, &opts.NixOptions.KeepGoing)
+	nixopts.AddKeepFailedNixOption(&cmd, &opts.NixOptions.KeepFailed)
+	nixopts.AddFallbackNixOption(&cmd, &opts.NixOptions.Fallback)
+	nixopts.AddRefreshNixOption(&cmd, &opts.NixOptions.Refresh)
+	nixopts.AddRepairNixOption(&cmd, &opts.NixOptions.Repair)
+	nixopts.AddImpureNixOption(&cmd, &opts.NixOptions.Impure)
+	nixopts.AddOfflineNixOption(&cmd, &opts.NixOptions.Offline)
+	nixopts.AddNoNetNixOption(&cmd, &opts.NixOptions.NoNet)
+	nixopts.AddMaxJobsNixOption(&cmd, &opts.NixOptions.MaxJobs)
+	nixopts.AddCoresNixOption(&cmd, &opts.NixOptions.Cores)
+	nixopts.AddBuildersNixOption(&cmd, &opts.NixOptions.Builders)
+	nixopts.AddLogFormatNixOption(&cmd, &opts.NixOptions.LogFormat)
+	nixopts.AddOptionNixOption(&cmd, &opts.NixOptions.Options)
 
 	if buildOpts.Flake == "true" {
-		nixOpts.AddRecreateLockFileNixOption(&cmd, &opts.NixOptions.RecreateLockFile)
-		nixOpts.AddNoUpdateLockFileNixOption(&cmd, &opts.NixOptions.NoUpdateLockFile)
-		nixOpts.AddNoWriteLockFileNixOption(&cmd, &opts.NixOptions.NoWriteLockFile)
-		nixOpts.AddNoUseRegistriesNixOption(&cmd, &opts.NixOptions.NoUseRegistries)
-		nixOpts.AddCommitLockFileNixOption(&cmd, &opts.NixOptions.CommitLockFile)
-		nixOpts.AddUpdateInputNixOption(&cmd, &opts.NixOptions.UpdateInputs)
-		nixOpts.AddOverrideInputNixOption(&cmd, &opts.NixOptions.OverrideInputs)
+		nixopts.AddRecreateLockFileNixOption(&cmd, &opts.NixOptions.RecreateLockFile)
+		nixopts.AddNoUpdateLockFileNixOption(&cmd, &opts.NixOptions.NoUpdateLockFile)
+		nixopts.AddNoWriteLockFileNixOption(&cmd, &opts.NixOptions.NoWriteLockFile)
+		nixopts.AddNoUseRegistriesNixOption(&cmd, &opts.NixOptions.NoUseRegistries)
+		nixopts.AddCommitLockFileNixOption(&cmd, &opts.NixOptions.CommitLockFile)
+		nixopts.AddUpdateInputNixOption(&cmd, &opts.NixOptions.UpdateInputs)
+		nixopts.AddOverrideInputNixOption(&cmd, &opts.NixOptions.OverrideInputs)
 	}
 
 	cmd.MarkFlagsMutuallyExclusive("dry", "output")

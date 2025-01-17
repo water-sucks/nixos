@@ -1,4 +1,4 @@
-package cmd
+package nixopts
 
 import (
 	"github.com/spf13/cobra"
