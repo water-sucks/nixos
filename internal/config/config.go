@@ -14,13 +14,13 @@ import (
 
 type Config struct {
 	Aliases        map[string][]string `koanf:"aliases" noset:"true" description:"Shortcuts for long commands"`
-	Apply          *ApplyConfig        `koanf:"apply" description:"Settings for 'apply' command"`
+	Apply          ApplyConfig         `koanf:"apply" description:"Settings for 'apply' command"`
 	UseColor       bool                `koanf:"color" description:"Enable colored output"`
 	ConfigLocation string              `koanf:"config_location" description:"Where to look for configuration by default"`
-	Enter          *EnterConfig        `koanf:"enter" description:"Settings for 'enter' command"`
-	Init           *InitConfig         `koanf:"init" description:"Settings for 'init' command"`
+	Enter          EnterConfig         `koanf:"enter" description:"Settings for 'enter' command"`
+	Init           InitConfig          `koanf:"init" description:"Settings for 'init' command"`
 	NoConfirm      bool                `koanf:"no_confirm" description:"Disable interactive confirmation input"`
-	Option         *OptionConfig       `koanf:"option" description:"Settings for 'option' command"`
+	Option         OptionConfig        `koanf:"option" description:"Settings for 'option' command"`
 	RootCommand    string              `koanf:"root_command" description:"Command to use to promote process to root"`
 	UseNvd         bool                `koanf:"use_nvd" description:"Use 'nvd' instead of 'nix store diff-closures'"`
 }
@@ -52,11 +52,11 @@ func NewConfig() *Config {
 	return &Config{
 		UseColor:       true,
 		ConfigLocation: "/etc/nixos",
-		Enter: &EnterConfig{
+		Enter: EnterConfig{
 			MountResolvConf: true,
 		},
 		RootCommand: "sudo",
-		Option: &OptionConfig{
+		Option: OptionConfig{
 			MaxRank:  3.00,
 			Prettify: true,
 		},

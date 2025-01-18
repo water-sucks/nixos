@@ -17,7 +17,7 @@ func TestValidateConfig(t *testing.T) {
 				"validalias":           {"value4"},
 				"validalias-noentries": {},
 			},
-			Option: &config.OptionConfig{
+			Option: config.OptionConfig{
 				MaxRank: 0.5,
 			},
 		}
@@ -41,7 +41,7 @@ func TestValidateConfig(t *testing.T) {
 			Aliases: map[string][]string{
 				"validalias": {"value1", "value2"},
 			},
-			Option: &config.OptionConfig{
+			Option: config.OptionConfig{
 				MaxRank: 2,
 			},
 		}
@@ -61,7 +61,7 @@ func almostEqual(a float64, b float64) bool {
 func TestSetConfigValue(t *testing.T) {
 	t.Run("Set float field successfully", func(t *testing.T) {
 		cfg := &config.Config{
-			Option: &config.OptionConfig{
+			Option: config.OptionConfig{
 				MaxRank: 1.00,
 			},
 		}
@@ -99,7 +99,7 @@ func TestSetConfigValue(t *testing.T) {
 
 	t.Run("Set boolean field successfully", func(t *testing.T) {
 		cfg := &config.Config{
-			Apply: &config.ApplyConfig{
+			Apply: config.ApplyConfig{
 				ImplyImpureWithTag: true,
 			},
 		}
@@ -137,7 +137,7 @@ func TestSetConfigValue(t *testing.T) {
 
 	t.Run("Invalid boolean value", func(t *testing.T) {
 		cfg := &config.Config{
-			Apply: &config.ApplyConfig{
+			Apply: config.ApplyConfig{
 				ImplyImpureWithTag: true,
 			},
 		}
@@ -150,7 +150,7 @@ func TestSetConfigValue(t *testing.T) {
 
 	t.Run("Invalid float value", func(t *testing.T) {
 		cfg := &config.Config{
-			Option: &config.OptionConfig{
+			Option: config.OptionConfig{
 				MaxRank: 1.00,
 			},
 		}
