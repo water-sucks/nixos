@@ -151,7 +151,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	_ = buildType
 
 	if os.Geteuid() != 0 {
-		err := utils.ExecAsRoot(log, cfg.RootCommand)
+		err := utils.ExecAsRoot(cfg.RootCommand)
 		if err != nil {
 			log.Errorf("failed to re-exec command as root: %v", err)
 			return err
@@ -280,10 +280,23 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	})
 	if err != nil {
 		log.Errorf("failed to run diff command: %v", err)
-		return err
 	}
 
-	// TODO: confirmation
+	if !opts.AlwaysConfirm {
+		log.Printf("\n")
+		confirm, err := cmdUtils.ConfirmationInput("Activate this configuration?")
+		if err != nil {
+			log.Errorf("failed to get confirmation: %v", err)
+			return err
+		}
+		if !confirm {
+			msg := "confirmation was not given, skipping activation"
+			log.Warn(msg)
+			return fmt.Errorf("%v", msg)
+		}
+	}
+
+	log.Step("Activating...")
 
 	return nil
 }

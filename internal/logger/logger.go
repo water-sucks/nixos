@@ -5,8 +5,7 @@ import (
 	"os"
 
 	"github.com/fatih/color"
-
-	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/utils"
 )
 
 type Logger struct {
@@ -65,7 +64,7 @@ func (l *Logger) Errorf(format string, v ...interface{}) {
 }
 
 func (l *Logger) CmdArray(argv []string) {
-	msg := color.New(color.FgBlue).Sprintf("$ %v", cmdUtils.EscapeAndJoinArgs(argv))
+	msg := color.New(color.FgBlue).Sprintf("$ %v", utils.EscapeAndJoinArgs(argv))
 	l.print.Printf("%v\n", msg)
 }
 

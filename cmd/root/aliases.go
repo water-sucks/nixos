@@ -6,11 +6,11 @@ import (
 	"os/exec"
 
 	"github.com/spf13/cobra"
-	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/utils"
 )
 
 func addAliasCmd(parent *cobra.Command, alias string, args []string) error {
-	displayedArgs := cmdUtils.EscapeAndJoinArgs(args)
+	displayedArgs := utils.EscapeAndJoinArgs(args)
 	description := fmt.Sprintf("Alias for `%v`.", displayedArgs)
 
 	existingCommands := parent.Commands()
