@@ -37,3 +37,8 @@ func (l *LocalSystem) Run(cmd *Command) (int, error) {
 
 	return 0, err
 }
+
+func (l *LocalSystem) IsNixOS() bool {
+	_, err := os.Stat("/etc/NIXOS")
+	return err == nil
+}

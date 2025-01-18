@@ -134,6 +134,12 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	cfg := config.FromContext(cmd.Context())
 	s := system.NewLocalSystem()
 
+	if !s.IsNixOS() {
+		msg := "this command only is only supported on NixOS systems"
+		log.Errorf(msg)
+		return fmt.Errorf("%v", msg)
+	}
+
 	buildType := buildTypeSystemActivation
 	if opts.BuildVM {
 		buildType = buildTypeVM
