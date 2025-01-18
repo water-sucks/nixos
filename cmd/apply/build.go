@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	buildOpts "github.com/water-sucks/nixos/internal/build"
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	"github.com/water-sucks/nixos/internal/configuration"
@@ -27,7 +28,11 @@ const (
 func (b buildType) BuildAttr() string {
 	switch b {
 	case buildTypeSystem, buildTypeSystemActivation:
-		return "toplevel"
+		if buildOpts.Flake == "true" {
+			return "toplevel"
+		} else {
+			return "system"
+		}
 	case buildTypeVM:
 		return "vm"
 	case buildTypeVMWithBootloader:
