@@ -8,6 +8,7 @@ import (
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	"github.com/water-sucks/nixos/internal/configuration"
+	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/system"
 )
 
@@ -47,9 +48,10 @@ type buildOptions struct {
 	DryBuild       bool
 	UseNom         bool
 	GenerationTag  string
+	Verbose        bool
 }
 
-func buildFlake(s system.CommandRunner, flakeRef *configuration.FlakeRef, buildType buildType, opts *buildOptions) (string, error) {
+func buildFlake(s system.CommandRunner, log *logger.Logger, flakeRef *configuration.FlakeRef, buildType buildType, opts *buildOptions) (string, error) {
 	if flakeRef == nil {
 		return "", fmt.Errorf("no flake ref provided")
 	}
@@ -61,7 +63,7 @@ func buildFlake(s system.CommandRunner, flakeRef *configuration.FlakeRef, buildT
 
 	systemAttribute := fmt.Sprintf("%s#nixosConfigurations.%s.config.system.build.%s", flakeRef.URI, flakeRef.System, buildType.BuildAttr())
 
-	argv := []string{"build", systemAttribute, "--print-out-paths"}
+	argv := []string{nixCommand, "build", systemAttribute, "--print-out-paths"}
 
 	if opts.ResultLocation != "" {
 		argv = append(argv, "--out-link", opts.ResultLocation)
@@ -77,8 +79,12 @@ func buildFlake(s system.CommandRunner, flakeRef *configuration.FlakeRef, buildT
 		argv = append(argv, nixopts.NixOptionsToArgsList(opts.NixOpts)...)
 	}
 
+	if opts.Verbose {
+		log.CmdArray(argv)
+	}
+
 	var stdout bytes.Buffer
-	cmd := system.NewCommand(nixCommand, argv...)
+	cmd := system.NewCommand(nixCommand, argv[1:]...)
 	cmd.Stdout = &stdout
 
 	if opts.GenerationTag != "" {
@@ -90,13 +96,13 @@ func buildFlake(s system.CommandRunner, flakeRef *configuration.FlakeRef, buildT
 	return strings.Trim(stdout.String(), "\n "), err
 }
 
-func buildLegacy(s system.CommandRunner, buildType buildType, opts *buildOptions) (string, error) {
+func buildLegacy(s system.CommandRunner, log *logger.Logger, buildType buildType, opts *buildOptions) (string, error) {
 	nixCommand := "nix-build"
 	if opts.UseNom {
 		nixCommand = "nom-build"
 	}
 
-	argv := []string{"<nixpkgs/nixos>", "-A", buildType.BuildAttr()}
+	argv := []string{nixCommand, "<nixpkgs/nixos>", "-A", buildType.BuildAttr()}
 
 	// Mimic `nixos-rebuild` behavior of using -k option
 	// for all commands except for switch and boot
@@ -108,8 +114,12 @@ func buildLegacy(s system.CommandRunner, buildType buildType, opts *buildOptions
 		argv = append(argv, nixopts.NixOptionsToArgsList(opts.NixOpts)...)
 	}
 
+	if opts.Verbose {
+		log.CmdArray(argv)
+	}
+
 	var stdout bytes.Buffer
-	cmd := system.NewCommand(nixCommand, argv...)
+	cmd := system.NewCommand(nixCommand, argv[1:]...)
 	cmd.Stdout = &stdout
 
 	if opts.GenerationTag != "" {

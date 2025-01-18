@@ -13,6 +13,8 @@ import (
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/configuration"
+	"github.com/water-sucks/nixos/internal/constants"
+	"github.com/water-sucks/nixos/internal/generation"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/system"
 	"github.com/water-sucks/nixos/internal/utils"
@@ -199,6 +201,12 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		_ = os.Chdir(configDirname)
 	}
 
+	if buildType.IsVM() {
+		log.Step("Building VM...")
+	} else {
+		log.Step("Building configuration...")
+	}
+
 	useNom := cfg.Apply.UseNom || opts.UseNom
 	nomPath, _ := exec.LookPath("nom")
 	nomFound := nomPath != ""
@@ -220,18 +228,19 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		DryBuild:       dryBuild,
 		UseNom:         useNom,
 		GenerationTag:  opts.GenerationTag,
+		Verbose:        opts.Verbose,
 	}
 
 	var resultLocation string
 	if buildOpts.Flake == "true" {
-		buildOutput, err := buildFlake(s, flakeRef, buildType, buildOptions)
+		buildOutput, err := buildFlake(s, log, flakeRef, buildType, buildOptions)
 		if err != nil {
 			log.Errorf("failed to build configuration: %v", err)
 			return err
 		}
 		resultLocation = buildOutput
 	} else {
-		buildOutput, err := buildLegacy(s, buildType, buildOptions)
+		buildOutput, err := buildLegacy(s, log, buildType, buildOptions)
 		if err != nil {
 			log.Errorf("failed to build configuration: %v", err)
 			return err
@@ -250,14 +259,25 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		return nil
 	}
 
-	log.Infof("built %s configuration", resultLocation)
-
 	if buildType == buildTypeSystem {
 		if opts.Verbose {
 			log.Infof("this is a dry build, no activation will be performed")
 		}
 		return nil
 	}
+
+	log.Step("Comparing changes...")
+
+	err := generation.RunDiffCommand(log, s, constants.CurrentSystem, resultLocation, &generation.DiffCommandOptions{
+		UseNvd:  cfg.UseNvd,
+		Verbose: opts.Verbose,
+	})
+	if err != nil {
+		log.Errorf("failed to run diff command: %v", err)
+		return err
+	}
+
+	// TODO: confirmation
 
 	return nil
 }
