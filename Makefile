@@ -13,12 +13,15 @@ LDFLAGS += -X $(BUILD_VAR_PKG).GitRevision=$(COMMIT_HASH)
 LDFLAGS += -X $(BUILD_VAR_PKG).Flake=$(FLAKE)
 LDFLAGS += -X $(BUILD_VAR_PKG).NixpkgsVersion=$(NIXPKGS_REVISION)
 
+# Disable CGO by default. This should be a static executable.
+CGO_ENABLED ?= 0
+
 all: build
 
 .PHONY: build
 build:
 	@echo "building $(APP_NAME)..."
-	go build -o ./$(APP_NAME) -ldflags="$(LDFLAGS)" .
+	CGO_ENABLED=$(CGO_ENABLED) go build -o ./$(APP_NAME) -ldflags="$(LDFLAGS)" .
 
 .PHONY: clean
 clean:
@@ -28,4 +31,4 @@ clean:
 .PHONY: test
 test:
 	@echo "running tests..."
-	go test ./...
+	CGO_ENABLED=$(CGO_ENABLED) go test ./...
