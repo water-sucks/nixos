@@ -73,7 +73,7 @@ func ApplyCommand(cfg *config.Config) *cobra.Command {
 	cmd.Flags().StringVarP(&opts.ProfileName, "profile-name", "p", "", "Store generations using the profile `name`")
 	cmd.Flags().StringVarP(&opts.Specialisation, "specialisation", "s", "", "Activate the specialisation with `name`")
 	cmd.Flags().StringVarP(&opts.GenerationTag, "tag", "t", "", "Tag this generation with a `description`")
-	cmd.Flags().BoolVar(&opts.UseNom, "use-nom", false, "Tag this generation with a `description`")
+	cmd.Flags().BoolVar(&opts.UseNom, "use-nom", false, "Use 'nix-output-monitor' to build configuration")
 	cmd.Flags().BoolVarP(&opts.Verbose, "verbose", "v", opts.Verbose, "Show verbose logging")
 	cmd.Flags().BoolVar(&opts.BuildVM, "vm", false, "Build a NixOS VM script")
 	cmd.Flags().BoolVar(&opts.BuildVMWithBootloader, "vm-with-bootloader", false, "Build a NixOS VM script with a bootloader")
@@ -105,6 +105,11 @@ func ApplyCommand(cfg *config.Config) *cobra.Command {
 		nixopts.AddCommitLockFileNixOption(&cmd, &opts.NixOptions.CommitLockFile)
 		nixopts.AddUpdateInputNixOption(&cmd, &opts.NixOptions.UpdateInputs)
 		nixopts.AddOverrideInputNixOption(&cmd, &opts.NixOptions.OverrideInputs)
+	}
+
+	if buildOpts.Flake == "false" {
+		cmd.Flags().BoolVar(&opts.UpgradeChannels, "upgrade", false, "Upgrade the root user`s 'nixos' channel")
+		cmd.Flags().BoolVar(&opts.UpgradeAllChannels, "upgrade-all", false, "Upgrade all the root user's channels")
 	}
 
 	cmd.MarkFlagsMutuallyExclusive("dry", "output")
@@ -205,6 +210,13 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		// should be a rare occurrence, but valid, so ignore any
 		// errors in that case.
 		_ = os.Chdir(configDirname)
+	}
+
+	if buildOpts.Flake != "true" && (opts.UpgradeChannels || opts.UpgradeAllChannels) {
+		if err := upgradeChannels(s, log, opts.Verbose, opts.UpgradeAllChannels); err != nil {
+			log.Warnf("failed to update channels: %v", err)
+			log.Warnf("continuing with existing channels", err)
+		}
 	}
 
 	if buildType.IsVM() {

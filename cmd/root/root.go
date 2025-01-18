@@ -122,6 +122,9 @@ func mainCommand() (*cobra.Command, error) {
 	cmd.SetHelpCommand(&cobra.Command{Hidden: true})
 	cmd.SetUsageTemplate(helpTemplate)
 
+	boldRed := color.New(color.FgRed).Add(color.Bold)
+	cmd.SetErrPrefix(boldRed.Sprint("error:"))
+
 	cmd.Flags().BoolP("help", "h", false, "Show this help menu")
 	cmd.Flags().BoolP("version", "v", false, "Display version information")
 

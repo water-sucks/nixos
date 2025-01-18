@@ -18,6 +18,8 @@ type ApplyOpts struct {
 	ProfileName           string
 	Specialisation        string
 	GenerationTag         string
+	UpgradeChannels       bool
+	UpgradeAllChannels    bool
 	UseNom                bool
 	Verbose               bool
 	BuildVM               bool

@@ -3,11 +3,14 @@ package apply
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	"github.com/water-sucks/nixos/internal/configuration"
+	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/system"
 )
@@ -129,4 +132,37 @@ func buildLegacy(s system.CommandRunner, log *logger.Logger, buildType buildType
 	_, err := s.Run(cmd)
 
 	return strings.Trim(stdout.String(), "\n "), err
+}
+
+const channelDirectory = constants.NixProfileDirectory + "/per-user/root/channels"
+
+func upgradeChannels(s system.CommandRunner, log *logger.Logger, verbose bool, upgradeAll bool) error {
+	argv := []string{"nix-channel", "--update"}
+
+	if !upgradeAll {
+		// Always upgrade the `nixos` channel, as well as any channels that
+		// have the ".update-on-nixos-rebuild" marker file in them.
+		argv = append(argv, "nixos")
+
+		entries, err := os.ReadDir(channelDirectory)
+		if err != nil {
+			return err
+		}
+
+		for _, entry := range entries {
+			if entry.IsDir() {
+				if _, err := os.Stat(filepath.Join(channelDirectory, entry.Name(), ".update-on-nixos-rebuild")); err == nil {
+					argv = append(argv, entry.Name())
+				}
+			}
+		}
+	}
+
+	if verbose {
+		log.CmdArray(argv)
+	}
+
+	cmd := system.NewCommand(argv[0], argv[1:]...)
+	_, err := s.Run(cmd)
+	return err
 }

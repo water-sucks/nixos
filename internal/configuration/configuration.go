@@ -1,7 +1,6 @@
 package configuration
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -90,7 +89,7 @@ func FindLegacyConfiguration(log *logger.Logger, verbose bool) (string, error) {
 
 	configFileStat, err := os.Stat(configuration)
 	if err != nil {
-		return "", errors.Unwrap(err)
+		return "", err
 	}
 
 	if configFileStat.IsDir() {
@@ -98,7 +97,7 @@ func FindLegacyConfiguration(log *logger.Logger, verbose bool) (string, error) {
 
 		info, err := os.Stat(defaultNix)
 		if err != nil {
-			return "", errors.Unwrap(err)
+			return "", err
 		}
 
 		if info.IsDir() {
