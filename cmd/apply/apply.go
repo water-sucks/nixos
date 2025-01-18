@@ -213,7 +213,12 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	}
 
 	if buildOpts.Flake != "true" && (opts.UpgradeChannels || opts.UpgradeAllChannels) {
-		if err := upgradeChannels(s, log, opts.Verbose, opts.UpgradeAllChannels); err != nil {
+		log.Step("Upgrading channels...")
+
+		if err := upgradeChannels(s, log, &upgradeChannelsOptions{
+			UpgradeAll: opts.UpgradeAllChannels,
+			Verbose:    opts.Verbose,
+		}); err != nil {
 			log.Warnf("failed to update channels: %v", err)
 			log.Warnf("continuing with existing channels", err)
 		}

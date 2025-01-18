@@ -141,10 +141,15 @@ func buildLegacy(s system.CommandRunner, log *logger.Logger, buildType buildType
 
 const channelDirectory = constants.NixProfileDirectory + "/per-user/root/channels"
 
-func upgradeChannels(s system.CommandRunner, log *logger.Logger, verbose bool, upgradeAll bool) error {
+type upgradeChannelsOptions struct {
+	Verbose    bool
+	UpgradeAll bool
+}
+
+func upgradeChannels(s system.CommandRunner, log *logger.Logger, opts *upgradeChannelsOptions) error {
 	argv := []string{"nix-channel", "--update"}
 
-	if !upgradeAll {
+	if !opts.UpgradeAll {
 		// Always upgrade the `nixos` channel, as well as any channels that
 		// have the ".update-on-nixos-rebuild" marker file in them.
 		argv = append(argv, "nixos")
@@ -163,7 +168,7 @@ func upgradeChannels(s system.CommandRunner, log *logger.Logger, verbose bool, u
 		}
 	}
 
-	if verbose {
+	if opts.Verbose {
 		log.CmdArray(argv)
 	}
 
