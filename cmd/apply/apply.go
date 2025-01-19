@@ -208,7 +208,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	}
 
 	configIsDirectory := true
-	origianlCwd, err := os.Getwd()
+	originalCwd, err := os.Getwd()
 	if err != nil {
 		log.Errorf("failed to get current directory: %v", err)
 		return err
@@ -285,8 +285,8 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	dryBuild := opts.Dry && buildType == buildTypeSystem
 
 	outputPath := opts.OutputPath
-	if !filepath.IsAbs(outputPath) {
-		outputPath = filepath.Join(origianlCwd, outputPath)
+	if outputPath != "" && !filepath.IsAbs(outputPath) {
+		outputPath = filepath.Join(originalCwd, outputPath)
 	}
 
 	buildOptions := &buildOptions{
