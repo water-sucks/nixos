@@ -3,6 +3,7 @@ package nixopts
 import (
 	"fmt"
 	"reflect"
+	"sort"
 )
 
 var availableOptions = map[string]string{
@@ -79,11 +80,15 @@ func NixOptionsToArgsList(options interface{}) []string {
 				}
 			}
 		case reflect.Map:
-			if field.Len() > 0 {
-				for _, key := range field.MapKeys() {
-					value := field.MapIndex(key)
-					args = append(args, optionArg, key.String(), value.String())
-				}
+			keys := field.MapKeys()
+
+			sort.Slice(keys, func(i, j int) bool {
+				return keys[i].String() < keys[j].String()
+			})
+
+			for _, key := range keys {
+				value := field.MapIndex(key)
+				args = append(args, optionArg, key.String(), value.String())
 			}
 		default:
 			panic("unsupported field type " + field.Kind().String() + " for field '" + fieldName + "'")
