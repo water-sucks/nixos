@@ -195,6 +195,8 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		if opts.Verbose {
 			log.Infof("found flake configuration: %s#%s", flakeRef.URI, flakeRef.System)
 		}
+
+		configDirname = flakeRef.URI
 	} else {
 		c, err := configuration.FindLegacyConfiguration(log, opts.Verbose)
 		if err != nil {
@@ -204,13 +206,17 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		configDirname = c
 	}
 
+	configIsDirectory := true
 	if configDirname != "" {
 		// Change to the configuration directory, if it exists:
 		// this will likely fail for remote configurations or
 		// configurations accessed through the registry, which
 		// should be a rare occurrence, but valid, so ignore any
 		// errors in that case.
-		_ = os.Chdir(configDirname)
+		err := os.Chdir(configDirname)
+		if err != nil {
+			configIsDirectory = false
+		}
 	}
 
 	if buildOpts.Flake != "true" && (opts.UpgradeChannels || opts.UpgradeAllChannels) {
@@ -242,6 +248,26 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		useNom = false
 	}
 
+	generationTag := opts.GenerationTag
+	if generationTag == "" && cfg.Apply.UseGitCommitMsg {
+		if !configIsDirectory {
+			log.Warn("configuration is not a directory")
+		} else {
+			commitMsg, err := getLatestGitCommitMessage(configDirname)
+			if err == dirtyGitTreeError {
+				log.Warnf("failed to get latest git commit message: %v", err)
+			} else if err != nil {
+				log.Warn("git tree is dirty")
+			} else {
+				generationTag = commitMsg
+			}
+		}
+
+		if generationTag == "" {
+			log.Warn("ignoring apply.use_git_commit_msg setting")
+		}
+	}
+
 	// Dry activation requires a real build, so --dry-run shouldn't be set
 	// if --activate or --boot is set
 	dryBuild := opts.Dry && buildType == buildTypeSystem
@@ -251,7 +277,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		ResultLocation: opts.OutputPath,
 		DryBuild:       dryBuild,
 		UseNom:         useNom,
-		GenerationTag:  opts.GenerationTag,
+		GenerationTag:  generationTag,
 		Verbose:        opts.Verbose,
 	}
 

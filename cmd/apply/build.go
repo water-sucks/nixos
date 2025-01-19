@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-git/go-git/v5"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
@@ -175,4 +176,39 @@ func upgradeChannels(s system.CommandRunner, log *logger.Logger, opts *upgradeCh
 	cmd := system.NewCommand(argv[0], argv[1:]...)
 	_, err := s.Run(cmd)
 	return err
+}
+
+var dirtyGitTreeError = fmt.Errorf("git tree is dirty")
+
+func getLatestGitCommitMessage(pathToRepo string) (string, error) {
+	repo, err := git.PlainOpen(pathToRepo)
+	if err != nil {
+		return "", err
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		return "", err
+	}
+
+	status, err := wt.Status()
+	if err != nil {
+		return "", err
+	}
+
+	if !status.IsClean() {
+		return "", dirtyGitTreeError
+	}
+
+	head, err := repo.Head()
+	if err != nil {
+		return "", err
+	}
+
+	commit, err := repo.CommitObject(head.Hash())
+	if err != nil {
+		return "", err
+	}
+
+	return commit.Message, nil
 }

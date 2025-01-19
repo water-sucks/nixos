@@ -12,7 +12,7 @@ buildGoModule rec {
   version = "0.11.1-dev";
   src = nix-gitignore.gitignoreSource [] ./.;
 
-  vendorHash = "sha256-Q0+bUtlmh3fAicpdgejkc0hkZ9LToK4ALVWcioypyE0=";
+  vendorHash = "sha256-7rfgE4fK2ts+Oqcsqp0a11GutqiLCvZvP+yr/SfsKHs=";
 
   nativeBuildInputs = [installShellFiles];
 
