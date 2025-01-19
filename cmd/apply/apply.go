@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/water-sucks/nixos/internal/activation"
@@ -207,6 +208,11 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	}
 
 	configIsDirectory := true
+	origianlCwd, err := os.Getwd()
+	if err != nil {
+		log.Errorf("failed to get current directory: %v", err)
+		return err
+	}
 	if configDirname != "" {
 		// Change to the configuration directory, if it exists:
 		// this will likely fail for remote configurations or
@@ -263,8 +269,14 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 			}
 		}
 
+		generationTag = strings.TrimSpace(generationTag)
+
 		if generationTag == "" {
 			log.Warn("ignoring apply.use_git_commit_msg setting")
+		} else {
+			// Make sure --impure is added to the nix options if
+			// an implicit commit message is used.
+			opts.NixOptions.Impure = true
 		}
 	}
 
@@ -272,9 +284,14 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	// if --activate or --boot is set
 	dryBuild := opts.Dry && buildType == buildTypeSystem
 
+	outputPath := opts.OutputPath
+	if !filepath.IsAbs(outputPath) {
+		outputPath = filepath.Join(origianlCwd, outputPath)
+	}
+
 	buildOptions := &buildOptions{
 		NixOpts:        &opts.NixOptions,
-		ResultLocation: opts.OutputPath,
+		ResultLocation: outputPath,
 		DryBuild:       dryBuild,
 		UseNom:         useNom,
 		GenerationTag:  generationTag,
@@ -318,7 +335,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 
 	log.Step("Comparing changes...")
 
-	err := generation.RunDiffCommand(log, s, constants.CurrentSystem, resultLocation, &generation.DiffCommandOptions{
+	err = generation.RunDiffCommand(log, s, constants.CurrentSystem, resultLocation, &generation.DiffCommandOptions{
 		UseNvd:  cfg.UseNvd,
 		Verbose: opts.Verbose,
 	})
