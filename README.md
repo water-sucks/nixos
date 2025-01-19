@@ -163,7 +163,7 @@ Checklist of what needs to happen before this rewrite can be merged back into
 - ✅ Setup basic completions
 - ✅ Setup config
 - ✅ Setup logging
-- ❌ `apply`
+- ✅ `apply`
 - ❌ `generation`
   - ❌ `list`
   - ❌ `switch`

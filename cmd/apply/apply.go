@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"github.com/water-sucks/nixos/internal/activation"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
@@ -70,7 +71,7 @@ func ApplyCommand(cfg *config.Config) *cobra.Command {
 	cmd.Flags().BoolVar(&opts.NoActivate, "no-activate", false, "Do not activate the built configuration")
 	cmd.Flags().BoolVar(&opts.NoBoot, "no-boot", false, "Do not create boot entry for this generation")
 	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Symlink the output to `location`")
-	cmd.Flags().StringVarP(&opts.ProfileName, "profile-name", "p", "", "Store generations using the profile `name`")
+	cmd.Flags().StringVarP(&opts.ProfileName, "profile-name", "p", "system", "Store generations using the profile `name`")
 	cmd.Flags().StringVarP(&opts.Specialisation, "specialisation", "s", "", "Activate the specialisation with `name`")
 	cmd.Flags().StringVarP(&opts.GenerationTag, "tag", "t", "", "Tag this generation with a `description`")
 	cmd.Flags().BoolVar(&opts.UseNom, "use-nom", false, "Use 'nix-output-monitor' to build configuration")
@@ -313,7 +314,59 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		}
 	}
 
+	if !opts.Dry {
+		if opts.Verbose {
+			log.Step("Setting system profile...")
+		}
+
+		if err := activation.SetNixEnvProfile(s, log, opts.ProfileName, resultLocation, opts.Verbose); err != nil {
+			log.Errorf("failed to set system profile: %v", err)
+			return err
+		}
+	}
+
+	// In case switch-to-configuration fails, rollback the profile.
+	// This is to prevent accidental deletion of all working
+	// generations in case the switch-to-configuration script
+	// fails, since the active profile will not be rolled back
+	// automatically.
+	rollbackProfile := false
+	defer func() {
+		if !rollbackProfile {
+			return
+		}
+
+		log.Step("Rolling back system profile...")
+		if err := activation.RollbackNixEnvProfile(s, log, "system", opts.Verbose); err != nil {
+			log.Errorf("failed to rollback system profile: %v", err)
+			log.Info("make sure to rollback the system manually before deleting anything!")
+		}
+	}()
+
 	log.Step("Activating...")
+
+	var stcAction activation.SwitchToConfigurationAction
+	if opts.Dry && !opts.NoActivate {
+		stcAction = activation.SwitchToConfigurationActionDryActivate
+	} else if !opts.NoActivate && !opts.NoBoot {
+		stcAction = activation.SwitchToConfigurationActionSwitch
+	} else if opts.NoActivate && !opts.NoBoot {
+		stcAction = activation.SwitchToConfigurationActionBoot
+	} else if opts.NoActivate && opts.NoBoot {
+		stcAction = activation.SwitchToConfigurationActionTest
+	} else {
+		panic("unknown switch to configuration action to take, this is a bug")
+	}
+
+	err = activation.SwitchToConfiguration(s, log, resultLocation, stcAction, &activation.SwitchToConfigurationOptions{
+		InstallBootloader: opts.InstallBootloader,
+		Verbose:           opts.Verbose,
+	})
+	if err != nil {
+		rollbackProfile = true
+		log.Errorf("failed to switch to configuration: %v", err)
+		return err
+	}
 
 	return nil
 }
