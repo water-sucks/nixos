@@ -4,11 +4,13 @@ go 1.22.5
 
 require (
 	github.com/charmbracelet/bubbletea v1.1.0
+	github.com/djherbis/times v1.6.0
 	github.com/fatih/color v1.18.0
 	github.com/go-git/go-git/v5 v5.13.1
 	github.com/knadh/koanf/parsers/toml/v2 v2.1.0
 	github.com/knadh/koanf/providers/file v1.1.2
 	github.com/knadh/koanf/v2 v2.1.2
+	github.com/olekukonko/tablewriter v0.0.5
 	github.com/spf13/cobra v1.8.1
 )
 

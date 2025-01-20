@@ -92,8 +92,8 @@ type GenerationDeleteOpts struct {
 }
 
 type GenerationListOpts struct {
-	Interactive bool
-	DisplayJson bool
+	DisplayJson  bool
+	DisplayTable bool
 }
 
 type GenerationSwitchOpts struct {

@@ -6,21 +6,10 @@ import (
 	"path/filepath"
 
 	"github.com/water-sucks/nixos/internal/constants"
+	"github.com/water-sucks/nixos/internal/generation"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/system"
 )
-
-func GetProfileDirectoryFromName(profile string) string {
-	var profileDirectory string
-
-	if profile != "system" {
-		profileDirectory = filepath.Join(constants.NixSystemProfileDirectory, profile)
-	} else {
-		profileDirectory = filepath.Join(constants.NixProfileDirectory, "system")
-	}
-
-	return profileDirectory
-}
 
 func EnsureSystemProfileDirectoryExists() error {
 	// The system profile directory sometimes doesn't exist,
@@ -47,7 +36,7 @@ func SetNixEnvProfile(s system.CommandRunner, log *logger.Logger, profile string
 		}
 	}
 
-	profileDirectory := GetProfileDirectoryFromName(profile)
+	profileDirectory := generation.GetProfileDirectoryFromName(profile)
 
 	argv := []string{"nix-env", "--profile", profileDirectory, "--set", closure}
 
@@ -70,7 +59,7 @@ func RollbackNixEnvProfile(s system.CommandRunner, log *logger.Logger, profile s
 		}
 	}
 
-	profileDirectory := GetProfileDirectoryFromName(profile)
+	profileDirectory := generation.GetProfileDirectoryFromName(profile)
 
 	argv := []string{"nix-env", "--profile", profileDirectory, "--rollback"}
 
