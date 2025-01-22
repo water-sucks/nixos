@@ -36,10 +36,8 @@ func GenerationListCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 	return &cmd
 }
 
-func generationListMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationListOpts) error {
-	log := logger.FromContext(cmd.Context())
-
-	generations, err := generation.CollectGenerationsInProfile(log, genOpts.ProfileName)
+func loadGenerations(log *logger.Logger, profileName string) ([]generation.Generation, error) {
+	generations, err := generation.CollectGenerationsInProfile(log, profileName)
 	if err != nil {
 		switch v := err.(type) {
 		case *generation.GenerationReadError:
@@ -49,8 +47,19 @@ func generationListMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, op
 
 		default:
 			log.Errorf("error collecting generation information: %v", v)
-			return v
+			return nil, v
 		}
+	}
+
+	return generations, nil
+}
+
+func generationListMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationListOpts) error {
+	log := logger.FromContext(cmd.Context())
+
+	generations, err := loadGenerations(log, genOpts.ProfileName)
+	if err != nil {
+		return err
 	}
 
 	if opts.DisplayTable {
@@ -65,7 +74,11 @@ func generationListMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, op
 		return nil
 	}
 
-	log.Info("generation list ui not implemented...yet!")
+	err = generationUI(generations)
+	if err != nil {
+		log.Errorf("error running generation TUI: %v", err)
+		return err
+	}
 
 	return nil
 }
