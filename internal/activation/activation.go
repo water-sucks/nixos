@@ -5,11 +5,40 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/generation"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/system"
 )
+
+// Parse the generation's `nixos-cli` configuration to find the default specialisation
+// for that generation.
+func FindDefaultSpecialisationFromConfig(generationDirname string) (string, error) {
+	generationCfgFilename := filepath.Join(generationDirname, constants.DefaultConfigLocation)
+	generationCfg, err := config.ParseConfig(generationCfgFilename)
+	if err != nil {
+		return "", err
+	}
+
+	return generationCfg.Apply.DefaultSpecialisation, nil
+}
+
+// Make sure a specialisation exists in a given generation and can be activated by
+// checking for the presence of the switch-to-configuration script.
+func VerifySpecialisationExists(generationDirname string, specialisation string) bool {
+	if specialisation == "" {
+		// The base config always exists.
+		return true
+	}
+
+	specialisationStcFilename := filepath.Join(generationDirname, "specialisation", specialisation, "bin", "switch-to-configuration")
+	if _, err := os.Stat(specialisationStcFilename); err != nil {
+		return false
+	}
+
+	return true
+}
 
 func EnsureSystemProfileDirectoryExists() error {
 	// The system profile directory sometimes doesn't exist,
@@ -101,10 +130,16 @@ func (c SwitchToConfigurationAction) String() string {
 type SwitchToConfigurationOptions struct {
 	InstallBootloader bool
 	Verbose           bool
+	Specialisation    string
 }
 
 func SwitchToConfiguration(s system.CommandRunner, log *logger.Logger, generationLocation string, action SwitchToConfigurationAction, opts *SwitchToConfigurationOptions) error {
-	commandPath := filepath.Join(generationLocation, "bin", "switch-to-configuration")
+	var commandPath string
+	if opts.Specialisation != "" {
+		commandPath = filepath.Join(generationLocation, "specialisation", opts.Specialisation, "bin", "switch-to-configuration")
+	} else {
+		commandPath = filepath.Join(generationLocation, "bin", "switch-to-configuration")
+	}
 
 	argv := []string{commandPath, action.String()}
 

@@ -357,6 +357,22 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		}
 	}
 
+	specialisation := opts.Specialisation
+	if specialisation == "" {
+		defaultSpecialisation, err := activation.FindDefaultSpecialisationFromConfig(resultLocation)
+		if err != nil {
+			log.Warnf("unable to find default specialisation from config: %v", err)
+		} else {
+			specialisation = defaultSpecialisation
+		}
+	}
+
+	if !activation.VerifySpecialisationExists(resultLocation, specialisation) {
+		msg := fmt.Sprintf("specialisation '%v' does not exist", specialisation)
+		log.Error(msg)
+		return fmt.Errorf("%v", msg)
+	}
+
 	if !opts.Dry {
 		if opts.Verbose {
 			log.Step("Setting system profile...")
@@ -374,17 +390,19 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	// fails, since the active profile will not be rolled back
 	// automatically.
 	rollbackProfile := false
-	defer func() {
-		if !rollbackProfile {
-			return
-		}
+	if !opts.Dry {
+		defer func() {
+			if !rollbackProfile {
+				return
+			}
 
-		log.Step("Rolling back system profile...")
-		if err := activation.RollbackNixEnvProfile(s, log, "system", opts.Verbose); err != nil {
-			log.Errorf("failed to rollback system profile: %v", err)
-			log.Info("make sure to rollback the system manually before deleting anything!")
-		}
-	}()
+			log.Step("Rolling back system profile...")
+			if err := activation.RollbackNixEnvProfile(s, log, "system", opts.Verbose); err != nil {
+				log.Errorf("failed to rollback system profile: %v", err)
+				log.Info("make sure to rollback the system manually before deleting anything!")
+			}
+		}()
+	}
 
 	log.Step("Activating...")
 
@@ -404,6 +422,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	err = activation.SwitchToConfiguration(s, log, resultLocation, stcAction, &activation.SwitchToConfigurationOptions{
 		InstallBootloader: opts.InstallBootloader,
 		Verbose:           opts.Verbose,
+		Specialisation:    specialisation,
 	})
 	if err != nil {
 		rollbackProfile = true
