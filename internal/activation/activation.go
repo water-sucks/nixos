@@ -57,7 +57,7 @@ func EnsureSystemProfileDirectoryExists() error {
 	return nil
 }
 
-func SetNixEnvProfile(s system.CommandRunner, log *logger.Logger, profile string, closure string, verbose bool) error {
+func AddNewNixProfile(s system.CommandRunner, log *logger.Logger, profile string, closure string, verbose bool) error {
 	if profile != "system" {
 		err := EnsureSystemProfileDirectoryExists()
 		if err != nil {
@@ -80,7 +80,30 @@ func SetNixEnvProfile(s system.CommandRunner, log *logger.Logger, profile string
 	return err
 }
 
-func RollbackNixEnvProfile(s system.CommandRunner, log *logger.Logger, profile string, verbose bool) error {
+func SetNixProfileGeneration(s system.CommandRunner, log *logger.Logger, profile string, genNumber uint64, verbose bool) error {
+	if profile != "system" {
+		err := EnsureSystemProfileDirectoryExists()
+		if err != nil {
+			return err
+		}
+	}
+
+	profileDirectory := generation.GetProfileDirectoryFromName(profile)
+
+	argv := []string{"nix-env", "--profile", profileDirectory, "--switch-generation", fmt.Sprintf("%d", genNumber)}
+
+	if verbose {
+		log.CmdArray(argv)
+	}
+
+	cmd := system.NewCommand(argv[0], argv[1:]...)
+
+	_, err := s.Run(cmd)
+
+	return err
+}
+
+func RollbackNixProfile(s system.CommandRunner, log *logger.Logger, profile string, verbose bool) error {
 	if profile != "system" {
 		err := EnsureSystemProfileDirectoryExists()
 		if err != nil {

@@ -368,9 +368,8 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	}
 
 	if !activation.VerifySpecialisationExists(resultLocation, specialisation) {
-		msg := fmt.Sprintf("specialisation '%v' does not exist", specialisation)
-		log.Error(msg)
-		return fmt.Errorf("%v", msg)
+		log.Warnf("specialisation '%v' does not exist", specialisation)
+		log.Warn("using base configuration without specialisations")
 	}
 
 	if !opts.Dry {
@@ -378,7 +377,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 			log.Step("Setting system profile...")
 		}
 
-		if err := activation.SetNixEnvProfile(s, log, opts.ProfileName, resultLocation, opts.Verbose); err != nil {
+		if err := activation.AddNewNixProfile(s, log, opts.ProfileName, resultLocation, opts.Verbose); err != nil {
 			log.Errorf("failed to set system profile: %v", err)
 			return err
 		}
@@ -397,7 +396,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 			}
 
 			log.Step("Rolling back system profile...")
-			if err := activation.RollbackNixEnvProfile(s, log, "system", opts.Verbose); err != nil {
+			if err := activation.RollbackNixProfile(s, log, "system", opts.Verbose); err != nil {
 				log.Errorf("failed to rollback system profile: %v", err)
 				log.Info("make sure to rollback the system manually before deleting anything!")
 			}
