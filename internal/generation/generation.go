@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"time"
 
@@ -138,6 +139,8 @@ func GenerationFromDirectory(profile string, number uint64) (*Generation, error)
 	}
 	info.Specialisations = specialisations
 
+	sort.Strings(info.Specialisations)
+
 	if len(encounteredErrors) > 0 {
 		return info, &GenerationReadError{
 			Profile: profile,
@@ -194,6 +197,10 @@ func CollectGenerationsInProfile(log *logger.Logger, profile string) ([]Generati
 			generations = append(generations, *info)
 		}
 	}
+
+	sort.Slice(generations, func(i, j int) bool {
+		return generations[i].Number > generations[j].Number
+	})
 
 	return generations, nil
 }

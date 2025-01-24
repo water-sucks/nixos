@@ -59,7 +59,12 @@ func (d generationItemDelegate) Render(w io.Writer, m list.Model, index int, lis
 
 	g := i.Generation
 
-	str := boldStyle.Render(fmt.Sprintf("%v", g.Number))
+	current := ""
+	if g.IsCurrent {
+		current = " (active)"
+	}
+
+	str := boldStyle.Render(fmt.Sprintf("%v%v", g.Number, current))
 	if len(g.Description) > 0 {
 		str += italicStyle.Render(fmt.Sprintf(" - %v", g.Description))
 	}
