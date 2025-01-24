@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/olekukonko/tablewriter"
+	genUtils "github.com/water-sucks/nixos/cmd/generation/shared"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/generation"
@@ -36,28 +37,10 @@ func GenerationListCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 	return &cmd
 }
 
-func loadGenerations(log *logger.Logger, profileName string) ([]generation.Generation, error) {
-	generations, err := generation.CollectGenerationsInProfile(log, profileName)
-	if err != nil {
-		switch v := err.(type) {
-		case *generation.GenerationReadError:
-			for _, err := range v.Errors {
-				log.Warnf("%v", err)
-			}
-
-		default:
-			log.Errorf("error collecting generation information: %v", v)
-			return nil, v
-		}
-	}
-
-	return generations, nil
-}
-
 func generationListMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationListOpts) error {
 	log := logger.FromContext(cmd.Context())
 
-	generations, err := loadGenerations(log, genOpts.ProfileName)
+	generations, err := genUtils.LoadGenerations(log, genOpts.ProfileName, true)
 	if err != nil {
 		return err
 	}

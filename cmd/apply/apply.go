@@ -370,6 +370,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	if !activation.VerifySpecialisationExists(resultLocation, specialisation) {
 		log.Warnf("specialisation '%v' does not exist", specialisation)
 		log.Warn("using base configuration without specialisations")
+		specialisation = ""
 	}
 
 	if !opts.Dry {
@@ -390,8 +391,8 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	// automatically.
 	rollbackProfile := false
 	if !opts.Dry {
-		defer func() {
-			if !rollbackProfile {
+		defer func(rollback *bool) {
+			if !*rollback {
 				return
 			}
 
@@ -400,7 +401,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 				log.Errorf("failed to rollback system profile: %v", err)
 				log.Info("make sure to rollback the system manually before deleting anything!")
 			}
-		}()
+		}(&rollbackProfile)
 	}
 
 	log.Step("Activating...")

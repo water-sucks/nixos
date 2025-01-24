@@ -199,7 +199,7 @@ func CollectGenerationsInProfile(log *logger.Logger, profile string) ([]Generati
 	}
 
 	sort.Slice(generations, func(i, j int) bool {
-		return generations[i].Number > generations[j].Number
+		return generations[i].Number < generations[j].Number
 	})
 
 	return generations, nil

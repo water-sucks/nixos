@@ -104,7 +104,7 @@ func generationSwitchMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, 
 
 	if !opts.AlwaysConfirm {
 		log.Printf("\n")
-		confirm, err := cmdUtils.ConfirmationInput("Activate this configuration?")
+		confirm, err := cmdUtils.ConfirmationInput("Activate this generation?")
 		if err != nil {
 			log.Errorf("failed to get confirmation: %v", err)
 			return err
@@ -129,6 +129,7 @@ func generationSwitchMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, 
 	if !activation.VerifySpecialisationExists(generationLink, specialisation) {
 		log.Warnf("specialisation '%v' does not exist", specialisation)
 		log.Warn("using base configuration without specialisations")
+		specialisation = ""
 	}
 
 	if !opts.Dry {
@@ -147,8 +148,8 @@ func generationSwitchMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, 
 	// automatically.
 	rollbackProfile := false
 	if !opts.Dry {
-		defer func() {
-			if !rollbackProfile {
+		defer func(rollback *bool) {
+			if !*rollback {
 				return
 			}
 
@@ -157,7 +158,7 @@ func generationSwitchMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, 
 				log.Errorf("failed to rollback system profile: %v", err)
 				log.Info("make sure to rollback the system manually before deleting anything!")
 			}
-		}()
+		}(&rollbackProfile)
 	}
 
 	log.Step("Activating...")
