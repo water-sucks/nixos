@@ -1,4 +1,4 @@
-package cmd
+package types
 
 type MainOpts struct {
 	ColorAlways  bool
@@ -76,19 +76,25 @@ type GenerationOpts struct {
 }
 
 type GenerationDiffOpts struct {
-	Before uint
-	After  uint
+	Before  uint
+	After   uint
+	Verbose bool
 }
 
 type GenerationDeleteOpts struct {
-	All           bool
-	LowerBound    uint
+	All        bool
+	LowerBound uint64
+	// This ideally should be a uint64 to match types,
+	// but Cobra's pflags does not support this type yet.
 	Keep          []uint
-	MinimumToKeep uint
+	MinimumToKeep uint64
 	OlderThan     string
-	UpperBound    uint
+	UpperBound    uint64
 	AlwaysConfirm bool
-	Delete        []uint
+	// This ideally should be a uint64 to match types,
+	// but Cobra's pflags does not support this type yet.
+	Remove  []uint
+	Verbose bool
 }
 
 type GenerationListOpts struct {
