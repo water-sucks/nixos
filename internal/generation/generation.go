@@ -152,6 +152,10 @@ func GenerationFromDirectory(profile string, number uint64) (*Generation, error)
 	return info, nil
 }
 
+const (
+	GenerationLinkTemplateRegex = `^%s-(\d+)-link$`
+)
+
 func CollectGenerationsInProfile(log *logger.Logger, profile string) ([]Generation, error) {
 	profileDirectory := constants.NixProfileDirectory
 	if profile != "system" {
@@ -163,7 +167,7 @@ func CollectGenerationsInProfile(log *logger.Logger, profile string) ([]Generati
 		return nil, err
 	}
 
-	genDirRegex, err := regexp.Compile(fmt.Sprintf(`^%s-(\d+)-link$`, profile))
+	genLinkRegex, err := regexp.Compile(fmt.Sprintf(GenerationLinkTemplateRegex, profile))
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile generation regex: %w", err)
 	}
@@ -178,7 +182,7 @@ func CollectGenerationsInProfile(log *logger.Logger, profile string) ([]Generati
 	for _, v := range generationDirEntries {
 		name := v.Name()
 
-		if matches := genDirRegex.FindStringSubmatch(name); len(matches) > 0 {
+		if matches := genLinkRegex.FindStringSubmatch(name); len(matches) > 0 {
 			genNumber, err := strconv.ParseInt(matches[1], 10, 64)
 			if err != nil {
 				log.Warnf("failed to parse generation number %v for %v, skipping", matches[1], filepath.Join(profileDirectory, name))

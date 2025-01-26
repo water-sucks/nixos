@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 
 	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/constants"
@@ -103,27 +105,28 @@ func SetNixProfileGeneration(s system.CommandRunner, log *logger.Logger, profile
 	return err
 }
 
-func RollbackNixProfile(s system.CommandRunner, log *logger.Logger, profile string, verbose bool) error {
-	if profile != "system" {
-		err := EnsureSystemProfileDirectoryExists()
-		if err != nil {
-			return err
-		}
+func GetCurrentGenerationNumber(profile string) (uint64, error) {
+	genLinkRegex, err := regexp.Compile(fmt.Sprintf(generation.GenerationLinkTemplateRegex, profile))
+	if err != nil {
+		return 0, fmt.Errorf("failed to compile generation regex: %w", err)
 	}
 
 	profileDirectory := generation.GetProfileDirectoryFromName(profile)
-
-	argv := []string{"nix-env", "--profile", profileDirectory, "--rollback"}
-
-	if verbose {
-		log.CmdArray(argv)
+	currentGenerationLink, err := os.Readlink(profileDirectory)
+	if err != nil {
+		return 0, fmt.Errorf("unable to determine current generation: %v", err)
 	}
 
-	cmd := system.NewCommand(argv[0], argv[1:]...)
+	if matches := genLinkRegex.FindStringSubmatch(currentGenerationLink); len(matches) > 0 {
+		genNumber, err := strconv.ParseInt(matches[1], 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse generation number %v for %v", matches[1], currentGenerationLink)
+		}
 
-	_, err := s.Run(cmd)
-
-	return err
+		return uint64(genNumber), nil
+	} else {
+		panic("current link format does not match 'profile-generation-link' format")
+	}
 }
 
 type SwitchToConfigurationAction int
