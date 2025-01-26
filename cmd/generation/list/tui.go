@@ -3,6 +3,8 @@ package list
 import (
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -11,7 +13,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
+	genUtils "github.com/water-sucks/nixos/cmd/generation/shared"
 	"github.com/water-sucks/nixos/internal/generation"
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
 var (
@@ -113,9 +117,30 @@ func (d generationItemDelegate) Render(w io.Writer, m list.Model, index int, lis
 	fmt.Fprint(w, fn(str))
 }
 
+type endAction interface {
+	Type() string
+}
+
+type quitAction struct{}
+
+func (a quitAction) Type() string { return "quit" }
+
+type switchAction struct {
+	Generation uint64
+}
+
+func (a switchAction) Type() string { return "switch" }
+
+type deleteAction struct {
+	Generations []uint64
+}
+
+func (a deleteAction) Type() string { return "delete" }
+
 type model struct {
-	list     list.Model
-	quitting bool
+	list    list.Model
+	profile string
+	action  endAction
 }
 
 func (m model) Init() tea.Cmd {
@@ -136,13 +161,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch keypress := msg.String(); keypress {
 		case "q", "ctrl+c":
-			m.quitting = true
+			m.action = quitAction{}
 			return m, tea.Quit
 
+		case "enter":
+			g := m.list.SelectedItem().(generationItem).Generation
+			m.action = switchAction{Generation: g.Number}
+			return m, tea.Quit
+
+		case "d":
+			items := m.list.Items()
+			gens := make([]uint64, 0, len(items))
+			for _, v := range items {
+				i := v.(generationItem)
+				if i.Selected {
+					gens = append(gens, i.Generation.Number)
+				}
+			}
+
+			if len(gens) > 0 {
+				m.action = deleteAction{Generations: gens}
+				return m, tea.Quit
+			}
+
 		case tea.KeySpace.String():
-			g := m.list.SelectedItem().(generationItem)
-			g.Selected = !g.Selected
-			m.list.SetItem(m.list.Index(), g)
+			i := m.list.SelectedItem().(generationItem)
+			if !i.Generation.IsCurrent {
+				i.Selected = !i.Selected
+				m.list.SetItem(m.list.Index(), i)
+			}
 		}
 	}
 
@@ -151,16 +198,56 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+const (
+	CLEAR       = "\x1B[2J"
+	MV_TOP_LEFT = "\x1B[H"
+)
+
+func clearScreen() {
+	fmt.Print(CLEAR + MV_TOP_LEFT)
+}
+
+func runGenerationSwitchCmd(log *logger.Logger, generation uint64, profile string) error {
+	argv := []string{os.Args[0], "generation", "-p", profile, "switch", fmt.Sprintf("%v", generation)}
+
+	cmd := exec.Command(argv[0], argv[1:]...)
+
+	log.CmdArray(argv)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	return cmd.Run()
+}
+
+func runGenerationDeleteCmd(log *logger.Logger, generations []uint64, profile string) error {
+	argv := []string{os.Args[0], "generation", "-p", profile, "delete"}
+	for _, v := range generations {
+		argv = append(argv, fmt.Sprintf("%v", v))
+	}
+
+	cmd := exec.Command(argv[0], argv[1:]...)
+
+	log.CmdArray(argv)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	return cmd.Run()
+}
+
 func (m model) View() string {
 	// Clear the view before exiting.
-	if m.quitting {
+	if m.action != nil {
 		return ""
 	}
 
 	return "\n" + m.list.View()
 }
 
-func generationUI(generations []generation.Generation) error {
+func newGenerationList(generations []generation.Generation) list.Model {
 	items := make([]list.Item, len(generations))
 	for i, v := range generations {
 		items[i] = generationItem{
@@ -201,11 +288,51 @@ func generationUI(generations []generation.Generation) error {
 		}
 	}
 
-	m := model{list: l}
+	return l
+}
 
-	if _, err := tea.NewProgram(m).Run(); err != nil {
-		return err
+func generationUI(log *logger.Logger, profile string, generations []generation.Generation) error {
+	l := newGenerationList(generations)
+
+	m := model{
+		list:    l,
+		profile: profile,
 	}
 
-	return nil
+	for {
+		finalM, err := tea.NewProgram(&m).Run()
+		if err != nil {
+			return err
+		}
+
+		action := finalM.(model).action
+
+		switch a := action.(type) {
+		case quitAction:
+			return nil
+		case switchAction:
+			err = runGenerationSwitchCmd(log, a.Generation, profile)
+		case deleteAction:
+			err = runGenerationDeleteCmd(log, a.Generations, profile)
+		}
+
+		if err != nil {
+			log.Errorf("%v", err)
+		}
+
+		log.Info("returning to main window")
+		if err != nil {
+			time.Sleep(time.Second * 3)
+		} else {
+			time.Sleep(time.Second)
+		}
+
+		reloadedGenerations, err := genUtils.LoadGenerations(log, profile, true)
+		if err != nil {
+			return err
+		}
+		m.list = newGenerationList(reloadedGenerations)
+		m.action = nil
+		clearScreen()
+	}
 }

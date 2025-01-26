@@ -57,7 +57,7 @@ func generationListMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, op
 		return nil
 	}
 
-	err = generationUI(generations)
+	err = generationUI(log, genOpts.ProfileName, generations)
 	if err != nil {
 		log.Errorf("error running generation TUI: %v", err)
 		return err
