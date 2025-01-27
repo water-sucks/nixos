@@ -44,25 +44,19 @@ type GenerationManifest struct {
 }
 
 type GenerationReadError struct {
-	Profile string
-	Number  uint64
-	Errors  []error
+	Directory string
+	Number    uint64
+	Errors    []error
 }
 
 func (e *GenerationReadError) Error() string {
-	return fmt.Sprintf("failed to read generation %d from profile %s", e.Number, e.Profile)
+	return fmt.Sprintf("failed to read generation %d from directory %s", e.Number, e.Directory)
 }
 
-func GenerationFromDirectory(profile string, number uint64) (*Generation, error) {
-	profileDirectory := constants.NixProfileDirectory
-	if profile != "system" {
-		profileDirectory = constants.NixSystemProfileDirectory
-	}
+func GenerationFromDirectory(generationDirname string, number uint64) (*Generation, error) {
+	nixosVersionManifestFile := filepath.Join(generationDirname, "nixos-version.json")
 
-	generationDirectoryName := filepath.Join(profileDirectory, fmt.Sprintf("%s-%d-link", profile, number))
-	nixosVersionManifestFile := filepath.Join(generationDirectoryName, "nixos-version.json")
-
-	if _, err := os.Stat(generationDirectoryName); err != nil {
+	if _, err := os.Stat(generationDirname); err != nil {
 		return nil, err
 	}
 
@@ -96,7 +90,7 @@ func GenerationFromDirectory(profile string, number uint64) (*Generation, error)
 	// Fall back to reading the nixos-version file that should always
 	// exist if the version doesn't.
 	if info.NixosVersion == "" {
-		nixosVersionFile := filepath.Join(generationDirectoryName, "nixos-version")
+		nixosVersionFile := filepath.Join(generationDirname, "nixos-version")
 		nixosVersionContents, err := os.ReadFile(nixosVersionFile)
 		if err != nil {
 			encounteredErrors = append(encounteredErrors, err)
@@ -106,7 +100,7 @@ func GenerationFromDirectory(profile string, number uint64) (*Generation, error)
 	}
 
 	// Get time of creation for the generation
-	creationTimeStat, err := times.Stat(generationDirectoryName)
+	creationTimeStat, err := times.Stat(generationDirname)
 	if err != nil {
 		encounteredErrors = append(encounteredErrors, err)
 	} else {
@@ -117,7 +111,7 @@ func GenerationFromDirectory(profile string, number uint64) (*Generation, error)
 		}
 	}
 
-	kernelVersionDirGlob := filepath.Join(generationDirectoryName, "kernel-modules", "lib", "modules", "*")
+	kernelVersionDirGlob := filepath.Join(generationDirname, "kernel-modules", "lib", "modules", "*")
 	kernelVersionMatches, err := filepath.Glob(kernelVersionDirGlob)
 	if err != nil {
 		encounteredErrors = append(encounteredErrors, err)
@@ -128,7 +122,7 @@ func GenerationFromDirectory(profile string, number uint64) (*Generation, error)
 	}
 
 	specialisations := []string{}
-	specialisationsGlob := filepath.Join(generationDirectoryName, "specialisation", "*")
+	specialisationsGlob := filepath.Join(generationDirname, "specialisation", "*")
 	specialisationsMatches, err := filepath.Glob(specialisationsGlob)
 	if err != nil {
 		encounteredErrors = append(encounteredErrors, err)
@@ -143,9 +137,9 @@ func GenerationFromDirectory(profile string, number uint64) (*Generation, error)
 
 	if len(encounteredErrors) > 0 {
 		return info, &GenerationReadError{
-			Profile: profile,
-			Number:  number,
-			Errors:  encounteredErrors,
+			Directory: generationDirname,
+			Number:    number,
+			Errors:    encounteredErrors,
 		}
 	}
 
@@ -189,7 +183,14 @@ func CollectGenerationsInProfile(log *logger.Logger, profile string) ([]Generati
 				continue
 			}
 
-			info, err := GenerationFromDirectory(profile, uint64(genNumber))
+			profileDirectory := constants.NixProfileDirectory
+			if profile != "system" {
+				profileDirectory = constants.NixSystemProfileDirectory
+			}
+
+			generationDirectoryName := filepath.Join(profileDirectory, fmt.Sprintf("%s-%d-link", profile, genNumber))
+
+			info, err := GenerationFromDirectory(generationDirectoryName, uint64(genNumber))
 			if err != nil {
 				return nil, err
 			}

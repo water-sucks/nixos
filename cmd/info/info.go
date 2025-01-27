@@ -2,10 +2,16 @@ package info
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"github.com/water-sucks/nixos/internal/activation"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/constants"
+	"github.com/water-sucks/nixos/internal/generation"
 	"github.com/water-sucks/nixos/internal/logger"
 )
 
@@ -29,12 +35,117 @@ func InfoCommand() *cobra.Command {
 	return &cmd
 }
 
+const (
+	markdownTemplate = `- nixos version: %v
+- nixpkgs revision: %v
+- kernel version: %v
+`
+)
+
 func infoMain(cmd *cobra.Command, opts *cmdTypes.InfoOpts) error {
 	log := logger.FromContext(cmd.Context())
 
-	bytes, _ := json.MarshalIndent(opts, "", "  ")
-	// Haha, info's gonna be repeated.
-	log.Infof("info: %v", string(bytes))
+	// Only support the `system` profile for now.
+	currentGenNumber, err := activation.GetCurrentGenerationNumber("system")
+	if err != nil {
+		log.Warnf("failed to determine current generation number: %v", err)
+		return err
+	}
+
+	currentGen, err := generation.GenerationFromDirectory(constants.CurrentSystem, currentGenNumber)
+	if err != nil {
+		log.Warnf("failed to collect generations: %v", err)
+		return err
+	}
+	currentGen.Number = currentGenNumber
+	currentGen.IsCurrent = true
+
+	if opts.DisplayJson {
+		bytes, _ := json.MarshalIndent(currentGen, "", "  ")
+		fmt.Printf("%v\n", string(bytes))
+		return nil
+	}
+
+	if opts.DisplayMarkdown {
+		fmt.Printf(markdownTemplate, currentGen.NixosVersion, currentGen.NixpkgsRevision, currentGen.KernelVersion)
+		return nil
+	}
+
+	prettyPrintGenInfo(currentGen)
 
 	return nil
 }
+
+var titleColor = color.New(color.Bold, color.Italic)
+
+func prettyPrintGenInfo(g *generation.Generation) {
+	version := g.NixosVersion
+	if version == "" {
+		version = "NixOS (unknown version)"
+	}
+
+	titleColor.Printf("%v\n", version)
+	titleColor.Println(strings.Repeat("-", len(version)))
+
+	printKey("Generation")
+	fmt.Println(g.Number)
+
+	printKey("Description")
+	desc := g.Description
+	if desc == "" {
+		desc = color.New(color.Italic).Sprint("(none)")
+	}
+	fmt.Println(desc)
+
+	printKey("Nixpkgs Version")
+	nixpkgsVersion := g.NixpkgsRevision
+	if nixpkgsVersion == "" {
+		nixpkgsVersion = color.New(color.Italic).Sprint("(unknown)")
+	}
+	fmt.Println(nixpkgsVersion)
+
+	printKey("Config Version")
+	configVersion := g.ConfigurationRevision
+	if configVersion == "" {
+		configVersion = color.New(color.Italic).Sprint("(unknown)")
+	}
+	fmt.Println(configVersion)
+
+	printKey("Kernel Version")
+	kernelVersion := g.KernelVersion
+	if kernelVersion == "" {
+		kernelVersion = color.New(color.Italic).Sprint("(unknown)")
+	}
+	fmt.Println(kernelVersion)
+
+	printKey("Specialisations")
+	specialisations := strings.Join(g.Specialisations, ", ")
+	if specialisations == "" {
+		specialisations = color.New(color.Italic).Sprint("(none)")
+	}
+	fmt.Println(specialisations)
+}
+
+func getKeyMaxLength() int {
+	strings := []string{
+		"Generation", "Description", "NixOS Version", "Nixpkgs Version",
+		"Config Version", "Kernel Version", "Specialisations",
+	}
+
+	maxLength := 0
+
+	for _, v := range strings {
+		l := len(color.CyanString(v))
+		if l > maxLength {
+			maxLength = l
+		}
+	}
+
+	return maxLength
+}
+
+func printKey(key string) {
+	fmt.Printf("%-"+fmt.Sprintf("%v", keyMaxLength)+"v :: ", color.CyanString(key))
+}
+
+var keyMaxLength = getKeyMaxLength()
