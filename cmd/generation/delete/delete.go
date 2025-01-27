@@ -76,6 +76,7 @@ func GenerationDeleteCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 
 			return nil
 		},
+		ValidArgsFunction: generation.CompleteGenerationNumber(&genOpts.ProfileName, 0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmdUtils.CommandErrorHandler(generationDeleteMain(cmd, genOpts, &opts))
 		},
@@ -89,6 +90,19 @@ func GenerationDeleteCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 	cmd.Flags().UintSliceVarP(&opts.Keep, "keep", "k", nil, "Always keep this `gen`, can be specified many times")
 	cmd.Flags().BoolVarP(&opts.Verbose, "verbose", "v", false, "Show verbose logging")
 	cmd.Flags().BoolVarP(&opts.AlwaysConfirm, "yes", "y", false, "Automatically confirm generation deletion")
+
+	err := cmd.RegisterFlagCompletionFunc("from", generation.CompleteGenerationNumberFlag(&genOpts.ProfileName))
+	if err != nil {
+		panic(err)
+	}
+	err = cmd.RegisterFlagCompletionFunc("to", generation.CompleteGenerationNumberFlag(&genOpts.ProfileName))
+	if err != nil {
+		panic(err)
+	}
+	err = cmd.RegisterFlagCompletionFunc("keep", generation.CompleteGenerationNumberFlag(&genOpts.ProfileName))
+	if err != nil {
+		panic(err)
+	}
 
 	cmdUtils.SetHelpFlagText(&cmd)
 	cmd.SetHelpTemplate(cmd.HelpTemplate() + `

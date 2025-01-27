@@ -42,6 +42,7 @@ func GenerationDiffCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 
 			return nil
 		},
+		ValidArgsFunction: generation.CompleteGenerationNumber(&genOpts.ProfileName, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmdUtils.CommandErrorHandler(generationDiffMain(cmd, genOpts, &opts))
 		},

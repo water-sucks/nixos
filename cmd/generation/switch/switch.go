@@ -40,6 +40,7 @@ func GenerationSwitchCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 
 			return nil
 		},
+		ValidArgsFunction: generation.CompleteGenerationNumber(&genOpts.ProfileName, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmdUtils.CommandErrorHandler(generationSwitchMain(cmd, genOpts, &opts))
 		},
