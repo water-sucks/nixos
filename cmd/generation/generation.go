@@ -5,6 +5,7 @@ import (
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/generation"
 
 	genDeleteCmd "github.com/water-sucks/nixos/cmd/generation/delete"
 	genDiffCmd "github.com/water-sucks/nixos/cmd/generation/diff"
@@ -31,6 +32,11 @@ func GenerationCommand() *cobra.Command {
 	cmd.AddCommand(genRollbackCmd.GenerationRollbackCommand(&opts))
 
 	cmdUtils.SetHelpFlagText(&cmd)
+
+	err := cmd.RegisterFlagCompletionFunc("profile", generation.CompleteProfileFlag)
+	if err != nil {
+		panic(err)
+	}
 
 	return &cmd
 }
