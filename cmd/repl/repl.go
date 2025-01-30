@@ -1,11 +1,17 @@
 package repl
 
 import (
-	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"syscall"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/config"
+	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/logger"
 
 	buildOpts "github.com/water-sucks/nixos/internal/build"
@@ -46,10 +52,176 @@ Arguments:
 	return &cmd
 }
 
+const (
+	flakeReplExpr = `let
+  flake = builtins.getFlake "%s";
+  system = flake.nixosConfigurations."%s";
+  motd = ''
+%s'';
+  scope =
+    assert system._type or null == "configuration";
+    assert system.class or "nixos" == "nixos";
+      system._module.args
+      // system._module.specialArgs
+      // {
+        inherit (system) config options;
+        inherit flake;
+      };
+in
+  builtins.seq scope builtins.trace motd scope
+`
+
+	legacyReplExpr = `let
+  system = import <nixpkgs/nixos> {};
+  motd = ''
+%s'';
+in
+ builtins.seq system builtins.trace motd system
+`
+
+	flakeMotdTemplate = `This Nix REPL has been automatically loaded with a NixOS configuration.
+
+Configuration :: %s
+
+The following values have been added to the toplevel scope:
+  - %s :: Flake inputs, outputs, and source information
+  - %s :: Configured option values
+  - %s :: Option data and associated metadata
+  - %s :: %s package set
+  - Any additional arguments in %s and %s
+
+Tab completion can be used to browse around all of these attributes.
+
+Use the %s command to reload the configuration after it has
+been changed, assuming it is a mutable configuration.
+
+Use %s to see all available repl commands.
+
+%s: %s does not enforce pure evaluation.
+`
+
+	legacyMotdTemplate = `This Nix REPL has been automatically loaded with this system's NixOS configuration.
+
+The following values have been added to the toplevel scope:
+  - %s :: Configured option values
+  - %s :: Option data and associated metadata
+  - %s :: %s package set
+  - Any additional arguments in %s and %s
+
+Tab completion can be used to browse around all of these attributes.
+
+Use the %s command to reload the configuration after it has
+been changed.
+
+Use %s to see all available repl commands.
+`
+)
+
 func replMain(cmd *cobra.Command, opts *cmdTypes.ReplOpts) error {
 	log := logger.FromContext(cmd.Context())
+	cfg := config.FromContext(cmd.Context())
 
-	bytes, _ := json.MarshalIndent(opts, "", "  ")
-	log.Infof("repl: %v", string(bytes))
+	if buildOpts.Flake == "true" {
+		var flakeRef *configuration.FlakeRef
+
+		if opts.FlakeRef != "" {
+			flakeRef = configuration.FlakeRefFromString(opts.FlakeRef)
+		} else {
+			f, err := configuration.FlakeRefFromEnv(cfg.ConfigLocation)
+			if err != nil {
+				log.Errorf("failed to find flake configuration: %v", err)
+				return err
+			}
+			flakeRef = f
+		}
+
+		if err := flakeRef.InferSystemFromHostnameIfNeeded(); err != nil {
+			log.Errorf("failed to infer system name from hostname: %v", err)
+			return err
+		}
+
+		err := execFlakeRepl(flakeRef)
+		if err != nil {
+			log.Errorf("failed to exec nix flake repl: %v", err)
+			return err
+		}
+	} else {
+		_, err := configuration.FindLegacyConfiguration(log, false)
+		if err != nil {
+			log.Errorf("failed to find configuration: %v", err)
+			return err
+		}
+
+		err = execLegacyRepl(opts.NixPathIncludes, os.Getenv("NIXOS_CONFIG") != "")
+		if err != nil {
+			log.Errorf("failed to exec nix repl: %v", err)
+			return err
+		}
+		return nil
+	}
+
 	return nil
+}
+
+func execLegacyRepl(includes []string, impure bool) error {
+	motd := formatLegacyMotd()
+	expr := fmt.Sprintf(legacyReplExpr, motd)
+
+	argv := []string{"nix", "repl", "--expr", expr}
+	for _, v := range includes {
+		argv = append(argv, "-I", v)
+	}
+	if impure {
+		argv = append(argv, "--impure")
+	}
+
+	nixCommandPath, err := exec.LookPath("nix")
+	if err != nil {
+		return err
+	}
+
+	err = syscall.Exec(nixCommandPath, argv, os.Environ())
+	return err
+}
+
+func execFlakeRepl(flakeRef *configuration.FlakeRef) error {
+	motd := formatFlakeMotd(flakeRef)
+	expr := fmt.Sprintf(flakeReplExpr, flakeRef.URI, flakeRef.System, motd)
+
+	argv := []string{"nix", "repl", "--expr", expr}
+
+	nixCommandPath, err := exec.LookPath("nix")
+	if err != nil {
+		return err
+	}
+
+	err = syscall.Exec(nixCommandPath, argv, os.Environ())
+	return err
+}
+
+func formatFlakeMotd(ref *configuration.FlakeRef) string {
+	flakeRef := fmt.Sprintf("%s#%s", ref.URI, ref.System)
+
+	return fmt.Sprintf(flakeMotdTemplate,
+		color.CyanString(flakeRef),
+		color.MagentaString("flake"),
+		color.MagentaString("config"),
+		color.MagentaString("options"),
+		color.MagentaString("pkgs"), color.CyanString("nixpkgs"),
+		color.MagentaString("_module.args"), color.MagentaString("_module.specialArgs"),
+		color.MagentaString(":r"),
+		color.MagentaString(":?"),
+		color.YellowString("warning"), color.CyanString("nixos repl"),
+	)
+}
+
+func formatLegacyMotd() string {
+	return fmt.Sprintf(legacyMotdTemplate,
+		color.MagentaString("config"),
+		color.MagentaString("options"),
+		color.MagentaString("pkgs"), color.CyanString("nixpkgs"),
+		color.MagentaString("_module.args"), color.MagentaString("_module.specialArgs"),
+		color.MagentaString(":r"),
+		color.MagentaString(":?"),
+	)
 }
