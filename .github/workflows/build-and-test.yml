@@ -19,9 +19,6 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Use magic Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
-
       - name: Check for compile errors
         run: |
           nix develop .# -c make
