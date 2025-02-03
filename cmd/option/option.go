@@ -1,6 +1,7 @@
 package option
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -114,14 +115,22 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 	})
 	if exactOptionMatchIdx != -1 {
 		o := options[exactOptionMatchIdx]
+
+		evaluatedValue := evaluateOptionValue(s, nixosConfig, o.Name)
+
 		if opts.DisplayJson {
 			displayOptionJson(&o)
 		} else if opts.DisplayValueOnly {
-			// TODO: evaluate value using configuration
-			fmt.Printf("%v\n", o.Default)
+			if evaluatedValue.ErrorMessage != "" {
+				log.Errorf("failed to evaluate value, trace received while evaluating:\n\n%v", evaluatedValue.ErrorMessage)
+				return fmt.Errorf("%v", evaluatedValue.ErrorMessage)
+			} else {
+				fmt.Printf("%v\n", evaluatedValue.Value)
+			}
 		} else {
-			prettyPrintOption(&o, cfg.Option.Prettify)
+			prettyPrintOption(&o, evaluatedValue, cfg.Option.Prettify)
 		}
+
 		return nil
 	}
 
@@ -209,7 +218,7 @@ var (
 	italicStyle = color.New(color.Italic)
 )
 
-func prettyPrintOption(o *option.NixosOption, pretty bool) {
+func prettyPrintOption(o *option.NixosOption, evaluatedValue *evaluatedOptionValue, pretty bool) {
 	_ = pretty
 
 	r := markdownRenderer()
@@ -223,6 +232,13 @@ func prettyPrintOption(o *option.NixosOption, pretty bool) {
 		} else {
 			desc = strings.TrimSpace(d)
 		}
+	}
+
+	valueText := ""
+	if evaluatedValue.ErrorMessage != "" {
+		valueText = color.RedString("failed to evaluate value: %v", evaluatedValue.ErrorMessage)
+	} else {
+		valueText = color.WhiteString(strings.TrimSpace(evaluatedValue.Value))
 	}
 
 	var defaultText string
@@ -240,8 +256,8 @@ func prettyPrintOption(o *option.NixosOption, pretty bool) {
 	fmt.Printf("%v\n%v\n\n", titleStyle.Sprint("Name"), o.Name)
 	fmt.Printf("%v\n%v\n\n", titleStyle.Sprint("Description"), desc)
 	fmt.Printf("%v\n%v\n\n", titleStyle.Sprint("Type"), italicStyle.Sprint(o.Type))
-	// TODO: add current value evaluation
 
+	fmt.Printf("%v\n%v\n\n", titleStyle.Sprint("Value"), valueText)
 	fmt.Printf("%v\n%v\n\n", titleStyle.Sprint("Default"), defaultText)
 	if exampleText != "" {
 		fmt.Printf("%v\n%v\n\n", titleStyle.Sprint("Example"), exampleText)
@@ -288,4 +304,38 @@ func stripInlineCodeAnnotations(slice string) string {
 	}
 
 	return result
+}
+
+type evaluatedOptionValue struct {
+	Value        string
+	ErrorMessage string
+}
+
+func evaluateOptionValue(s system.CommandRunner, cfg configuration.Configuration, name string) *evaluatedOptionValue {
+	var argv []string
+
+	switch c := cfg.(type) {
+	case *configuration.FlakeRef:
+		attr := fmt.Sprintf("%s#nixosConfigurations.%s.config.%s", c.URI, c.System, name)
+		argv = []string{"nix", "eval", attr}
+	case *configuration.LegacyConfiguration:
+		attr := fmt.Sprintf("config.%s", name)
+		argv = []string{"nix-instantiate", "--eval", "<nixpkgs/nixos>", "-A", attr}
+		for _, v := range c.Includes {
+			argv = append(argv, "-I", v)
+		}
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	cmd := system.NewCommand(argv[0], argv[1:]...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	_, _ = s.Run(cmd)
+	return &evaluatedOptionValue{
+		Value:        strings.TrimSpace(stdout.String()),
+		ErrorMessage: strings.TrimSpace(stderr.String()),
+	}
 }
