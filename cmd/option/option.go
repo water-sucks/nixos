@@ -44,6 +44,7 @@ func OptionCommand() *cobra.Command {
 			}
 			return nil
 		},
+		ValidArgsFunction: OptionsCompletionFunc(&opts),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmdUtils.CommandErrorHandler(optionMain(cmd, &opts))
 		},
@@ -78,7 +79,7 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 		return fmt.Errorf("%v", msg)
 	}
 
-	nixosConfig, err := configuration.FindConfiguration(log, config.FromContext(cmd.Context()), opts.NixPathIncludes, false)
+	nixosConfig, err := configuration.FindConfiguration(log, cfg, opts.NixPathIncludes, false)
 	if err != nil {
 		log.Errorf("failed to find configuration: %v", err)
 		return err
