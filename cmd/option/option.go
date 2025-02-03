@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/charmbracelet/glamour"
+	glamourStyles "github.com/charmbracelet/glamour/styles"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
@@ -117,7 +119,6 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 			// TODO: evaluate value using configuration
 			fmt.Printf("%v\n", o.Default)
 		} else {
-			// TODO: pretty print option
 			prettyPrintOption(&o, cfg.Option.Prettify)
 		}
 		return nil
@@ -174,10 +175,17 @@ var (
 func prettyPrintOption(o *option.NixosOption, pretty bool) {
 	_ = pretty
 
-	// TODO: use pretty option to display rendered markdown
-	desc := strings.TrimSpace(o.Description)
+	r := markdownRenderer()
+	desc := strings.TrimSpace(stripInlineCodeAnnotations(o.Description))
 	if desc == "" {
 		desc = italicStyle.Sprint("(none)")
+	} else {
+		d, err := r.Render(desc)
+		if err != nil {
+			desc = italicStyle.Sprintf("failed to render description: %v", err)
+		} else {
+			desc = strings.TrimSpace(d)
+		}
 	}
 
 	var defaultText string
@@ -189,7 +197,7 @@ func prettyPrintOption(o *option.NixosOption, pretty bool) {
 
 	exampleText := ""
 	if o.Example != nil {
-		exampleText = strings.TrimSpace(o.Example.Text)
+		exampleText = color.WhiteString(strings.TrimSpace(o.Example.Text))
 	}
 
 	fmt.Printf("%v\n%v\n\n", titleStyle.Sprint("Name"), o.Name)
@@ -211,4 +219,36 @@ func prettyPrintOption(o *option.NixosOption, pretty bool) {
 	if o.ReadOnly {
 		fmt.Printf("\n%v\n", color.YellowString("This option is read-only."))
 	}
+}
+
+var markdownRenderIndentWidth uint = 0
+
+func markdownRenderer() *glamour.TermRenderer {
+	glamourStyles.DarkStyleConfig.Document.Margin = &markdownRenderIndentWidth
+
+	r, _ := glamour.NewTermRenderer(
+		glamour.WithStyles(glamourStyles.DarkStyleConfig),
+		glamour.WithWordWrap(80),
+	)
+
+	return r
+}
+
+var annotationsToRemove = []string{
+	"{option}`",
+	"{var}`",
+	"{file}`",
+	"{env}`",
+	"{command}`",
+	"{manpage}`",
+}
+
+func stripInlineCodeAnnotations(slice string) string {
+	result := slice
+
+	for _, input := range annotationsToRemove {
+		result = strings.ReplaceAll(result, input, "`")
+	}
+
+	return result
 }
