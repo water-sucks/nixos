@@ -110,6 +110,11 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 		return err
 	}
 
+	if opts.Interactive {
+		log.Info("interactive search not implemented yet, coming soon")
+		return nil
+	}
+
 	exactOptionMatchIdx := slices.IndexFunc(options, func(o option.NixosOption) bool {
 		return o.Name == opts.OptionInput
 	})
