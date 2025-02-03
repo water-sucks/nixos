@@ -98,6 +98,7 @@ func ApplyCommand(cfg *config.Config) *cobra.Command {
 	nixopts.AddBuildersNixOption(&cmd, &opts.NixOptions.Builders)
 	nixopts.AddLogFormatNixOption(&cmd, &opts.NixOptions.LogFormat)
 	nixopts.AddOptionNixOption(&cmd, &opts.NixOptions.Options)
+	nixopts.AddIncludesNixOption(&cmd, &opts.NixOptions.Includes)
 
 	if buildOpts.Flake == "true" {
 		nixopts.AddRecreateLockFileNixOption(&cmd, &opts.NixOptions.RecreateLockFile)
@@ -155,7 +156,6 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	} else if opts.NoActivate && opts.NoBoot {
 		buildType = buildTypeSystem
 	}
-	_ = buildType
 
 	if os.Geteuid() != 0 {
 		err := utils.ExecAsRoot(cfg.RootCommand)
@@ -169,42 +169,24 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		log.Step("Looking for configuration...")
 	}
 
-	var flakeRef *configuration.FlakeRef
-	var configDirname string
-
-	if buildOpts.Flake == "true" {
-		if opts.Verbose {
-			log.Info("looking for flake configuration")
-		}
-
-		if opts.FlakeRef != "" {
-			flakeRef = configuration.FlakeRefFromString(opts.FlakeRef)
-		} else {
-			f, err := configuration.FlakeRefFromEnv(cfg.ConfigLocation)
-			if err != nil {
-				log.Errorf("failed to find flake configuration: %v", err)
-				return err
-			}
-			flakeRef = f
-		}
-
-		if err := flakeRef.InferSystemFromHostnameIfNeeded(); err != nil {
-			log.Errorf("failed to infer system name from hostname: %v", err)
-			return err
-		}
-
-		if opts.Verbose {
-			log.Infof("found flake configuration: %s#%s", flakeRef.URI, flakeRef.System)
-		}
-
-		configDirname = flakeRef.URI
+	var nixConfig configuration.Configuration
+	if opts.FlakeRef != "" {
+		nixConfig = configuration.FlakeRefFromString(opts.FlakeRef)
 	} else {
-		c, err := configuration.FindLegacyConfiguration(log, opts.Verbose)
+		c, err := configuration.FindConfiguration(log, cfg, opts.NixOptions.Includes, opts.Verbose)
 		if err != nil {
 			log.Errorf("failed to find configuration: %v", err)
 			return err
 		}
-		configDirname = c
+		nixConfig = c
+	}
+
+	var configDirname string
+	switch c := nixConfig.(type) {
+	case *configuration.FlakeRef:
+		configDirname = c.URI
+	case *configuration.LegacyConfiguration:
+		configDirname = c.ConfigDirname
 	}
 
 	configIsDirectory := true
@@ -299,14 +281,15 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	}
 
 	var resultLocation string
-	if buildOpts.Flake == "true" {
-		buildOutput, err := buildFlake(s, log, flakeRef, buildType, buildOptions)
+	switch c := nixConfig.(type) {
+	case *configuration.FlakeRef:
+		buildOutput, err := buildFlake(s, log, c, buildType, buildOptions)
 		if err != nil {
 			log.Errorf("failed to build configuration: %v", err)
 			return err
 		}
 		resultLocation = buildOutput
-	} else {
+	case *configuration.LegacyConfiguration:
 		buildOutput, err := buildLegacy(s, log, buildType, buildOptions)
 		if err != nil {
 			log.Errorf("failed to build configuration: %v", err)

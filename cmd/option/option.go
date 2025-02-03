@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/spf13/cobra"
+	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/logger"
@@ -37,9 +38,10 @@ func OptionCommand() *cobra.Command {
 
 	cmd.Flags().BoolVarP(&opts.DisplayJson, "json", "j", false, "Output information in JSON format")
 	cmd.Flags().BoolVarP(&opts.Interactive, "interactive", "i", false, "Show interactive search TUI for options")
-	cmd.Flags().StringSliceVarP(&opts.NixPathIncludes, "include", "I", nil, "Add a `path` value to the Nix search path")
-	cmd.Flags().BoolVarP(&opts.NoUseCache, "no-cache", "n", false, "Show interactive search TUI for options")
+	cmd.Flags().BoolVarP(&opts.NoUseCache, "no-cache", "n", false, "Do not attempt to use prebuilt option cache")
 	cmd.Flags().BoolVarP(&opts.NoUseCache, "value-only", "v", false, "Show only the selected option's value")
+
+	nixopts.AddIncludesNixOption(&cmd, &opts.NixPathIncludes)
 
 	cmd.MarkFlagsMutuallyExclusive("json", "interactive", "value-only")
 

@@ -47,6 +47,7 @@ type ApplyNixOptions struct {
 	Cores          int
 	Builders       []string
 	LogFormat      string
+	Includes       []string
 	Options        map[string]string
 
 	RecreateLockFile bool
@@ -156,6 +157,7 @@ type InstallOpts struct {
 		MaxJobs        int
 		Cores          int
 		LogFormat      string
+		Includes       []string
 		Options        map[string]string
 
 		RecreateLockFile bool

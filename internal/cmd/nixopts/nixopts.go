@@ -97,12 +97,16 @@ func AddNoNetNixOption(cmd *cobra.Command, dest *bool) {
 	addNixOptionBool(cmd, dest, "no-net", "", "Disable substituters and set all network timeout settings to minimum")
 }
 
+func AddIncludesNixOption(cmd *cobra.Command, dest *[]string) {
+	addNixOptionStringArray(cmd, dest, "--include", "I", "Add path to list of locations to look up <...> file names")
+}
+
 func AddMaxJobsNixOption(cmd *cobra.Command, dest *int) {
-	addNixOptionInt(cmd, dest, "max-jobs", "I", "Max number of build jobs in parallel")
+	addNixOptionInt(cmd, dest, "max-jobs", "j", "Max number of build jobs in parallel")
 }
 
 func AddCoresNixOption(cmd *cobra.Command, dest *int) {
-	addNixOptionInt(cmd, dest, "cores", "j", "Max number of CPU cores used (sets NIX_BUILD_CORES env variable)")
+	addNixOptionInt(cmd, dest, "cores", "", "Max number of CPU cores used (sets NIX_BUILD_CORES env variable)")
 }
 
 func AddBuildersNixOption(cmd *cobra.Command, dest *[]string) {

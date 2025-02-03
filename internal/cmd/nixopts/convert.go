@@ -31,6 +31,7 @@ var availableOptions = map[string]string{
 	"CommitLockFile":   "commit-lock-file",
 	"UpdateInputs":     "update-inputs",
 	"OverrideInputs":   "override-input",
+	"Includes":         "include",
 }
 
 func getNixFlag(name string) string {

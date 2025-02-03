@@ -8,6 +8,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/config"
@@ -43,7 +44,8 @@ func ReplCommand() *cobra.Command {
 
 	cmdUtils.SetHelpFlagText(&cmd)
 
-	cmd.Flags().StringSliceVarP(&opts.NixPathIncludes, "include", "I", nil, "Add a `path` value to the Nix search path")
+	nixopts.AddIncludesNixOption(&cmd, &opts.NixPathIncludes)
+
 	cmd.SetHelpTemplate(cmd.HelpTemplate() + `
 Arguments:
     [FLAKE-REF]  Flake ref to load attributes from (default: $NIXOS_CONFIG)
@@ -121,43 +123,31 @@ func replMain(cmd *cobra.Command, opts *cmdTypes.ReplOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := config.FromContext(cmd.Context())
 
-	if buildOpts.Flake == "true" {
-		var flakeRef *configuration.FlakeRef
-
-		if opts.FlakeRef != "" {
-			flakeRef = configuration.FlakeRefFromString(opts.FlakeRef)
-		} else {
-			f, err := configuration.FlakeRefFromEnv(cfg.ConfigLocation)
-			if err != nil {
-				log.Errorf("failed to find flake configuration: %v", err)
-				return err
-			}
-			flakeRef = f
-		}
-
-		if err := flakeRef.InferSystemFromHostnameIfNeeded(); err != nil {
-			log.Errorf("failed to infer system name from hostname: %v", err)
-			return err
-		}
-
-		err := execFlakeRepl(flakeRef)
-		if err != nil {
-			log.Errorf("failed to exec nix flake repl: %v", err)
-			return err
-		}
+	var nixConfig configuration.Configuration
+	if opts.FlakeRef != "" {
+		nixConfig = configuration.FlakeRefFromString(opts.FlakeRef)
 	} else {
-		_, err := configuration.FindLegacyConfiguration(log, false)
+		c, err := configuration.FindConfiguration(log, cfg, opts.NixPathIncludes, false)
 		if err != nil {
 			log.Errorf("failed to find configuration: %v", err)
 			return err
 		}
+		nixConfig = c
+	}
 
-		err = execLegacyRepl(opts.NixPathIncludes, os.Getenv("NIXOS_CONFIG") != "")
+	switch c := nixConfig.(type) {
+	case *configuration.FlakeRef:
+		err := execFlakeRepl(c)
+		if err != nil {
+			log.Errorf("failed to exec nix flake repl: %v", err)
+			return err
+		}
+	case *configuration.LegacyConfiguration:
+		err := execLegacyRepl(c.Includes, os.Getenv("NIXOS_CONFIG") != "")
 		if err != nil {
 			log.Errorf("failed to exec nix repl: %v", err)
 			return err
 		}
-		return nil
 	}
 
 	return nil

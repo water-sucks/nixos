@@ -6,12 +6,31 @@ import (
 	"path/filepath"
 	"strings"
 
+	buildOpts "github.com/water-sucks/nixos/internal/build"
+	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/logger"
 )
+
+type Configuration interface {
+	ConfigType() string
+}
+
+type LegacyConfiguration struct {
+	Includes      []string
+	ConfigDirname string
+}
+
+func (l *LegacyConfiguration) ConfigType() string {
+	return "legacy"
+}
 
 type FlakeRef struct {
 	URI    string
 	System string
+}
+
+func (f *FlakeRef) ConfigType() string {
+	return "flake"
 }
 
 func FlakeRefFromString(s string) *FlakeRef {
@@ -56,7 +75,7 @@ func (f *FlakeRef) InferSystemFromHostnameIfNeeded() error {
 	return nil
 }
 
-func FindLegacyConfiguration(log *logger.Logger, verbose bool) (string, error) {
+func FindLegacyConfiguration(log *logger.Logger, includes []string, verbose bool) (string, error) {
 	if verbose {
 		log.Infof("looking for legacy configuration")
 	}
@@ -69,9 +88,18 @@ func FindLegacyConfiguration(log *logger.Logger, verbose bool) (string, error) {
 		configuration = nixosCfg
 	}
 
+	if configuration == "" && includes != nil {
+		for _, include := range includes {
+			if strings.HasPrefix(include, "nixos-config=") {
+				configuration = strings.TrimPrefix(include, "nixos-config=")
+				break
+			}
+		}
+	}
+
 	if configuration == "" {
 		if verbose {
-			log.Infof("$NIXOS_CONFIG not set, using NIX_PATH to find configuration")
+			log.Infof("$NIXOS_CONFIG not set, using $NIX_PATH to find configuration")
 		}
 
 		nixPath := strings.Split(os.Getenv("NIX_PATH"), ":")
@@ -101,11 +129,46 @@ func FindLegacyConfiguration(log *logger.Logger, verbose bool) (string, error) {
 		}
 
 		if info.IsDir() {
-			return "", fmt.Errorf("default.nix is a directory, not a file")
+			return "", fmt.Errorf("%v is a directory, not a file", defaultNix)
 		}
-
-		return configuration, nil
 	}
 
 	return configuration, nil
+}
+
+func FindConfiguration(log *logger.Logger, cfg *config.Config, includes []string, verbose bool) (Configuration, error) {
+	if buildOpts.Flake == "true" {
+		if verbose {
+			log.Info("looking for flake configuration")
+		}
+
+		f, err := FlakeRefFromEnv(cfg.ConfigLocation)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := f.InferSystemFromHostnameIfNeeded(); err != nil {
+			return nil, err
+		}
+
+		if verbose {
+			log.Infof("found flake configuration: %s#%s", f.URI, f.System)
+		}
+
+		return f, nil
+	} else {
+		c, err := FindLegacyConfiguration(log, includes, verbose)
+		if err != nil {
+			return nil, err
+		}
+
+		if verbose {
+			log.Infof("found legacy configuration at %s", c)
+		}
+
+		return &LegacyConfiguration{
+			Includes:      includes,
+			ConfigDirname: c,
+		}, nil
+	}
 }

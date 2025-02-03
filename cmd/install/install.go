@@ -77,6 +77,7 @@ func InstallCommand() *cobra.Command {
 	nixopts.AddCoresNixOption(&cmd, &opts.NixOptions.Cores)
 	nixopts.AddLogFormatNixOption(&cmd, &opts.NixOptions.LogFormat)
 	nixopts.AddOptionNixOption(&cmd, &opts.NixOptions.Options)
+	nixopts.AddIncludesNixOption(&cmd, &opts.NixOptions.Includes)
 
 	if buildOpts.Flake == "true" {
 		nixopts.AddRecreateLockFileNixOption(&cmd, &opts.NixOptions.RecreateLockFile)
