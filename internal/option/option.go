@@ -21,7 +21,17 @@ type NixosOptionValue struct {
 	Text string `json:"text"`
 }
 
-func LoadOptionsFromFile(path string) ([]NixosOption, error) {
+type NixosOptionSource []NixosOption
+
+func (o NixosOptionSource) String(i int) string {
+	return o[i].Name
+}
+
+func (o NixosOptionSource) Len() int {
+	return len(o)
+}
+
+func LoadOptionsFromFile(path string) (NixosOptionSource, error) {
 	f, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/glamour"
 	glamourStyles "github.com/charmbracelet/glamour/styles"
 	"github.com/fatih/color"
+	"github.com/sahilm/fuzzy"
 	"github.com/spf13/cobra"
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
@@ -125,11 +126,29 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 	}
 
 	msg := fmt.Sprintf("no exact match for query '%s' found", opts.OptionInput)
+	err = fmt.Errorf("%v", msg)
+
+	fuzzySearchResults := fuzzy.FindFrom(opts.OptionInput, options)
+	if len(fuzzySearchResults) > 10 {
+		fuzzySearchResults = fuzzySearchResults[:10]
+	}
+
+	if opts.DisplayJson {
+		displayErrorJson(msg, fuzzySearchResults)
+		return err
+	}
+
 	log.Error(msg)
+	if len(fuzzySearchResults) > 0 {
+		log.Print("\nSome similar options were found:\n")
+		for _, v := range fuzzySearchResults {
+			log.Printf(" - %s\n", v.Str)
+		}
+	} else {
+		log.Print("\nTry refining your search query.\n")
+	}
 
-	// TODO: fuzzy search results
-
-	return fmt.Errorf("%v", msg)
+	return err
 }
 
 func displayOptionJson(o *option.NixosOption) {
@@ -163,6 +182,24 @@ func displayOptionJson(o *option.NixosOption) {
 		Location:     o.Location,
 		ReadOnly:     o.ReadOnly,
 		Declarations: o.Declarations,
+	}, "", "  ")
+	fmt.Printf("%v\n", string(bytes))
+}
+
+func displayErrorJson(msg string, matches fuzzy.Matches) {
+	type errorJson struct {
+		Message        string   `json:"message"`
+		SimilarOptions []string `json:"similar_options"`
+	}
+
+	matchedStrings := make([]string, len(matches))
+	for i, match := range matches {
+		matchedStrings[i] = match.Str
+	}
+
+	bytes, _ := json.MarshalIndent(errorJson{
+		Message:        msg,
+		SimilarOptions: matchedStrings,
 	}, "", "  ")
 	fmt.Printf("%v\n", string(bytes))
 }
