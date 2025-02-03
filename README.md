@@ -164,16 +164,16 @@ Checklist of what needs to happen before this rewrite can be merged back into
 - ✅ Setup config
 - ✅ Setup logging
 - ✅ `apply`
-- ❌ `generation`
-  - ❌ `list`
-  - ❌ `switch`
-  - ❌ `rollback`
-  - ❌ `delete`
-  - ❌ `diff`
-- ❌ `info`
-- ❌ `enter`
-- ❌ `repl`
-- ❌ `option`
+- ✅ `generation`
+  - ✅ `list`
+  - ✅ `switch`
+  - ✅ `rollback`
+  - ✅ `delete`
+  - ✅ `diff`
+- ✅ `info`
+- ✅ `enter`
+- ✅ `repl`
+- 🚧 `option`
 - ❌ `init`
 - ❌ `install`
 - ❌ `manual`
