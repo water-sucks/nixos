@@ -115,6 +115,11 @@ func ApplyCommand(cfg *config.Config) *cobra.Command {
 		cmd.Flags().BoolVar(&opts.UpgradeAllChannels, "upgrade-all", false, "Upgrade all the root user's channels")
 	}
 
+	err := cmd.RegisterFlagCompletionFunc("profile-name", generation.CompleteProfileFlag)
+	if err != nil {
+		panic("failed to register flag completion function: " + err.Error())
+	}
+
 	cmd.MarkFlagsMutuallyExclusive("dry", "output")
 	cmd.MarkFlagsMutuallyExclusive("vm", "vm-with-bootloader")
 	cmd.MarkFlagsMutuallyExclusive("no-activate", "specialisation")
