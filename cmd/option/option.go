@@ -42,6 +42,7 @@ func OptionCommand() *cobra.Command {
 			if len(args) > 0 {
 				opts.OptionInput = args[0]
 			}
+
 			return nil
 		},
 		ValidArgsFunction: OptionsCompletionFunc(&opts),
@@ -53,6 +54,7 @@ func OptionCommand() *cobra.Command {
 	cmd.Flags().BoolVarP(&opts.DisplayJson, "json", "j", false, "Output information in JSON format")
 	cmd.Flags().BoolVarP(&opts.Interactive, "interactive", "i", false, "Show interactive search TUI for options")
 	cmd.Flags().BoolVarP(&opts.NoUseCache, "no-cache", "n", false, "Do not attempt to use prebuilt option cache")
+	cmd.Flags().Int64VarP(&opts.MinScore, "min-score", "s", 0, "")
 	cmd.Flags().BoolVarP(&opts.DisplayValueOnly, "value-only", "v", false, "Show only the selected option's value")
 
 	nixopts.AddIncludesNixOption(&cmd, &opts.NixPathIncludes)
@@ -72,6 +74,11 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := config.FromContext(cmd.Context())
 	s := system.NewLocalSystem()
+
+	minScore := cfg.Option.MinScore
+	if cmd.Flags().Changed("min-score") {
+		minScore = opts.MinScore
+	}
 
 	if !s.IsNixOS() {
 		msg := "this command is only supported on NixOS systems"
@@ -148,6 +155,8 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 		fuzzySearchResults = fuzzySearchResults[:10]
 	}
 
+	fuzzySearchResults = filterMinimumScoreMatches(fuzzySearchResults, int(minScore))
+
 	if opts.DisplayJson {
 		displayErrorJson(msg, fuzzySearchResults)
 		return err
@@ -157,7 +166,7 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 	if len(fuzzySearchResults) > 0 {
 		log.Print("\nSome similar options were found:\n")
 		for _, v := range fuzzySearchResults {
-			log.Printf(" - %s %v\n", v.Str, v.Score)
+			log.Printf(" - %s\n", v.Str)
 		}
 	} else {
 		log.Print("\nTry refining your search query.\n")
@@ -344,4 +353,16 @@ func evaluateOptionValue(s system.CommandRunner, cfg configuration.Configuration
 		Value:        strings.TrimSpace(stdout.String()),
 		ErrorMessage: strings.TrimSpace(stderr.String()),
 	}
+}
+
+// Filter a sorted (descending) match list until a minimum score is reached.
+// Return a slice of the original matches.
+func filterMinimumScoreMatches(matches []fuzzy.Match, minScore int) []fuzzy.Match {
+	for i, v := range matches {
+		if v.Score < minScore {
+			return matches[:i]
+		}
+	}
+
+	return matches
 }

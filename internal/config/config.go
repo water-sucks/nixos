@@ -57,7 +57,7 @@ func NewConfig() *Config {
 		},
 		RootCommand: "sudo",
 		Option: OptionConfig{
-			MinScore: 3.00,
+			MinScore: 1,
 			Prettify: true,
 		},
 	}

@@ -176,6 +176,7 @@ type OptionOpts struct {
 	DisplayJson      bool
 	NoUseCache       bool
 	DisplayValueOnly bool
+	MinScore         int64
 	OptionInput      string
 }
 
