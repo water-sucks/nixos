@@ -157,7 +157,7 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 	if len(fuzzySearchResults) > 0 {
 		log.Print("\nSome similar options were found:\n")
 		for _, v := range fuzzySearchResults {
-			log.Printf(" - %s\n", v.Str)
+			log.Printf(" - %s %v\n", v.Str, v.Score)
 		}
 	} else {
 		log.Print("\nTry refining your search query.\n")

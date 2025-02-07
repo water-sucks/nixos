@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"math"
 	"testing"
 
 	"github.com/water-sucks/nixos/internal/config"
@@ -18,21 +17,17 @@ func TestValidateConfig(t *testing.T) {
 				"validalias-noentries": {},
 			},
 			Option: config.OptionConfig{
-				MaxRank: 0.5,
+				MinScore: 1,
 			},
 		}
 
 		errs := cfg.Validate()
-		if len(errs) != 5 {
-			t.Errorf("expected 5 errors, got %d", len(errs))
+		if len(errs) != 4 {
+			t.Errorf("expected 4 errors, got %d", len(errs))
 		}
 
 		if len(cfg.Aliases) != 1 {
 			t.Errorf("expected Aliases to have one valid entry, got %v", cfg.Aliases)
-		}
-
-		if cfg.Option.MaxRank != 3.00 {
-			t.Errorf("expected Option.MaxRank to be reset to 3.00, got %f", cfg.Option.MaxRank)
 		}
 	})
 
@@ -42,7 +37,7 @@ func TestValidateConfig(t *testing.T) {
 				"validalias": {"value1", "value2"},
 			},
 			Option: config.OptionConfig{
-				MaxRank: 2,
+				MinScore: 2,
 			},
 		}
 
@@ -53,29 +48,24 @@ func TestValidateConfig(t *testing.T) {
 	})
 }
 
-func almostEqual(a float64, b float64) bool {
-	const float64EqualityThreshold = 1e-9
-	return math.Abs(a-b) <= float64EqualityThreshold
-}
-
 func TestSetConfigValue(t *testing.T) {
-	t.Run("Set float field successfully", func(t *testing.T) {
+	t.Run("Set int field successfully", func(t *testing.T) {
 		cfg := &config.Config{
 			Option: config.OptionConfig{
-				MaxRank: 1.00,
+				MinScore: 1,
 			},
 		}
 
-		err := cfg.SetValue("option.max_rank", "4.5")
+		err := cfg.SetValue("option.min_score", "4")
 		if err != nil {
-			t.Fatalf("expected option.max_rank to be set, err = %v", err)
+			t.Fatalf("expected option.min_score to be set, err = %v", err)
 		}
 
-		expected := 4.5
-		actual := cfg.Option.MaxRank
+		expected := int64(4)
+		actual := cfg.Option.MinScore
 
-		if !almostEqual(expected, actual) {
-			t.Fatalf("expected option.max_rank = %v, actual = %v", expected, actual)
+		if expected != actual {
+			t.Fatalf("expected option.min_score = %v, actual = %v", expected, actual)
 		}
 	})
 
@@ -148,23 +138,23 @@ func TestSetConfigValue(t *testing.T) {
 		}
 	})
 
-	t.Run("Invalid float value", func(t *testing.T) {
+	t.Run("Invalid int value", func(t *testing.T) {
 		cfg := &config.Config{
 			Option: config.OptionConfig{
-				MaxRank: 1.00,
+				MinScore: 1,
 			},
 		}
 
-		err := cfg.SetValue("option.max_rank", "invalid")
+		err := cfg.SetValue("option.min_score", "invalid")
 		if err == nil {
-			t.Fatalf("expected option.max_rank to error out, no errors detected")
+			t.Fatalf("expected option.min_score to error out, no errors detected")
 		}
 
-		expected := 1.00
-		actual := cfg.Option.MaxRank
+		expected := int64(1)
+		actual := cfg.Option.MinScore
 
-		if !almostEqual(expected, actual) {
-			t.Fatalf("expected option.max_rank to remain unchanged, expected = %v actual = %v", expected, actual)
+		if expected != actual {
+			t.Fatalf("expected option.min_score to remain unchanged, expected = %v actual = %v", expected, actual)
 		}
 	})
 }

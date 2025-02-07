@@ -44,8 +44,8 @@ type InitConfig struct {
 }
 
 type OptionConfig struct {
-	MaxRank  float64 `koanf:"max_rank" description:"Maximum distance score allowed for search results"`
-	Prettify bool    `koanf:"prettify" description:"Attempt to prettify option descriptions"`
+	MinScore int64 `koanf:"min_score" description:"Minimum distance score to consider an option a match"`
+	Prettify bool  `koanf:"prettify" description:"Attempt to render option descriptions using Markdown"`
 }
 
 func NewConfig() *Config {
@@ -57,7 +57,7 @@ func NewConfig() *Config {
 		},
 		RootCommand: "sudo",
 		Option: OptionConfig{
-			MaxRank:  3.00,
+			MinScore: 3.00,
 			Prettify: true,
 		},
 	}
@@ -106,12 +106,6 @@ func (cfg *Config) Validate() ConfigErrors {
 			errs = append(errs, ConfigError{Field: fmt.Sprintf("aliases.%s", alias), Message: "args list cannot be empty"})
 			delete(cfg.Aliases, alias)
 		}
-	}
-
-	// Then, make sure the option maximum rank makes sense.
-	if cfg.Option.MaxRank < 1.00 {
-		errs = append(errs, ConfigError{Field: "option.max_rank", Message: "max_rank must be at least 1.00"})
-		cfg.Option.MaxRank = 3.00
 	}
 
 	if len(errs) > 0 {
