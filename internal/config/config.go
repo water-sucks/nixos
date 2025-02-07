@@ -55,6 +55,7 @@ func NewConfig() *Config {
 		Enter: EnterConfig{
 			MountResolvConf: true,
 		},
+		Init:        InitConfig{},
 		RootCommand: "sudo",
 		Option: OptionConfig{
 			MinScore: 1,
