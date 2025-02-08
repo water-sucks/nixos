@@ -11,8 +11,8 @@ import (
 )
 
 type CPUInfo struct {
-	Virtualised  bool
-	Manufacturer CPUManufacturer
+	VirtualisationEnabled bool
+	Manufacturer          CPUManufacturer
 }
 
 type CPUManufacturer int
@@ -36,8 +36,8 @@ func (c CPUManufacturer) CPUType() string {
 
 func getCPUInfo(log *logger.Logger) *CPUInfo {
 	result := &CPUInfo{
-		Virtualised:  false,
-		Manufacturer: manufacturerUnknown,
+		VirtualisationEnabled: false,
+		Manufacturer:          manufacturerUnknown,
 	}
 
 	cpuinfoFile, err := os.Open("/proc/cpuinfo")
@@ -55,7 +55,7 @@ func getCPUInfo(log *logger.Logger) *CPUInfo {
 		line := s.Text()
 		if strings.HasPrefix(line, "flags") {
 			if strings.Contains(line, "vmx") || strings.Contains(line, "svm") {
-				result.Virtualised = true
+				result.VirtualisationEnabled = true
 			}
 		} else if strings.HasPrefix(line, "vendor_id") {
 			if strings.Contains(line, "GenuineIntel") {

@@ -52,7 +52,7 @@ func initMain(cmd *cobra.Command, opts *cmdTypes.InitOpts) error {
 
 	log.Step("Generating hardware-configuration.nix...")
 
-	hwConfigNixText, err := generateHwConfigNix(s, log, cfg, opts, virtType)
+	hwConfigNixText, err := generateHwConfigNix(s, log, cfg, virtType, !opts.NoFSGeneration)
 	if err != nil {
 		log.Errorf("failed to generate hardware-configuration.nix: %v", err)
 		return err
@@ -65,7 +65,7 @@ func initMain(cmd *cobra.Command, opts *cmdTypes.InitOpts) error {
 
 	log.Step("Generating configuration.nix...")
 
-	configNixText, err := generateConfigNix(s, log, virtType)
+	configNixText, err := generateConfigNix(log, cfg, virtType)
 	if err != nil {
 		log.Errorf("failed to generate configuration.nix: %v", err)
 	}
