@@ -35,12 +35,12 @@ func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *config
 	}
 
 	hwConfigSettings := hardwareConfigSettings{
-		Imports:               &imports,
-		InitrdAvailableMdules: &initrdAvailableModules,
-		InitrdModules:         &initrdModules,
-		KernelModules:         &kernelModules,
-		ModulePackages:        &modulePackages,
-		Attrs:                 &extraAttrs,
+		Imports:                &imports,
+		InitrdAvailableModules: &initrdAvailableModules,
+		InitrdModules:          &initrdModules,
+		KernelModules:          &kernelModules,
+		ModulePackages:         &modulePackages,
+		Attrs:                  &extraAttrs,
 	}
 	_ = hwConfigSettings
 
@@ -98,8 +98,9 @@ func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *config
 		}
 	}
 
-	// TODO: find PCI devices
-	// TODO: find USB devices
+	findPCIDevices(&hwConfigSettings, log)
+	findUSBDevices(&hwConfigSettings, log)
+
 	// TODO: find kernel modules corresponding to connected block devices
 	// TODO: find kernel modules corresponding to connected MMC devices
 	// TODO: find networking devices
@@ -194,12 +195,12 @@ type KVPair struct {
 }
 
 type hardwareConfigSettings struct {
-	Imports               *[]string
-	InitrdAvailableMdules *[]string
-	InitrdModules         *[]string
-	KernelModules         *[]string
-	ModulePackages        *[]string
-	Attrs                 *[]KVPair
+	Imports                *[]string
+	InitrdAvailableModules *[]string
+	InitrdModules          *[]string
+	KernelModules          *[]string
+	ModulePackages         *[]string
+	Attrs                  *[]KVPair
 }
 
 func determineHostPlatform(s system.CommandRunner) (string, error) {
