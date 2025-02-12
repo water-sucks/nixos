@@ -1,6 +1,7 @@
 package init
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,8 +10,11 @@ import (
 )
 
 const (
-	pciDir = "/sys/bus/pci/devices"
-	usbDir = "/sys/bus/usb/devices"
+	pciDeviceDirname     = "/sys/bus/pci/devices"
+	usbDeviceDirname     = "/sys/bus/usb/devices"
+	blockDeviceDirname   = "/sys/class/block"
+	mmcDeviceDirname     = "/sys/class/mmc_host"
+	networkDeviceDirname = "/sys/class/net"
 )
 
 var (
@@ -40,15 +44,15 @@ var (
 )
 
 func findPCIDevices(h *hardwareConfigSettings, log *logger.Logger) {
-	entries, err := os.ReadDir(pciDir)
+	entries, err := os.ReadDir(pciDeviceDirname)
 	if err != nil {
-		log.Warnf("failed to read %v: %v", pciDir, err)
+		log.Warnf("failed to read %v: %v", pciDeviceDirname, err)
 		return
 	}
 
 findDevices:
 	for _, entry := range entries {
-		devicePath := filepath.Join(pciDir, entry.Name())
+		devicePath := filepath.Join(pciDeviceDirname, entry.Name())
 
 		vendorFilename := filepath.Join(devicePath, "vendor")
 		deviceFilename := filepath.Join(devicePath, "device")
@@ -115,14 +119,14 @@ findDevices:
 }
 
 func findUSBDevices(h *hardwareConfigSettings, log *logger.Logger) {
-	entries, err := os.ReadDir(usbDir)
+	entries, err := os.ReadDir(usbDeviceDirname)
 	if err != nil {
-		log.Warnf("failed to read %s: %v", usbDir, err)
+		log.Warnf("failed to read %s: %v", usbDeviceDirname, err)
 		return
 	}
 
 	for _, entry := range entries {
-		devicePath := filepath.Join(usbDir, entry.Name())
+		devicePath := filepath.Join(usbDeviceDirname, entry.Name())
 
 		classFilename := filepath.Join(devicePath, "bInterfaceClass")
 		protocolFilename := filepath.Join(devicePath, "bInterfaceProtocol")
@@ -140,6 +144,37 @@ func findUSBDevices(h *hardwareConfigSettings, log *logger.Logger) {
 			*h.InitrdAvailableModules = append(*h.InitrdAvailableModules, moduleName)
 		}
 	}
+}
+
+func findGenericDevicesInDir(h *hardwareConfigSettings, log *logger.Logger, deviceDirname string) {
+	entries, err := os.ReadDir(deviceDirname)
+	if err != nil {
+		log.Warnf("failed to read %v: %v", deviceDirname, err)
+		return
+	}
+
+	for _, entry := range entries {
+		devicePath := filepath.Join(blockDeviceDirname, entry.Name(), "device")
+
+		moduleName := findModuleName(devicePath)
+		if moduleName != "" {
+			*h.InitrdAvailableModules = append(*h.InitrdAvailableModules, moduleName)
+		}
+	}
+}
+
+func detectNetworkInterfaces() []string {
+	detectedInterfaces := []string{}
+
+	interfaces, _ := net.Interfaces()
+	for _, i := range interfaces {
+		// Skip loopback interfaces
+		if !strings.HasPrefix(i.Name, "lo") {
+			detectedInterfaces = append(detectedInterfaces, i.Name)
+		}
+	}
+
+	return detectedInterfaces
 }
 
 func findModuleName(devicePath string) string {

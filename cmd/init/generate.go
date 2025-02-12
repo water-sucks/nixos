@@ -101,10 +101,14 @@ func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *config
 	findPCIDevices(&hwConfigSettings, log)
 	findUSBDevices(&hwConfigSettings, log)
 
-	// TODO: find kernel modules corresponding to connected block devices
-	// TODO: find kernel modules corresponding to connected MMC devices
-	// TODO: find networking devices
+	findGenericDevicesInDir(&hwConfigSettings, log, blockDeviceDirname)
+	findGenericDevicesInDir(&hwConfigSettings, log, mmcDeviceDirname)
+
+	networkInterfaces := detectNetworkInterfaces()
 	networkInterfaceLines := []string{}
+	for _, i := range networkInterfaces {
+		networkInterfaceLines = append(networkInterfaceLines, fmt.Sprintf("  # networking.interfaces.%v.useDHCP = lib.mkDefault true;", i))
+	}
 
 	// TODO: detect bcachefs
 	// TODO: detect LVM
@@ -125,7 +129,7 @@ func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *config
 		strings.Join(modulePackages, " "),
 		"", // TODO: filesystems
 		"", // TODO: swap devices
-		strings.Join(networkInterfaceLines, ""),
+		strings.Join(networkInterfaceLines, "\n")+"\n",
 		strings.Join(extraAttrLines, "\n"),
 	), nil
 }
