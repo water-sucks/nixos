@@ -110,8 +110,14 @@ func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *config
 		networkInterfaceLines = append(networkInterfaceLines, fmt.Sprintf("  # networking.interfaces.%v.useDHCP = lib.mkDefault true;", i))
 	}
 
-	// TODO: detect bcachefs
-	// TODO: detect LVM
+	if lvmDevicesExist(s, log) {
+		initrdModules = append(initrdModules, "dm-snapshot")
+	}
+
+	if bcachefsFilesystemsExist(log) {
+		initrdAvailableModules = append(initrdAvailableModules, "bcache")
+	}
+
 	// TODO: find swap devices
 	// TODO: find filesystems
 
