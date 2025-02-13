@@ -118,7 +118,15 @@ func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *config
 		initrdAvailableModules = append(initrdAvailableModules, "bcache")
 	}
 
-	// TODO: find swap devices
+	swapDevices := findSwapDevices(log)
+	swapDeviceStrings := make([]string, len(swapDevices))
+	for i, d := range swapDevices {
+		swapDeviceStrings[i] = fmt.Sprintf(`{device = "%s";}`, d)
+	}
+	swapDevicesStr := fmt.Sprintf(`  swapDevices = [
+    %v
+  ];`, strings.Join(swapDeviceStrings, "\n    "))
+
 	// TODO: find filesystems
 
 	extraAttrLines := make([]string, len(extraAttrs))
@@ -134,7 +142,7 @@ func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *config
 		nixStringList(kernelModules),
 		strings.Join(modulePackages, " "),
 		"", // TODO: filesystems
-		"", // TODO: swap devices
+		swapDevicesStr,
 		strings.Join(networkInterfaceLines, "\n")+"\n",
 		strings.Join(extraAttrLines, "\n"),
 	), nil
