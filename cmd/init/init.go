@@ -36,7 +36,7 @@ func InitCommand() *cobra.Command {
 
 	cmd.Flags().StringVarP(&opts.Directory, "dir", "d", "/etc/nixos", "Directory `path` in root to write to")
 	cmd.Flags().BoolVarP(&opts.ForceWrite, "force", "f", false, "Force generation of all configuration files")
-	cmd.Flags().BoolVarP(&opts.ForceWrite, "no-fs", "n", false, "Do not generate 'fileSystem' options configuration")
+	cmd.Flags().BoolVarP(&opts.NoFSGeneration, "no-fs", "n", false, "Do not generate 'fileSystem' options configuration")
 	cmd.Flags().StringVarP(&opts.Root, "root", "r", "/", "Treat `path` as the root directory")
 	cmd.Flags().BoolVarP(&opts.ShowHardwareConfig, "show-hardware-config", "s", false, "Print hardware config to stdout and exit")
 
@@ -52,7 +52,7 @@ func initMain(cmd *cobra.Command, opts *cmdTypes.InitOpts) error {
 
 	log.Step("Generating hardware-configuration.nix...")
 
-	hwConfigNixText, err := generateHwConfigNix(s, log, cfg, virtType, !opts.NoFSGeneration)
+	hwConfigNixText, err := generateHwConfigNix(s, log, cfg, virtType, opts)
 	if err != nil {
 		log.Errorf("failed to generate hardware-configuration.nix: %v", err)
 		return err

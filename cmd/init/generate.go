@@ -5,9 +5,11 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	buildOpts "github.com/water-sucks/nixos/internal/build"
+	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/system"
@@ -22,7 +24,7 @@ var configurationNixTemplate string
 //go:embed flake.nix.txt
 var flakeNixTemplate string
 
-func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *config.Config, virtType VirtualisationType, scanFilesystems bool) (string, error) {
+func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *config.Config, virtType VirtualisationType, opts *cmdTypes.InitOpts) (string, error) {
 	imports := []string{}
 	initrdAvailableModules := []string{}
 	initrdModules := []string{}
@@ -42,7 +44,6 @@ func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *config
 		ModulePackages:         &modulePackages,
 		Attrs:                  &extraAttrs,
 	}
-	_ = hwConfigSettings
 
 	if cfg.Init.ExtraAttrs != nil {
 		for k, v := range cfg.Init.ExtraAttrs {
@@ -127,11 +128,31 @@ func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *config
     %v
   ];`, strings.Join(swapDeviceStrings, "\n    "))
 
-	// TODO: find filesystems
-
 	extraAttrLines := make([]string, len(extraAttrs))
 	for i, attr := range extraAttrs {
 		extraAttrLines[i] = fmt.Sprintf("  %v = %v;", attr.Key, attr.Value)
+	}
+
+	rootDirectory, err := filepath.EvalSymlinks(opts.Root)
+	if err != nil {
+		log.Errorf("failed to resolve root directory: %v", err)
+		return "", err
+	}
+	if rootDirectory == "/" {
+		rootDirectory = ""
+	}
+
+	var filesystems []Filesystem
+	if opts.NoFSGeneration {
+		filesystems = []Filesystem{}
+	} else {
+		filesystems = findFilesystems(log, rootDirectory)
+	}
+
+	fsStrB := strings.Builder{}
+	for _, fs := range filesystems {
+		_, _ = fsStrB.WriteString(generateFilesystemAttrset(&fs))
+		_, _ = fsStrB.WriteString("\n")
 	}
 
 	return fmt.Sprintf(
@@ -141,7 +162,7 @@ func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *config
 		nixStringList(initrdModules),
 		nixStringList(kernelModules),
 		strings.Join(modulePackages, " "),
-		"", // TODO: filesystems
+		fsStrB.String(),
 		swapDevicesStr,
 		strings.Join(networkInterfaceLines, "\n")+"\n",
 		strings.Join(extraAttrLines, "\n"),
@@ -256,4 +277,51 @@ func nixStringList(s []string) string {
 	}
 
 	return strings.Join(quotedItems, " ")
+}
+
+const (
+	fileSystemEntryKeyTemplate = `  fileSystems."%s" = {` + "\n"
+	fileSystemDeviceTemplate   = `    device = "%s";` + "\n"
+	fileSystemTypeTemplate     = `    type = "%s";` + "\n"
+	fileSystemOptionTemplate   = `    options = [%s];` + "\n"
+
+	fileSystemLuksTemplate = `  boot.initrd.luks.devices."%s".device = "%s";` + "\n\n"
+)
+
+func generateFilesystemAttrset(filesystem *Filesystem) string {
+	fsStr := strings.Builder{}
+
+	_, _ = fsStr.WriteString(fmt.Sprintf(fileSystemEntryKeyTemplate, filesystem.Mountpoint))
+	_, _ = fsStr.WriteString(fmt.Sprintf(fileSystemDeviceTemplate, filesystem.DevicePath))
+	_, _ = fsStr.WriteString(fmt.Sprintf(fileSystemTypeTemplate, filesystem.FSType))
+
+	if len(filesystem.Options) > 0 {
+		optionStr := fmt.Sprintf(fileSystemOptionTemplate, nixStringList(uniqueStringsInSlice(filesystem.Options)))
+		_, _ = fsStr.WriteString(optionStr)
+	}
+
+	fsStr.WriteString("  }\n")
+
+	luks := filesystem.LUKSInformation
+	if luks != nil {
+		_, _ = fsStr.WriteString(fmt.Sprintf(fileSystemLuksTemplate, luks.Name, luks.DevicePath))
+	}
+
+	return fsStr.String()
+}
+
+func uniqueStringsInSlice(s []string) []string {
+	visited := make(map[string]bool, len(s))
+
+	result := make([]string, 0, len(s))
+
+	for _, v := range s {
+		_, ok := visited[v]
+		if !ok {
+			visited[v] = true
+			result = append(result, v)
+		}
+	}
+
+	return result
 }
