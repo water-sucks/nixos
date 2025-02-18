@@ -1,4 +1,4 @@
-package cmd
+package features
 
 import (
 	"encoding/json"
