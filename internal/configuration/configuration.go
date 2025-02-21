@@ -1,8 +1,10 @@
 package configuration
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -12,7 +14,7 @@ import (
 )
 
 type Configuration interface {
-	ConfigType() string
+	EvalAttribute(attr string) (*string, error)
 }
 
 type LegacyConfiguration struct {
@@ -20,17 +22,18 @@ type LegacyConfiguration struct {
 	ConfigDirname string
 }
 
-func (l *LegacyConfiguration) ConfigType() string {
-	return "legacy"
-}
-
 type FlakeRef struct {
 	URI    string
 	System string
 }
 
-func (f *FlakeRef) ConfigType() string {
-	return "flake"
+type AttributeEvaluationError struct {
+	Attribute        string
+	EvaluationOutput string
+}
+
+func (e *AttributeEvaluationError) Error() string {
+	return fmt.Sprintf("failed to evaluate attribute %s", e.Attribute)
 }
 
 func FlakeRefFromString(s string) *FlakeRef {
@@ -171,4 +174,56 @@ func FindConfiguration(log *logger.Logger, cfg *config.Config, includes []string
 			ConfigDirname: c,
 		}, nil
 	}
+}
+
+func (l *LegacyConfiguration) EvalAttribute(attr string) (*string, error) {
+	configAttr := fmt.Sprintf("config.%s", attr)
+	argv := []string{"nix-instantiate", "--eval", "<nixpkgs/nixos>", "-A", configAttr}
+
+	for _, v := range l.Includes {
+		argv = append(argv, "-I", v)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return nil, &AttributeEvaluationError{
+			Attribute:        attr,
+			EvaluationOutput: strings.TrimSpace(stderr.String()),
+		}
+	}
+
+	value := strings.TrimSpace(stdout.String())
+
+	return &value, nil
+}
+
+func (f *FlakeRef) EvalAttribute(attr string) (*string, error) {
+	evalArg := fmt.Sprintf(`%s#nixosConfigurations.%s.config.%s`, f.URI, f.System, attr)
+	argv := []string{"nix", "eval", evalArg}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return nil, &AttributeEvaluationError{
+			Attribute:        attr,
+			EvaluationOutput: strings.TrimSpace(stderr.String()),
+		}
+	}
+
+	value := strings.TrimSpace(stdout.String())
+
+	return &value, nil
 }

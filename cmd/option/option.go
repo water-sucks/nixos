@@ -1,7 +1,6 @@
 package option
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -129,19 +128,30 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 	if exactOptionMatchIdx != -1 {
 		o := options[exactOptionMatchIdx]
 
-		evaluatedValue := evaluateOptionValue(s, nixosConfig, o.Name)
+		var evalTrace string
+		evaluatedValue, err := nixosConfig.EvalAttribute(o.Name)
+		if err != nil {
+			log.Errorf("failed to evaluate value for option '%s'", o.Name)
+
+			if e, ok := err.(*configuration.AttributeEvaluationError); ok {
+				evalTrace = e.EvaluationOutput
+				log.Infof("evaluation trace: %v", evalTrace)
+			}
+
+			if opts.DisplayValueOnly {
+				if evalTrace == "" {
+					evalTrace = "failed to evaluate value"
+				}
+				return fmt.Errorf("%v", evalTrace)
+			}
+		}
 
 		if opts.DisplayJson {
-			displayOptionJson(&o)
+			displayOptionJson(&o, evaluatedValue)
 		} else if opts.DisplayValueOnly {
-			if evaluatedValue.ErrorMessage != "" {
-				log.Errorf("failed to evaluate value, trace received while evaluating:\n\n%v", evaluatedValue.ErrorMessage)
-				return fmt.Errorf("%v", evaluatedValue.ErrorMessage)
-			} else {
-				fmt.Printf("%v\n", evaluatedValue.Value)
-			}
+			fmt.Printf("%v\n", evaluatedValue)
 		} else {
-			prettyPrintOption(&o, evaluatedValue, cfg.Option.Prettify)
+			prettyPrintOption(&o, evaluatedValue, evalTrace, cfg.Option.Prettify)
 		}
 
 		return nil
@@ -175,7 +185,7 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 	return err
 }
 
-func displayOptionJson(o *option.NixosOption) {
+func displayOptionJson(o *option.NixosOption, evaluatedValue *string) {
 	type optionJson struct {
 		Name         string   `json:"name"`
 		Description  string   `json:"description"`
@@ -233,9 +243,7 @@ var (
 	italicStyle = color.New(color.Italic)
 )
 
-func prettyPrintOption(o *option.NixosOption, evaluatedValue *evaluatedOptionValue, pretty bool) {
-	_ = pretty
-
+func prettyPrintOption(o *option.NixosOption, evaluatedValue *string, evalTrace string, pretty bool) {
 	r := markdownRenderer()
 	desc := strings.TrimSpace(stripInlineCodeAnnotations(o.Description))
 	if desc == "" {
@@ -250,10 +258,13 @@ func prettyPrintOption(o *option.NixosOption, evaluatedValue *evaluatedOptionVal
 	}
 
 	valueText := ""
-	if evaluatedValue.ErrorMessage != "" {
-		valueText = color.RedString("failed to evaluate value: %v", evaluatedValue.ErrorMessage)
+	if evaluatedValue == nil {
+		valueText = color.RedString("failed to evaluate value: %v")
+		if evalTrace != "" {
+			valueText = fmt.Sprintf("%v: %v", valueText, evalTrace)
+		}
 	} else {
-		valueText = color.WhiteString(strings.TrimSpace(evaluatedValue.Value))
+		valueText = color.WhiteString(strings.TrimSpace(*evaluatedValue))
 	}
 
 	var defaultText string
@@ -319,40 +330,6 @@ func stripInlineCodeAnnotations(slice string) string {
 	}
 
 	return result
-}
-
-type evaluatedOptionValue struct {
-	Value        string
-	ErrorMessage string
-}
-
-func evaluateOptionValue(s system.CommandRunner, cfg configuration.Configuration, name string) *evaluatedOptionValue {
-	var argv []string
-
-	switch c := cfg.(type) {
-	case *configuration.FlakeRef:
-		attr := fmt.Sprintf("%s#nixosConfigurations.%s.config.%s", c.URI, c.System, name)
-		argv = []string{"nix", "eval", attr}
-	case *configuration.LegacyConfiguration:
-		attr := fmt.Sprintf("config.%s", name)
-		argv = []string{"nix-instantiate", "--eval", "<nixpkgs/nixos>", "-A", attr}
-		for _, v := range c.Includes {
-			argv = append(argv, "-I", v)
-		}
-	}
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-
-	cmd := system.NewCommand(argv[0], argv[1:]...)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	_, _ = s.Run(cmd)
-	return &evaluatedOptionValue{
-		Value:        strings.TrimSpace(stdout.String()),
-		ErrorMessage: strings.TrimSpace(stderr.String()),
-	}
 }
 
 // Filter a sorted (descending) match list until a minimum score is reached.
