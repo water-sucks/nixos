@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+
+	"github.com/spf13/cobra"
 )
 
 var availableOptions = map[string]string{
@@ -42,7 +44,7 @@ func getNixFlag(name string) string {
 	panic("unknown option '" + name + "' when trying to convert to nix options struct")
 }
 
-func NixOptionsToArgsList(options interface{}) []string {
+func NixOptionsToArgsList(cmd *cobra.Command, options interface{}) []string {
 	val := reflect.ValueOf(options)
 	typ := reflect.TypeOf(options)
 
@@ -58,6 +60,10 @@ func NixOptionsToArgsList(options interface{}) []string {
 		fieldType := typ.Field(i)
 		fieldName := getNixFlag(fieldType.Name)
 
+		if !cmd.Flags().Changed(fieldName) {
+			continue
+		}
+
 		optionArg := fmt.Sprintf("--%s", fieldName)
 
 		switch field.Kind() {
@@ -65,11 +71,8 @@ func NixOptionsToArgsList(options interface{}) []string {
 			if field.Bool() {
 				args = append(args, optionArg)
 			}
-		// TODO: Differentiate between zero values and empty zero
 		case reflect.Int:
-			if field.Int() != 0 {
-				args = append(args, optionArg, fmt.Sprintf("%d", field.Int()))
-			}
+			args = append(args, optionArg, fmt.Sprintf("%d", field.Int()))
 		case reflect.String:
 			if field.String() != "" {
 				args = append(args, optionArg, field.String())

@@ -288,14 +288,14 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	var resultLocation string
 	switch c := nixConfig.(type) {
 	case *configuration.FlakeRef:
-		buildOutput, err := buildFlake(s, log, c, buildType, buildOptions)
+		buildOutput, err := buildFlake(cmd, s, log, c, buildType, buildOptions)
 		if err != nil {
 			log.Errorf("failed to build configuration: %v", err)
 			return err
 		}
 		resultLocation = buildOutput
 	case *configuration.LegacyConfiguration:
-		buildOutput, err := buildLegacy(s, log, buildType, buildOptions)
+		buildOutput, err := buildLegacy(cmd, s, log, buildType, buildOptions)
 		if err != nil {
 			log.Errorf("failed to build configuration: %v", err)
 			return err

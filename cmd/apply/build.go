@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/spf13/cobra"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
@@ -60,7 +61,7 @@ type buildOptions struct {
 	Verbose        bool
 }
 
-func buildFlake(s system.CommandRunner, log *logger.Logger, flakeRef *configuration.FlakeRef, buildType buildType, opts *buildOptions) (string, error) {
+func buildFlake(cobraCmd *cobra.Command, s system.CommandRunner, log *logger.Logger, flakeRef *configuration.FlakeRef, buildType buildType, opts *buildOptions) (string, error) {
 	if flakeRef == nil {
 		return "", fmt.Errorf("no flake ref provided")
 	}
@@ -85,7 +86,7 @@ func buildFlake(s system.CommandRunner, log *logger.Logger, flakeRef *configurat
 	}
 
 	if opts.NixOpts != nil {
-		argv = append(argv, nixopts.NixOptionsToArgsList(opts.NixOpts)...)
+		argv = append(argv, nixopts.NixOptionsToArgsList(cobraCmd, opts.NixOpts)...)
 	}
 
 	if opts.Verbose {
@@ -105,7 +106,7 @@ func buildFlake(s system.CommandRunner, log *logger.Logger, flakeRef *configurat
 	return strings.Trim(stdout.String(), "\n "), err
 }
 
-func buildLegacy(s system.CommandRunner, log *logger.Logger, buildType buildType, opts *buildOptions) (string, error) {
+func buildLegacy(cobraCmd *cobra.Command, s system.CommandRunner, log *logger.Logger, buildType buildType, opts *buildOptions) (string, error) {
 	nixCommand := "nix-build"
 	if opts.UseNom {
 		nixCommand = "nom-build"
@@ -120,7 +121,7 @@ func buildLegacy(s system.CommandRunner, log *logger.Logger, buildType buildType
 	}
 
 	if opts.NixOpts != nil {
-		argv = append(argv, nixopts.NixOptionsToArgsList(opts.NixOpts)...)
+		argv = append(argv, nixopts.NixOptionsToArgsList(cobraCmd, opts.NixOpts)...)
 	}
 
 	if opts.Verbose {
