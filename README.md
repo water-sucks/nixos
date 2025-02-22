@@ -65,7 +65,42 @@ the recommended way to use this program.
 }
 ```
 
-### Cache
+## Legacy
+
+This is primarily a flake-oriented package, since flakes are the future, at
+least as far as can be seen. However, legacy configurations managed with
+`nix-channel` and a `configuration.nix`, or any other preferred methods such
+as `niv` and `npins` are maintained here as well, albeit they are a little
+harder to use. The `nixos-cli` package that manages legacy configurations is
+completely separated from the flake-enabled `nixos-cli`, as to not mix usage
+between the two and separate concerns.
+
+To use the NixOS module in legacy mode, import the `default.nix` provided in
+this repository. An example is provided below with `fetchTarball`:
+
+```nix
+{ config, system, pkgs, ...}:
+
+let
+  # Make sure to specify the full Git revision to fetch in pure evaluation mode,
+  # rather than using a branch.
+  nixos-cli = import "${builtins.fetchTarball "github:water-sucks/nixos/archive/GITREVORBRANCHDEADBEEFDEADBEEF0000.tar.gz}" {inherit pkgs;};
+in {
+  imports = [
+    nixos-cli.module
+  ];
+
+  services.nixos-cli = {
+    enable = true;
+    package = nixos-cli.nixosLegacy;
+    # Other configuration for nixos-cli
+  };
+
+  # ... rest of config
+}
+```
+
+## Cache
 
 There is a Cachix cache available. Add the following to your NixOS configuration
 to avoid lengthy rebuilds and fetching extra build-time dependencies:
@@ -106,44 +141,6 @@ though, as this is a fairly undocumented feature!):
 }
 ```
 
-## Legacy
-
-This is primarily a flake-oriented package, since flakes are the future, at
-least as far as can be seen. However, legacy configurations managed with
-`nix-channel` and a `configuration.nix` are maintained here as well, albeit they
-are a little harder to use. The `nixos-cli` package that manages legacy
-configurations is completely separated from the flake-enabled `nixos-cli`, as
-to not mix usage between the two and separate concerns. In order to use the
-NixOS module, one must add the following to `configuration.nix` (or wherever
-`imports` are specified) in order to use the NixOS module properly:
-
-```nix
-{ config, system, pkgs, ...}:
-
-let
-  # Make sure to specify the git revision to fetch the flake in pure eval mode.
-  nixos-cli = builtins.getFlake "github:water-sucks/nixos/GITREVDEADBEEFDEADBEEF0000";
-in {
-  imports = [
-    (nixos-cli).nixosModules.nixos-cli
-  ];
-
-  services.nixos-cli = {
-    enable = true;
-    package = nixos-cli.packages.${pkgs.system}.nixosLegacy;
-    # Other configuration for nixos-cli
-  };
-
-  nix.settings.extra-experimental-features = ["flakes"];
-
-  # ... rest of config
-}
-```
-
-Note that this does involve flakes to be an enabled feature. If this is a
-deal-breaker for some reason, then please file an issue; legacy configurations
-are actively supported.
-
 ## Configuration
 
 This can be configured using the NixOS module (the preferred way), which
@@ -174,9 +171,9 @@ Checklist of what needs to happen before this rewrite can be merged back into
 - ✅ `enter`
 - ✅ `repl`
 - 🚧 `option`
-- ❌ `init`
+- ✅ `init`
 - ❌ `install`
-- ❌ `manual`
+- ✅ `manual`
 
 ### Roadmap (for after rewrite)
 

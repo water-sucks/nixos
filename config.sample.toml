@@ -7,6 +7,8 @@ config_location = "/etc/nixos"
 # Disable confirmation dialogs. This is good for ensuring
 # that commands will run to completion without user input.
 no_confirm = false
+# Command to use to promote process to root
+root_comand = "sudo"
 # Use `nvd` (https://gitlab.com/khumba/nvd) instead of
 # `nix store diff-closures` when showing closure diffs
 use_nvd = false
