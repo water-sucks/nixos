@@ -1,4 +1,4 @@
-{
+self: {
   options,
   config,
   pkgs,
@@ -17,7 +17,7 @@ in {
 
     package = lib.mkOption {
       type = types.package;
-      default = import ./default.nix;
+      default = self.packages.${pkgs.system}.nixos;
       description = "Package to use for nixos-cli";
     };
 
@@ -77,7 +77,7 @@ in {
     system.systemBuilderCommands = let
       nixos-version-json = builtins.toJSON {
         nixosVersion = "${nixosCfg.distroName} ${nixosCfg.release} (${nixosCfg.codeName})";
-        nixpkgsRevision = "${nixosCfg.revision}";
+        nixpkgsRevision = nixosCfg.revision;
         configurationRevision = "${builtins.toString config.system.configurationRevision}";
         description = cfg.generationTag;
       };
