@@ -14,10 +14,10 @@ import (
 	buildOpts "github.com/water-sucks/nixos/internal/build"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
-	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/generation"
 	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/water-sucks/nixos/internal/settings"
 	"github.com/water-sucks/nixos/internal/system"
 	timeUtils "github.com/water-sucks/nixos/internal/time"
 	"github.com/water-sucks/nixos/internal/utils"
@@ -120,7 +120,7 @@ The 'period' parameter in --older-than is a systemd.time(7) span
 
 func generationDeleteMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationDeleteOpts) error {
 	log := logger.FromContext(cmd.Context())
-	cfg := config.FromContext(cmd.Context())
+	cfg := settings.FromContext(cmd.Context())
 	s := system.NewLocalSystem()
 
 	if !s.IsNixOS() {

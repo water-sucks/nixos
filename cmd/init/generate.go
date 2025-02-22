@@ -10,8 +10,8 @@ import (
 
 	buildOpts "github.com/water-sucks/nixos/internal/build"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
-	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/water-sucks/nixos/internal/settings"
 	"github.com/water-sucks/nixos/internal/system"
 )
 
@@ -24,7 +24,7 @@ var configurationNixTemplate string
 //go:embed flake.nix.txt
 var flakeNixTemplate string
 
-func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *config.Config, virtType VirtualisationType, opts *cmdTypes.InitOpts) (string, error) {
+func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *settings.Settings, virtType VirtualisationType, opts *cmdTypes.InitOpts) (string, error) {
 	imports := []string{}
 	initrdAvailableModules := []string{}
 	initrdModules := []string{}
@@ -169,7 +169,7 @@ func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *config
 	), nil
 }
 
-func generateConfigNix(log *logger.Logger, cfg *config.Config, virtType VirtualisationType) (string, error) {
+func generateConfigNix(log *logger.Logger, cfg *settings.Settings, virtType VirtualisationType) (string, error) {
 	var bootloaderConfig string
 
 	if _, err := os.Stat("/sys/firmware/efi/efivars"); err == nil {

@@ -11,9 +11,9 @@ import (
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
-	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/water-sucks/nixos/internal/settings"
 
 	buildOpts "github.com/water-sucks/nixos/internal/build"
 )
@@ -121,7 +121,7 @@ Use %s to see all available repl commands.
 
 func replMain(cmd *cobra.Command, opts *cmdTypes.ReplOpts) error {
 	log := logger.FromContext(cmd.Context())
-	cfg := config.FromContext(cmd.Context())
+	cfg := settings.FromContext(cmd.Context())
 
 	var nixConfig configuration.Configuration
 	if opts.FlakeRef != "" {

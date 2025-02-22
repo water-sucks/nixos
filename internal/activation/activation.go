@@ -7,10 +7,10 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/generation"
 	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/water-sucks/nixos/internal/settings"
 	"github.com/water-sucks/nixos/internal/system"
 )
 
@@ -18,7 +18,7 @@ import (
 // for that generation.
 func FindDefaultSpecialisationFromConfig(generationDirname string) (string, error) {
 	generationCfgFilename := filepath.Join(generationDirname, constants.DefaultConfigLocation)
-	generationCfg, err := config.ParseConfig(generationCfgFilename)
+	generationCfg, err := settings.ParseSettings(generationCfgFilename)
 	if err != nil {
 		return "", err
 	}

@@ -8,9 +8,9 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	buildVars "github.com/water-sucks/nixos/internal/build"
-	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/water-sucks/nixos/internal/settings"
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 
@@ -61,11 +61,11 @@ func mainCommand() (*cobra.Command, error) {
 		configLocation = constants.DefaultConfigLocation
 	}
 
-	cfg, err := config.ParseConfig(configLocation)
+	cfg, err := settings.ParseSettings(configLocation)
 	if err != nil {
 		log.Error(err)
 		log.Warn("proceeding with defaults only, you have been warned")
-		cfg = config.NewConfig()
+		cfg = settings.NewSettings()
 	}
 
 	errs := cfg.Validate()
@@ -73,7 +73,7 @@ func mainCommand() (*cobra.Command, error) {
 		log.Warn(err.Error())
 	}
 
-	cmdCtx = config.WithConfig(cmdCtx, cfg)
+	cmdCtx = settings.WithConfig(cmdCtx, cfg)
 
 	cmd := cobra.Command{
 		Use:                        "nixos {command} [flags]",
@@ -131,7 +131,7 @@ func mainCommand() (*cobra.Command, error) {
 	cmd.PersistentFlags().BoolVar(&opts.ColorAlways, "color-always", false, "Always color output when possible")
 	cmd.PersistentFlags().StringToStringVar(&opts.ConfigValues, "config", map[string]string{}, "Set a configuration `key=value`")
 
-	err = cmd.RegisterFlagCompletionFunc("config", config.CompleteConfigFlag)
+	err = cmd.RegisterFlagCompletionFunc("config", settings.CompleteConfigFlag)
 	if err != nil {
 		return nil, err
 	}

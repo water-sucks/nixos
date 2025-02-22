@@ -1,4 +1,4 @@
-package config
+package settings
 
 import (
 	"fmt"
@@ -141,7 +141,7 @@ func CompleteConfigFlag(_ *cobra.Command, args []string, toComplete string) ([]s
 }
 
 func completeKeys(candidate string) ([]string, cobra.ShellCompDirective) {
-	completionCandidates, complete := findFieldCompletions(NewConfig(), candidate)
+	completionCandidates, complete := findFieldCompletions(NewSettings(), candidate)
 
 	// There are three cases of completions where extra actions need to be taken:
 	// 1. Multiple candidates remaining

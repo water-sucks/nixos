@@ -9,10 +9,10 @@ import (
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
-	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/generation"
 	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/water-sucks/nixos/internal/settings"
 	"github.com/water-sucks/nixos/internal/system"
 )
 
@@ -62,7 +62,7 @@ Arguments:
 
 func generationDiffMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationDiffOpts) error {
 	log := logger.FromContext(cmd.Context())
-	cfg := config.FromContext(cmd.Context())
+	cfg := settings.FromContext(cmd.Context())
 	s := system.NewLocalSystem()
 
 	profileDirectory := constants.NixProfileDirectory

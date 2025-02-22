@@ -6,14 +6,14 @@ import (
 
 	"github.com/spf13/cobra"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
-	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/option"
+	"github.com/water-sucks/nixos/internal/settings"
 	"github.com/water-sucks/nixos/internal/system"
 )
 
-func loadOptions(log *logger.Logger, cfg *config.Config, includes []string) (option.NixosOptionSource, error) {
+func loadOptions(log *logger.Logger, cfg *settings.Settings, includes []string) (option.NixosOptionSource, error) {
 	s := system.NewLocalSystem()
 
 	nixosConfig, err := configuration.FindConfiguration(log, cfg, includes, false)
@@ -53,7 +53,7 @@ func loadOptions(log *logger.Logger, cfg *config.Config, includes []string) (opt
 func OptionsCompletionFunc(opts *cmdTypes.OptionOpts) cmdTypes.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		log := logger.FromContext(cmd.Context())
-		cfg := config.FromContext(cmd.Context())
+		cfg := settings.FromContext(cmd.Context())
 
 		if len(args) != 0 {
 			return []string{}, cobra.ShellCompDirectiveNoFileComp

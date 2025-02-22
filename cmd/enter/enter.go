@@ -11,9 +11,9 @@ import (
 
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
-	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/water-sucks/nixos/internal/settings"
 	"github.com/water-sucks/nixos/internal/system"
 )
 
@@ -58,7 +58,7 @@ double dash (--) is required. Otherwise, unexpected behavior may occur.
 
 func enterMain(cmd *cobra.Command, opts *cmdTypes.EnterOpts) error {
 	log := logger.FromContext(cmd.Context())
-	cfg := config.FromContext(cmd.Context())
+	cfg := settings.FromContext(cmd.Context())
 
 	nixosMarker := filepath.Join(opts.RootLocation, constants.NixOSMarker)
 	if _, err := os.Stat(nixosMarker); err != nil {

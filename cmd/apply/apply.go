@@ -13,16 +13,16 @@ import (
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
-	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/generation"
 	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/water-sucks/nixos/internal/settings"
 	"github.com/water-sucks/nixos/internal/system"
 	"github.com/water-sucks/nixos/internal/utils"
 )
 
-func ApplyCommand(cfg *config.Config) *cobra.Command {
+func ApplyCommand(cfg *settings.Settings) *cobra.Command {
 	opts := cmdTypes.ApplyOpts{}
 
 	usage := "apply"
@@ -144,7 +144,7 @@ Check the Nix manual page for more details on what options are available.
 
 func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	log := logger.FromContext(cmd.Context())
-	cfg := config.FromContext(cmd.Context())
+	cfg := settings.FromContext(cmd.Context())
 	s := system.NewLocalSystem()
 
 	if !s.IsNixOS() {

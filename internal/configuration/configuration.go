@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	buildOpts "github.com/water-sucks/nixos/internal/build"
-	"github.com/water-sucks/nixos/internal/config"
 	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/water-sucks/nixos/internal/settings"
 )
 
 type Configuration interface {
@@ -139,7 +139,7 @@ func FindLegacyConfiguration(log *logger.Logger, includes []string, verbose bool
 	return configuration, nil
 }
 
-func FindConfiguration(log *logger.Logger, cfg *config.Config, includes []string, verbose bool) (Configuration, error) {
+func FindConfiguration(log *logger.Logger, cfg *settings.Settings, includes []string, verbose bool) (Configuration, error) {
 	if buildOpts.Flake == "true" {
 		if verbose {
 			log.Info("looking for flake configuration")

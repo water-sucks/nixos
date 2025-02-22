@@ -1,11 +1,11 @@
-package config_test
+package settings_test
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/water-sucks/nixos/internal/config"
+	"github.com/water-sucks/nixos/internal/settings"
 )
 
 type TestCase struct {
@@ -45,7 +45,7 @@ func TestCompleteConfigFlag(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		actual, _ := config.CompleteConfigFlag(&cobra.Command{}, []string{}, testCase.Input)
+		actual, _ := settings.CompleteConfigFlag(&cobra.Command{}, []string{}, testCase.Input)
 
 		// Discard completion descriptions.
 		for i, v := range actual {
