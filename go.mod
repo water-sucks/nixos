@@ -5,6 +5,7 @@ go 1.22.5
 require (
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.2.4
+	github.com/charmbracelet/glamour v0.8.0
 	github.com/djherbis/times v1.6.0
 	github.com/fatih/color v1.18.0
 	github.com/go-git/go-git/v5 v5.13.1
@@ -12,6 +13,7 @@ require (
 	github.com/knadh/koanf/providers/file v1.1.2
 	github.com/knadh/koanf/v2 v2.1.2
 	github.com/olekukonko/tablewriter v0.0.5
+	github.com/sahilm/fuzzy v0.1.1
 	github.com/spf13/cobra v1.8.1
 )
 
@@ -38,7 +40,6 @@ require (
 	github.com/alecthomas/chroma/v2 v2.15.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
-	github.com/charmbracelet/glamour v0.8.0 // indirect
 	github.com/cloudflare/circl v1.5.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.0 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
@@ -62,7 +63,6 @@ require (
 	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pjbgf/sha1cd v0.3.1 // indirect
-	github.com/sahilm/fuzzy v0.1.1 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.3.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
