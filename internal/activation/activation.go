@@ -9,7 +9,6 @@ import (
 
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/generation"
-	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/settings"
 	"github.com/water-sucks/nixos/internal/system"
 )
@@ -59,7 +58,7 @@ func EnsureSystemProfileDirectoryExists() error {
 	return nil
 }
 
-func AddNewNixProfile(s system.CommandRunner, log *logger.Logger, profile string, closure string, verbose bool) error {
+func AddNewNixProfile(s system.CommandRunner, profile string, closure string, verbose bool) error {
 	if profile != "system" {
 		err := EnsureSystemProfileDirectoryExists()
 		if err != nil {
@@ -72,7 +71,7 @@ func AddNewNixProfile(s system.CommandRunner, log *logger.Logger, profile string
 	argv := []string{"nix-env", "--profile", profileDirectory, "--set", closure}
 
 	if verbose {
-		log.CmdArray(argv)
+		s.LogCmd(argv)
 	}
 
 	cmd := system.NewCommand(argv[0], argv[1:]...)
@@ -82,7 +81,7 @@ func AddNewNixProfile(s system.CommandRunner, log *logger.Logger, profile string
 	return err
 }
 
-func SetNixProfileGeneration(s system.CommandRunner, log *logger.Logger, profile string, genNumber uint64, verbose bool) error {
+func SetNixProfileGeneration(s system.CommandRunner, profile string, genNumber uint64, verbose bool) error {
 	if profile != "system" {
 		err := EnsureSystemProfileDirectoryExists()
 		if err != nil {
@@ -95,7 +94,7 @@ func SetNixProfileGeneration(s system.CommandRunner, log *logger.Logger, profile
 	argv := []string{"nix-env", "--profile", profileDirectory, "--switch-generation", fmt.Sprintf("%d", genNumber)}
 
 	if verbose {
-		log.CmdArray(argv)
+		s.LogCmd(argv)
 	}
 
 	cmd := system.NewCommand(argv[0], argv[1:]...)
@@ -159,7 +158,7 @@ type SwitchToConfigurationOptions struct {
 	Specialisation    string
 }
 
-func SwitchToConfiguration(s system.CommandRunner, log *logger.Logger, generationLocation string, action SwitchToConfigurationAction, opts *SwitchToConfigurationOptions) error {
+func SwitchToConfiguration(s system.CommandRunner, generationLocation string, action SwitchToConfigurationAction, opts *SwitchToConfigurationOptions) error {
 	var commandPath string
 	if opts.Specialisation != "" {
 		commandPath = filepath.Join(generationLocation, "specialisation", opts.Specialisation, "bin", "switch-to-configuration")
@@ -170,7 +169,7 @@ func SwitchToConfiguration(s system.CommandRunner, log *logger.Logger, generatio
 	argv := []string{commandPath, action.String()}
 
 	if opts.Verbose {
-		log.CmdArray(argv)
+		s.LogCmd(argv)
 	}
 
 	cmd := system.NewCommand(argv[0], argv[1:]...)

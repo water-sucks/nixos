@@ -135,11 +135,11 @@ resolvConfDone:
 		systemClosure = filepath.Join(constants.NixProfileDirectory, "system")
 	}
 
-	s := system.NewLocalSystem()
+	s := system.NewLocalSystem(log)
 
 	log.Step("Activating system...")
 
-	err = activate(s, log, opts.RootLocation, systemClosure, opts.Verbose, opts.Silent)
+	err = activate(s, opts.RootLocation, systemClosure, opts.Verbose, opts.Silent)
 	if err != nil {
 		log.Errorf("failed to activate system: %v", err)
 		return err
@@ -160,7 +160,7 @@ resolvConfDone:
 		args = []string{bash, "--login"}
 	}
 
-	err = startChroot(s, log, opts.RootLocation, args, opts.Verbose)
+	err = startChroot(s, opts.RootLocation, args, opts.Verbose)
 	if err != nil {
 		log.Errorf("failed to start chroot: %v", err)
 		return err
@@ -238,14 +238,14 @@ func findResolvConfLocation(root string) (string, error) {
 	return finalLocation, nil
 }
 
-func activate(s system.CommandRunner, log *logger.Logger, root string, systemClosure string, verbose bool, silent bool) error {
+func activate(s system.CommandRunner, root string, systemClosure string, verbose bool, silent bool) error {
 	localeArchive := filepath.Join(systemClosure, "sw", "lib", "locale", "locale-archive")
 	activateScript := filepath.Join(systemClosure, "activate")
 
 	argv := []string{"chroot", root, activateScript}
 
 	if verbose {
-		log.CmdArray(argv)
+		s.LogCmd(argv)
 	}
 
 	// Run the activation script.
@@ -268,7 +268,7 @@ func activate(s system.CommandRunner, log *logger.Logger, root string, systemClo
 	argv = []string{"chroot", root, systemdTmpfiles, "--create", "--remove", "-E"}
 
 	if verbose {
-		log.CmdArray(argv)
+		s.LogCmd(argv)
 	}
 
 	tmpfilesCmd := system.NewCommand(argv[0], argv[1:]...)
@@ -281,12 +281,12 @@ func activate(s system.CommandRunner, log *logger.Logger, root string, systemClo
 	return err
 }
 
-func startChroot(s system.CommandRunner, log *logger.Logger, root string, args []string, verbose bool) error {
+func startChroot(s system.CommandRunner, root string, args []string, verbose bool) error {
 	argv := []string{"chroot", root}
 	argv = append(argv, args...)
 
 	if verbose {
-		log.CmdArray(argv)
+		s.LogCmd(argv)
 	}
 
 	cmd := system.NewCommand(argv[0], argv[1:]...)

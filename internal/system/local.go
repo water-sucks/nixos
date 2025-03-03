@@ -3,12 +3,18 @@ package system
 import (
 	"os"
 	"os/exec"
+
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
-type LocalSystem struct{}
+type LocalSystem struct {
+	Logger *logger.Logger
+}
 
-func NewLocalSystem() *LocalSystem {
-	return &LocalSystem{}
+func NewLocalSystem(logger *logger.Logger) *LocalSystem {
+	return &LocalSystem{
+		Logger: logger,
+	}
 }
 
 func (l *LocalSystem) Run(cmd *Command) (int, error) {
@@ -41,4 +47,12 @@ func (l *LocalSystem) Run(cmd *Command) (int, error) {
 func (l *LocalSystem) IsNixOS() bool {
 	_, err := os.Stat("/etc/NIXOS")
 	return err == nil
+}
+
+func (l *LocalSystem) LogCmd(argv []string) {
+	if l.Logger == nil {
+		return
+	}
+
+	l.Logger.CmdArray(argv)
 }

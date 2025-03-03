@@ -14,7 +14,7 @@ import (
 )
 
 func loadOptions(log *logger.Logger, cfg *settings.Settings, includes []string) (option.NixosOptionSource, error) {
-	s := system.NewLocalSystem()
+	s := system.NewLocalSystem(log)
 
 	nixosConfig, err := configuration.FindConfiguration(log, cfg, includes, false)
 	if err != nil {

@@ -121,7 +121,7 @@ The 'period' parameter in --older-than is a systemd.time(7) span
 func generationDeleteMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationDeleteOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
-	s := system.NewLocalSystem()
+	s := system.NewLocalSystem(log)
 
 	if !s.IsNixOS() {
 		msg := "this command can only be run on NixOS systems"
@@ -178,21 +178,21 @@ func generationDeleteMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, 
 	log.Step("Deleting generations...")
 
 	profileDirectory := generation.GetProfileDirectoryFromName(genOpts.ProfileName)
-	if err := deleteGenerations(s, log, profileDirectory, gensToDelete, opts.Verbose); err != nil {
+	if err := deleteGenerations(s, profileDirectory, gensToDelete, opts.Verbose); err != nil {
 		log.Errorf("failed to delete generations: %v", err)
 		return err
 	}
 
 	log.Step("Regenerating boot menu entries...")
 
-	if err := regenerateBootMenu(s, log, opts.Verbose); err != nil {
+	if err := regenerateBootMenu(s, opts.Verbose); err != nil {
 		log.Errorf("failed to regenerate boot menu entries: %v", err)
 		return err
 	}
 
 	log.Step("Collecting garbage...")
 
-	if err := collectGarbage(s, log, opts.Verbose); err != nil {
+	if err := collectGarbage(s, opts.Verbose); err != nil {
 		log.Errorf("failed to collect garbage: %v", err)
 		return err
 	}
@@ -227,14 +227,14 @@ func displayDeleteSummary(generations []generation.Generation) {
 	table.Render()
 }
 
-func deleteGenerations(s system.CommandRunner, log *logger.Logger, profileDirectory string, generations []generation.Generation, verbose bool) error {
+func deleteGenerations(s system.CommandRunner, profileDirectory string, generations []generation.Generation, verbose bool) error {
 	argv := []string{"nix-env", "-p", profileDirectory, "--delete-generations"}
 	for _, v := range generations {
 		argv = append(argv, fmt.Sprintf("%v", v.Number))
 	}
 
 	if verbose {
-		log.CmdArray(argv)
+		s.LogCmd(argv)
 	}
 
 	cmd := system.NewCommand(argv[0], argv[1:]...)
@@ -242,13 +242,13 @@ func deleteGenerations(s system.CommandRunner, log *logger.Logger, profileDirect
 	return err
 }
 
-func regenerateBootMenu(s system.CommandRunner, log *logger.Logger, verbose bool) error {
+func regenerateBootMenu(s system.CommandRunner, verbose bool) error {
 	switchToConfiguration := filepath.Join(constants.CurrentSystem, "bin", "switch-to-configuration")
 
 	argv := []string{switchToConfiguration, "boot"}
 
 	if verbose {
-		log.CmdArray(argv)
+		s.LogCmd(argv)
 	}
 
 	cmd := system.NewCommand(argv[0], argv[1:]...)
@@ -256,7 +256,7 @@ func regenerateBootMenu(s system.CommandRunner, log *logger.Logger, verbose bool
 	return err
 }
 
-func collectGarbage(s system.CommandRunner, log *logger.Logger, verbose bool) error {
+func collectGarbage(s system.CommandRunner, verbose bool) error {
 	var argv []string
 	if buildOpts.Flake == "true" {
 		argv = []string{"nix", "store", "gc"}
@@ -266,7 +266,7 @@ func collectGarbage(s system.CommandRunner, log *logger.Logger, verbose bool) er
 
 	if verbose {
 		argv = append(argv, "-v")
-		log.CmdArray(argv)
+		s.LogCmd(argv)
 	}
 
 	var cmd *system.Command

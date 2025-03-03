@@ -63,7 +63,7 @@ Arguments:
 func generationDiffMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationDiffOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
-	s := system.NewLocalSystem()
+	s := system.NewLocalSystem(log)
 
 	profileDirectory := constants.NixProfileDirectory
 	if genOpts.ProfileName != "system" {

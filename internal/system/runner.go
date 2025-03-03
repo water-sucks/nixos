@@ -7,6 +7,7 @@ import (
 
 type CommandRunner interface {
 	Run(cmd *Command) (int, error)
+	LogCmd(argv []string)
 }
 
 type Command struct {

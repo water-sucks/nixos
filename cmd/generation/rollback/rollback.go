@@ -45,7 +45,7 @@ func GenerationRollbackCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command 
 func generationRollbackMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationRollbackOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
-	s := system.NewLocalSystem()
+	s := system.NewLocalSystem(log)
 
 	if os.Geteuid() != 0 {
 		err := utils.ExecAsRoot(cfg.RootCommand)
@@ -134,7 +134,7 @@ func generationRollbackMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts
 	if !opts.Dry {
 		log.Step("Setting system profile...")
 
-		if err := activation.SetNixProfileGeneration(s, log, genOpts.ProfileName, uint64(previousGen.Number), opts.Verbose); err != nil {
+		if err := activation.SetNixProfileGeneration(s, genOpts.ProfileName, uint64(previousGen.Number), opts.Verbose); err != nil {
 			log.Errorf("failed to set system profile: %v", err)
 			return err
 		}
@@ -153,7 +153,7 @@ func generationRollbackMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts
 			}
 
 			log.Step("Rolling back system profile...")
-			if err := activation.SetNixProfileGeneration(s, log, "system", previousGenNumber, opts.Verbose); err != nil {
+			if err := activation.SetNixProfileGeneration(s, "system", previousGenNumber, opts.Verbose); err != nil {
 				log.Errorf("failed to rollback system profile: %v", err)
 				log.Info("make sure to rollback the system manually before deleting anything!")
 			}
@@ -167,7 +167,7 @@ func generationRollbackMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts
 		stcAction = activation.SwitchToConfigurationActionDryActivate
 	}
 
-	err = activation.SwitchToConfiguration(s, log, generationLink, stcAction, &activation.SwitchToConfigurationOptions{
+	err = activation.SwitchToConfiguration(s, generationLink, stcAction, &activation.SwitchToConfigurationOptions{
 		Verbose:        opts.Verbose,
 		Specialisation: specialisation,
 	})

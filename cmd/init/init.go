@@ -46,7 +46,7 @@ func InitCommand() *cobra.Command {
 func initMain(cmd *cobra.Command, opts *cmdTypes.InitOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
-	s := system.NewLocalSystem()
+	s := system.NewLocalSystem(log)
 
 	virtType := determineVirtualisationType(s, log)
 

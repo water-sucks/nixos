@@ -14,7 +14,6 @@ import (
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/constants"
-	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/system"
 )
 
@@ -61,7 +60,7 @@ type buildOptions struct {
 	Verbose        bool
 }
 
-func buildFlake(cobraCmd *cobra.Command, s system.CommandRunner, log *logger.Logger, flakeRef *configuration.FlakeRef, buildType buildType, opts *buildOptions) (string, error) {
+func buildFlake(cobraCmd *cobra.Command, s system.CommandRunner, flakeRef *configuration.FlakeRef, buildType buildType, opts *buildOptions) (string, error) {
 	if flakeRef == nil {
 		return "", fmt.Errorf("no flake ref provided")
 	}
@@ -90,7 +89,7 @@ func buildFlake(cobraCmd *cobra.Command, s system.CommandRunner, log *logger.Log
 	}
 
 	if opts.Verbose {
-		log.CmdArray(argv)
+		s.LogCmd(argv)
 	}
 
 	var stdout bytes.Buffer
@@ -106,7 +105,7 @@ func buildFlake(cobraCmd *cobra.Command, s system.CommandRunner, log *logger.Log
 	return strings.Trim(stdout.String(), "\n "), err
 }
 
-func buildLegacy(cobraCmd *cobra.Command, s system.CommandRunner, log *logger.Logger, buildType buildType, opts *buildOptions) (string, error) {
+func buildLegacy(cobraCmd *cobra.Command, s system.CommandRunner, buildType buildType, opts *buildOptions) (string, error) {
 	nixCommand := "nix-build"
 	if opts.UseNom {
 		nixCommand = "nom-build"
@@ -125,7 +124,7 @@ func buildLegacy(cobraCmd *cobra.Command, s system.CommandRunner, log *logger.Lo
 	}
 
 	if opts.Verbose {
-		log.CmdArray(argv)
+		s.LogCmd(argv)
 	}
 
 	var stdout bytes.Buffer
@@ -148,7 +147,7 @@ type upgradeChannelsOptions struct {
 	UpgradeAll bool
 }
 
-func upgradeChannels(s system.CommandRunner, log *logger.Logger, opts *upgradeChannelsOptions) error {
+func upgradeChannels(s system.CommandRunner, opts *upgradeChannelsOptions) error {
 	argv := []string{"nix-channel", "--update"}
 
 	if !opts.UpgradeAll {
@@ -171,7 +170,7 @@ func upgradeChannels(s system.CommandRunner, log *logger.Logger, opts *upgradeCh
 	}
 
 	if opts.Verbose {
-		log.CmdArray(argv)
+		s.LogCmd(argv)
 	}
 
 	cmd := system.NewCommand(argv[0], argv[1:]...)

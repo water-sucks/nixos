@@ -72,7 +72,7 @@ Arguments:
 func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
-	s := system.NewLocalSystem()
+	s := system.NewLocalSystem(log)
 
 	minScore := cfg.Option.MinScore
 	if cmd.Flags().Changed("min-score") {

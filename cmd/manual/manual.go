@@ -36,7 +36,7 @@ const (
 
 func manualMain(cmd *cobra.Command) error {
 	log := logger.FromContext(cmd.Context())
-	s := system.NewLocalSystem()
+	s := system.NewLocalSystem(log)
 
 	if !s.IsNixOS() {
 		log.Error("this command is only supported on NixOS systems")

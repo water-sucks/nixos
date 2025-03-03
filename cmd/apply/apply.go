@@ -145,7 +145,7 @@ Check the Nix manual page for more details on what options are available.
 func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
-	s := system.NewLocalSystem()
+	s := system.NewLocalSystem(log)
 
 	if !s.IsNixOS() {
 		msg := "this command only is only supported on NixOS systems"
@@ -215,7 +215,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	if buildOpts.Flake != "true" && (opts.UpgradeChannels || opts.UpgradeAllChannels) {
 		log.Step("Upgrading channels...")
 
-		if err := upgradeChannels(s, log, &upgradeChannelsOptions{
+		if err := upgradeChannels(s, &upgradeChannelsOptions{
 			UpgradeAll: opts.UpgradeAllChannels,
 			Verbose:    opts.Verbose,
 		}); err != nil {
@@ -288,14 +288,14 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	var resultLocation string
 	switch c := nixConfig.(type) {
 	case *configuration.FlakeRef:
-		buildOutput, err := buildFlake(cmd, s, log, c, buildType, buildOptions)
+		buildOutput, err := buildFlake(cmd, s, c, buildType, buildOptions)
 		if err != nil {
 			log.Errorf("failed to build configuration: %v", err)
 			return err
 		}
 		resultLocation = buildOutput
 	case *configuration.LegacyConfiguration:
-		buildOutput, err := buildLegacy(cmd, s, log, buildType, buildOptions)
+		buildOutput, err := buildLegacy(cmd, s, buildType, buildOptions)
 		if err != nil {
 			log.Errorf("failed to build configuration: %v", err)
 			return err
@@ -372,7 +372,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 			log.Step("Setting system profile...")
 		}
 
-		if err := activation.AddNewNixProfile(s, log, opts.ProfileName, resultLocation, opts.Verbose); err != nil {
+		if err := activation.AddNewNixProfile(s, opts.ProfileName, resultLocation, opts.Verbose); err != nil {
 			log.Errorf("failed to set system profile: %v", err)
 			return err
 		}
@@ -391,7 +391,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 			}
 
 			log.Step("Rolling back system profile...")
-			if err := activation.SetNixProfileGeneration(s, log, "system", previousGenNumber, opts.Verbose); err != nil {
+			if err := activation.SetNixProfileGeneration(s, "system", previousGenNumber, opts.Verbose); err != nil {
 				log.Errorf("failed to rollback system profile: %v", err)
 				log.Info("make sure to rollback the system manually before deleting anything!")
 			}
@@ -413,7 +413,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		panic("unknown switch to configuration action to take, this is a bug")
 	}
 
-	err = activation.SwitchToConfiguration(s, log, resultLocation, stcAction, &activation.SwitchToConfigurationOptions{
+	err = activation.SwitchToConfiguration(s, resultLocation, stcAction, &activation.SwitchToConfigurationOptions{
 		InstallBootloader: opts.InstallBootloader,
 		Verbose:           opts.Verbose,
 		Specialisation:    specialisation,
