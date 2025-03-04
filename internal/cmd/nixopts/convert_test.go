@@ -90,7 +90,7 @@ func TestNixOptionsToArgsList(t *testing.T) {
 			cmd.SetArgs(tt.passedArgs)
 			_ = cmd.Execute()
 
-			args := nixopts.NixOptionsToArgsList(cmd, opts)
+			args := nixopts.NixOptionsToArgsList(cmd.Flags(), opts)
 
 			if !reflect.DeepEqual(args, tt.expected) {
 				t.Errorf("NixOptionsToArgsList() = %v, want %v", args, tt.expected)

@@ -234,7 +234,7 @@ func deleteGenerations(s system.CommandRunner, profileDirectory string, generati
 	}
 
 	if verbose {
-		s.LogCmd(argv)
+		s.Logger().CmdArray(argv)
 	}
 
 	cmd := system.NewCommand(argv[0], argv[1:]...)
@@ -248,7 +248,7 @@ func regenerateBootMenu(s system.CommandRunner, verbose bool) error {
 	argv := []string{switchToConfiguration, "boot"}
 
 	if verbose {
-		s.LogCmd(argv)
+		s.Logger().CmdArray(argv)
 	}
 
 	cmd := system.NewCommand(argv[0], argv[1:]...)
@@ -266,7 +266,7 @@ func collectGarbage(s system.CommandRunner, verbose bool) error {
 
 	if verbose {
 		argv = append(argv, "-v")
-		s.LogCmd(argv)
+		s.Logger().CmdArray(argv)
 	}
 
 	var cmd *system.Command

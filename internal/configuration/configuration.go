@@ -3,13 +3,29 @@ package configuration
 import (
 	"fmt"
 
+	"github.com/spf13/pflag"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/settings"
 )
 
+type SystemBuildOptions struct {
+	ResultLocation string
+	DryBuild       bool
+	UseNom         bool
+	GenerationTag  string
+	Verbose        bool
+
+	// Command-line flags that were passed for the command context.
+	// This is needed to determine the proper Nix options to pass
+	// when building, if any were passed through.
+	CmdFlags *pflag.FlagSet
+	NixOpts  interface{}
+}
+
 type Configuration interface {
 	EvalAttribute(attr string) (*string, error)
+	BuildSystem(buildType SystemBuildType, opts *SystemBuildOptions) (string, error)
 }
 
 type AttributeEvaluationError struct {
@@ -53,4 +69,38 @@ func FindConfiguration(log *logger.Logger, cfg *settings.Settings, includes []st
 
 		return c, nil
 	}
+}
+
+type SystemBuildType int
+
+const (
+	SystemBuildTypeSystem SystemBuildType = iota
+	SystemBuildTypeSystemActivation
+	SystemBuildTypeVM
+	SystemBuildTypeVMWithBootloader
+)
+
+func (b SystemBuildType) BuildAttr() string {
+	switch b {
+	case SystemBuildTypeSystem, SystemBuildTypeSystemActivation:
+		if buildOpts.Flake == "true" {
+			return "toplevel"
+		} else {
+			return "system"
+		}
+	case SystemBuildTypeVM:
+		return "vm"
+	case SystemBuildTypeVMWithBootloader:
+		return "vmWithBootLoader"
+	default:
+		panic("unknown build type")
+	}
+}
+
+func (b SystemBuildType) IsVM() bool {
+	return b == SystemBuildTypeVM || b == SystemBuildTypeVMWithBootloader
+}
+
+func (b SystemBuildType) IsSystem() bool {
+	return b == SystemBuildTypeSystem || b == SystemBuildTypeSystemActivation
 }

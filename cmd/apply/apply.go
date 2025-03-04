@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-git/go-git/v5"
 	"github.com/spf13/cobra"
 	"github.com/water-sucks/nixos/internal/activation"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
@@ -153,13 +154,13 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		return fmt.Errorf("%v", msg)
 	}
 
-	buildType := buildTypeSystemActivation
+	buildType := configuration.SystemBuildTypeSystemActivation
 	if opts.BuildVM {
-		buildType = buildTypeVM
+		buildType = configuration.SystemBuildTypeVM
 	} else if opts.BuildVMWithBootloader {
-		buildType = buildTypeVMWithBootloader
+		buildType = configuration.SystemBuildTypeVMWithBootloader
 	} else if opts.NoActivate && opts.NoBoot {
-		buildType = buildTypeSystem
+		buildType = configuration.SystemBuildTypeSystem
 	}
 
 	if os.Geteuid() != 0 {
@@ -269,38 +270,28 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 
 	// Dry activation requires a real build, so --dry-run shouldn't be set
 	// if --activate or --boot is set
-	dryBuild := opts.Dry && buildType == buildTypeSystem
+	dryBuild := opts.Dry && buildType == configuration.SystemBuildTypeSystem
 
 	outputPath := opts.OutputPath
 	if outputPath != "" && !filepath.IsAbs(outputPath) {
 		outputPath = filepath.Join(originalCwd, outputPath)
 	}
 
-	buildOptions := &buildOptions{
-		NixOpts:        &opts.NixOptions,
+	buildOptions := &configuration.SystemBuildOptions{
 		ResultLocation: outputPath,
 		DryBuild:       dryBuild,
 		UseNom:         useNom,
 		GenerationTag:  generationTag,
 		Verbose:        opts.Verbose,
+
+		CmdFlags: cmd.Flags(),
+		NixOpts:  &opts.NixOptions,
 	}
 
-	var resultLocation string
-	switch c := nixConfig.(type) {
-	case *configuration.FlakeRef:
-		buildOutput, err := buildFlake(cmd, s, c, buildType, buildOptions)
-		if err != nil {
-			log.Errorf("failed to build configuration: %v", err)
-			return err
-		}
-		resultLocation = buildOutput
-	case *configuration.LegacyConfiguration:
-		buildOutput, err := buildLegacy(cmd, s, buildType, buildOptions)
-		if err != nil {
-			log.Errorf("failed to build configuration: %v", err)
-			return err
-		}
-		resultLocation = buildOutput
+	resultLocation, err := nixConfig.BuildSystem(buildType, buildOptions)
+	if err != nil {
+		log.Errorf("failed to build configuration: %v", err)
+		return err
 	}
 
 	if buildType.IsVM() && !dryBuild {
@@ -314,7 +305,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		return nil
 	}
 
-	if buildType == buildTypeSystem {
+	if buildType == configuration.SystemBuildTypeSystem && dryBuild {
 		if opts.Verbose {
 			log.Infof("this is a dry build, no activation will be performed")
 		}
@@ -425,4 +416,77 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	}
 
 	return nil
+}
+
+const channelDirectory = constants.NixProfileDirectory + "/per-user/root/channels"
+
+type upgradeChannelsOptions struct {
+	Verbose    bool
+	UpgradeAll bool
+}
+
+func upgradeChannels(s system.CommandRunner, opts *upgradeChannelsOptions) error {
+	argv := []string{"nix-channel", "--update"}
+
+	if !opts.UpgradeAll {
+		// Always upgrade the `nixos` channel, as well as any channels that
+		// have the ".update-on-nixos-rebuild" marker file in them.
+		argv = append(argv, "nixos")
+
+		entries, err := os.ReadDir(channelDirectory)
+		if err != nil {
+			return err
+		}
+
+		for _, entry := range entries {
+			if entry.IsDir() {
+				if _, err := os.Stat(filepath.Join(channelDirectory, entry.Name(), ".update-on-nixos-rebuild")); err == nil {
+					argv = append(argv, entry.Name())
+				}
+			}
+		}
+	}
+
+	if opts.Verbose {
+		s.Logger().CmdArray(argv)
+	}
+
+	cmd := system.NewCommand(argv[0], argv[1:]...)
+	_, err := s.Run(cmd)
+	return err
+}
+
+var dirtyGitTreeError = fmt.Errorf("git tree is dirty")
+
+func getLatestGitCommitMessage(pathToRepo string) (string, error) {
+	repo, err := git.PlainOpen(pathToRepo)
+	if err != nil {
+		return "", err
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		return "", err
+	}
+
+	status, err := wt.Status()
+	if err != nil {
+		return "", err
+	}
+
+	if !status.IsClean() {
+		return "", dirtyGitTreeError
+	}
+
+	head, err := repo.Head()
+	if err != nil {
+		return "", err
+	}
+
+	commit, err := repo.CommitObject(head.Hash())
+	if err != nil {
+		return "", err
+	}
+
+	return commit.Message, nil
 }

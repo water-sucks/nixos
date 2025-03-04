@@ -8,12 +8,17 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/water-sucks/nixos/internal/system"
 )
 
 type LegacyConfiguration struct {
 	Includes      []string
 	ConfigDirname string
+
+	// Builder is used to build the legacy system. They must have Nix installed.
+	Builder system.CommandRunner
 }
 
 func FindLegacyConfiguration(log *logger.Logger, includes []string, verbose bool) (*LegacyConfiguration, error) {
@@ -106,4 +111,43 @@ func (l *LegacyConfiguration) EvalAttribute(attr string) (*string, error) {
 	value := strings.TrimSpace(stdout.String())
 
 	return &value, nil
+}
+
+func (l *LegacyConfiguration) BuildSystem(buildType SystemBuildType, opts *SystemBuildOptions) (string, error) {
+	nixCommand := "nix-build"
+	if opts.UseNom {
+		nixCommand = "nom-build"
+	}
+
+	argv := []string{nixCommand, "<nixpkgs/nixos>", "-A", buildType.BuildAttr()}
+
+	// Mimic `nixos-rebuild` behavior of using -k option
+	// for all commands except for switch and boot
+	if buildType != SystemBuildTypeSystemActivation {
+		argv = append(argv, "-k")
+	}
+
+	if opts.NixOpts != nil {
+		argv = append(argv, nixopts.NixOptionsToArgsList(opts.CmdFlags, opts.NixOpts)...)
+	}
+
+	if opts.Verbose {
+		l.Builder.Logger().CmdArray(argv)
+	}
+
+	var stdout bytes.Buffer
+	cmd := system.NewCommand(nixCommand, argv[1:]...)
+	cmd.Stdout = &stdout
+
+	if opts.GenerationTag != "" {
+		cmd.SetEnv("NIXOS_GENERATION_TAG", opts.GenerationTag)
+	}
+
+	if l.Builder == nil {
+		panic("LegacyConfiguration.Builder is nil")
+	}
+
+	_, err := l.Builder.Run(cmd)
+
+	return strings.Trim(stdout.String(), "\n "), err
 }

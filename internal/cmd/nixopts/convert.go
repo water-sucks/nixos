@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 var availableOptions = map[string]string{
@@ -44,7 +44,7 @@ func getNixFlag(name string) string {
 	panic("unknown option '" + name + "' when trying to convert to nix options struct")
 }
 
-func NixOptionsToArgsList(cmd *cobra.Command, options interface{}) []string {
+func NixOptionsToArgsList(flags *pflag.FlagSet, options interface{}) []string {
 	val := reflect.ValueOf(options)
 	typ := reflect.TypeOf(options)
 
@@ -60,7 +60,7 @@ func NixOptionsToArgsList(cmd *cobra.Command, options interface{}) []string {
 		fieldType := typ.Field(i)
 		fieldName := getNixFlag(fieldType.Name)
 
-		if !cmd.Flags().Changed(fieldName) {
+		if !flags.Changed(fieldName) {
 			continue
 		}
 

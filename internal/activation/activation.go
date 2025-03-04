@@ -71,7 +71,7 @@ func AddNewNixProfile(s system.CommandRunner, profile string, closure string, ve
 	argv := []string{"nix-env", "--profile", profileDirectory, "--set", closure}
 
 	if verbose {
-		s.LogCmd(argv)
+		s.Logger().CmdArray(argv)
 	}
 
 	cmd := system.NewCommand(argv[0], argv[1:]...)
@@ -94,7 +94,7 @@ func SetNixProfileGeneration(s system.CommandRunner, profile string, genNumber u
 	argv := []string{"nix-env", "--profile", profileDirectory, "--switch-generation", fmt.Sprintf("%d", genNumber)}
 
 	if verbose {
-		s.LogCmd(argv)
+		s.Logger().CmdArray(argv)
 	}
 
 	cmd := system.NewCommand(argv[0], argv[1:]...)
@@ -169,7 +169,7 @@ func SwitchToConfiguration(s system.CommandRunner, generationLocation string, ac
 	argv := []string{commandPath, action.String()}
 
 	if opts.Verbose {
-		s.LogCmd(argv)
+		s.Logger().CmdArray(argv)
 	}
 
 	cmd := system.NewCommand(argv[0], argv[1:]...)

@@ -3,11 +3,13 @@ package system
 import (
 	"io"
 	"os"
+
+	"github.com/water-sucks/nixos/internal/logger"
 )
 
 type CommandRunner interface {
 	Run(cmd *Command) (int, error)
-	LogCmd(argv []string)
+	Logger() *logger.Logger
 }
 
 type Command struct {

@@ -245,7 +245,7 @@ func activate(s system.CommandRunner, root string, systemClosure string, verbose
 	argv := []string{"chroot", root, activateScript}
 
 	if verbose {
-		s.LogCmd(argv)
+		s.Logger().CmdArray(argv)
 	}
 
 	// Run the activation script.
@@ -268,7 +268,7 @@ func activate(s system.CommandRunner, root string, systemClosure string, verbose
 	argv = []string{"chroot", root, systemdTmpfiles, "--create", "--remove", "-E"}
 
 	if verbose {
-		s.LogCmd(argv)
+		s.Logger().CmdArray(argv)
 	}
 
 	tmpfilesCmd := system.NewCommand(argv[0], argv[1:]...)
@@ -286,7 +286,7 @@ func startChroot(s system.CommandRunner, root string, args []string, verbose boo
 	argv = append(argv, args...)
 
 	if verbose {
-		s.LogCmd(argv)
+		s.Logger().CmdArray(argv)
 	}
 
 	cmd := system.NewCommand(argv[0], argv[1:]...)

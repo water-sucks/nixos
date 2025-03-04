@@ -8,12 +8,12 @@ import (
 )
 
 type LocalSystem struct {
-	Logger *logger.Logger
+	logger *logger.Logger
 }
 
 func NewLocalSystem(logger *logger.Logger) *LocalSystem {
 	return &LocalSystem{
-		Logger: logger,
+		logger: logger,
 	}
 }
 
@@ -49,10 +49,6 @@ func (l *LocalSystem) IsNixOS() bool {
 	return err == nil
 }
 
-func (l *LocalSystem) LogCmd(argv []string) {
-	if l.Logger == nil {
-		return
-	}
-
-	l.Logger.CmdArray(argv)
+func (l *LocalSystem) Logger() *logger.Logger {
+	return l.logger
 }

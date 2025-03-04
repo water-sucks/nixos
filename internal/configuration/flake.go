@@ -6,11 +6,17 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/water-sucks/nixos/internal/cmd/nixopts"
+	"github.com/water-sucks/nixos/internal/system"
 )
 
 type FlakeRef struct {
 	URI    string
 	System string
+
+	// Builder is used to build the flake ref. They must have Nix installed.
+	Builder system.CommandRunner
 }
 
 func FlakeRefFromString(s string) *FlakeRef {
@@ -77,4 +83,49 @@ func (f *FlakeRef) EvalAttribute(attr string) (*string, error) {
 	value := strings.TrimSpace(stdout.String())
 
 	return &value, nil
+}
+
+func (f *FlakeRef) BuildSystem(buildType SystemBuildType, opts *SystemBuildOptions) (string, error) {
+	nixCommand := "nix"
+	if opts.UseNom {
+		nixCommand = "nom"
+	}
+
+	systemAttribute := fmt.Sprintf("%s#nixosConfigurations.%s.config.system.build.%s", f.URI, f.System, buildType.BuildAttr())
+
+	argv := []string{nixCommand, "build", systemAttribute, "--print-out-paths"}
+
+	if opts.ResultLocation != "" {
+		argv = append(argv, "--out-link", opts.ResultLocation)
+	} else {
+		argv = append(argv, "--no-link")
+	}
+
+	if opts.DryBuild {
+		argv = append(argv, "--dry-run")
+	}
+
+	if opts.NixOpts != nil {
+		argv = append(argv, nixopts.NixOptionsToArgsList(opts.CmdFlags, opts.NixOpts)...)
+	}
+
+	if opts.Verbose {
+		f.Builder.Logger().CmdArray(argv)
+	}
+
+	var stdout bytes.Buffer
+	cmd := system.NewCommand(nixCommand, argv[1:]...)
+	cmd.Stdout = &stdout
+
+	if opts.GenerationTag != "" {
+		cmd.SetEnv("NIXOS_GENERATION_TAG", opts.GenerationTag)
+	}
+
+	if f.Builder == nil {
+		panic("FlakeRef.Builder is nil")
+	}
+
+	_, err := f.Builder.Run(cmd)
+
+	return strings.Trim(stdout.String(), "\n "), err
 }

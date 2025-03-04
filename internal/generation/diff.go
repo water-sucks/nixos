@@ -31,7 +31,7 @@ func RunDiffCommand(log *logger.Logger, s system.CommandRunner, before string, a
 	}
 
 	if opts.Verbose {
-		s.LogCmd(argv)
+		s.Logger().CmdArray(argv)
 	}
 
 	cmd := system.NewCommand(argv[0], argv[1:]...)
