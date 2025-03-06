@@ -13,7 +13,7 @@ type fieldCompleteResult struct {
 	Description string
 }
 
-func findFieldCompletions(value interface{}, prefix string) ([]fieldCompleteResult, bool) {
+func findFieldCompletions(value any, prefix string) ([]fieldCompleteResult, bool) {
 	var candidates []fieldCompleteResult
 
 	fieldNames := strings.Split(prefix, ".")

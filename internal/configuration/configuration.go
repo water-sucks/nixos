@@ -20,7 +20,7 @@ type SystemBuildOptions struct {
 	// This is needed to determine the proper Nix options to pass
 	// when building, if any were passed through.
 	CmdFlags *pflag.FlagSet
-	NixOpts  interface{}
+	NixOpts  any
 }
 
 type Configuration interface {

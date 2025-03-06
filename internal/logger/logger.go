@@ -31,35 +31,35 @@ func NewLogger() *Logger {
 	}
 }
 
-func (l *Logger) Print(v ...interface{}) {
+func (l *Logger) Print(v ...any) {
 	l.print.Print(v...)
 }
 
-func (l *Logger) Printf(format string, v ...interface{}) {
+func (l *Logger) Printf(format string, v ...any) {
 	l.print.Printf(format, v...)
 }
 
-func (l *Logger) Info(v ...interface{}) {
+func (l *Logger) Info(v ...any) {
 	l.info.Println(v...)
 }
 
-func (l *Logger) Infof(format string, v ...interface{}) {
+func (l *Logger) Infof(format string, v ...any) {
 	l.info.Printf(format+"\n", v...)
 }
 
-func (l *Logger) Warn(v ...interface{}) {
+func (l *Logger) Warn(v ...any) {
 	l.warn.Println(v...)
 }
 
-func (l *Logger) Warnf(format string, v ...interface{}) {
+func (l *Logger) Warnf(format string, v ...any) {
 	l.warn.Printf(format+"\n", v...)
 }
 
-func (l *Logger) Error(v ...interface{}) {
+func (l *Logger) Error(v ...any) {
 	l.error.Println(v...)
 }
 
-func (l *Logger) Errorf(format string, v ...interface{}) {
+func (l *Logger) Errorf(format string, v ...any) {
 	l.error.Printf(format+"\n", v...)
 }
 

@@ -44,7 +44,7 @@ func getNixFlag(name string) string {
 	panic("unknown option '" + name + "' when trying to convert to nix options struct")
 }
 
-func NixOptionsToArgsList(flags *pflag.FlagSet, options interface{}) []string {
+func NixOptionsToArgsList(flags *pflag.FlagSet, options any) []string {
 	val := reflect.ValueOf(options)
 	typ := reflect.TypeOf(options)
 
