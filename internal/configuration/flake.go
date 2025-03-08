@@ -61,6 +61,10 @@ func (f *FlakeRef) InferSystemFromHostnameIfNeeded() error {
 	return nil
 }
 
+func (f *FlakeRef) SetBuilder(builder system.CommandRunner) {
+	f.Builder = builder
+}
+
 func (f *FlakeRef) EvalAttribute(attr string) (*string, error) {
 	evalArg := fmt.Sprintf(`%s#nixosConfigurations.%s.config.%s`, f.URI, f.System, attr)
 	argv := []string{"nix", "eval", evalArg}

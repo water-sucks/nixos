@@ -85,6 +85,10 @@ func FindLegacyConfiguration(log *logger.Logger, includes []string, verbose bool
 	}, nil
 }
 
+func (l *LegacyConfiguration) SetBuilder(builder system.CommandRunner) {
+	l.Builder = builder
+}
+
 func (l *LegacyConfiguration) EvalAttribute(attr string) (*string, error) {
 	configAttr := fmt.Sprintf("config.%s", attr)
 	argv := []string{"nix-instantiate", "--eval", "<nixpkgs/nixos>", "-A", configAttr}

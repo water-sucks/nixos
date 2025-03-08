@@ -7,6 +7,7 @@ import (
 	buildOpts "github.com/water-sucks/nixos/internal/build"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/settings"
+	"github.com/water-sucks/nixos/internal/system"
 )
 
 type SystemBuildOptions struct {
@@ -24,6 +25,7 @@ type SystemBuildOptions struct {
 }
 
 type Configuration interface {
+	SetBuilder(builder system.CommandRunner)
 	EvalAttribute(attr string) (*string, error)
 	BuildSystem(buildType SystemBuildType, opts *SystemBuildOptions) (string, error)
 }

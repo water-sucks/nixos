@@ -187,6 +187,8 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		nixConfig = c
 	}
 
+	nixConfig.SetBuilder(s)
+
 	var configDirname string
 	switch c := nixConfig.(type) {
 	case *configuration.FlakeRef:
