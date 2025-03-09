@@ -307,8 +307,8 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		return nil
 	}
 
-	if buildType == configuration.SystemBuildTypeSystem && dryBuild {
-		if opts.Verbose {
+	if buildType == configuration.SystemBuildTypeSystem {
+		if opts.Verbose && dryBuild {
 			log.Infof("this is a dry build, no activation will be performed")
 		}
 		return nil
