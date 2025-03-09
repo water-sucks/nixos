@@ -56,7 +56,9 @@ func ApplyCommand(cfg *settings.Settings) *cobra.Command {
 			}
 			if buildOpts.Flake == "true" && opts.GenerationTag != "" && !opts.NixOptions.Impure {
 				if cfg.Apply.ImplyImpureWithTag {
-					opts.NixOptions.Impure = true
+					if err := cmd.Flags().Set("impure", "true"); err != nil {
+						panic("failed to set --impure flag for apply command before exec with explicit generation tag")
+					}
 				} else {
 					return fmt.Errorf("--impure is required when using --tag for flake configurations")
 				}
@@ -264,9 +266,11 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		if generationTag == "" {
 			log.Warn("ignoring apply.use_git_commit_msg setting")
 		} else {
-			// Make sure --impure is added to the nix options if
+			// Make sure --impure is added to the Nix options if
 			// an implicit commit message is used.
-			opts.NixOptions.Impure = true
+			if err := cmd.Flags().Set("impure", "true"); err != nil {
+				panic("failed to set --impure flag for apply command before exec with implicit generation tag with git message")
+			}
 		}
 	}
 
