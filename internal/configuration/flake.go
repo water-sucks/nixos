@@ -114,6 +114,7 @@ func (f *FlakeRef) BuildSystem(buildType SystemBuildType, opts *SystemBuildOptio
 	}
 
 	if opts.Verbose {
+		argv = append(argv, "-v")
 		f.Builder.Logger().CmdArray(argv)
 	}
 

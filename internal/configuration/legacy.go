@@ -136,6 +136,7 @@ func (l *LegacyConfiguration) BuildSystem(buildType SystemBuildType, opts *Syste
 	}
 
 	if opts.Verbose {
+		argv = append(argv, "-v")
 		l.Builder.Logger().CmdArray(argv)
 	}
 
