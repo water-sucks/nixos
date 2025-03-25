@@ -35,6 +35,11 @@ imply_impure_with_tag = false
 # generation automatically if a tag is not provided.
 # This setting does not work with dirty Git trees.
 use_git_commit_msg = false
+# Ignore dirty working tree when using Git commit message for --tag.
+# This may result in generation descriptions that don't match the
+# commit history, so only use this if you are judicious about using
+# Git commits for configuration changes.
+ignore_dirty_tree = false
 
 # Configuration for the `enter` subcommand.
 [enter]

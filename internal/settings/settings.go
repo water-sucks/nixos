@@ -30,6 +30,7 @@ type ApplySettings struct {
 	DefaultSpecialisation string `koanf:"specialisation" description:"Name of specialisation to use by default when activating"`
 	UseNom                bool   `koanf:"use_nom" description:"Use 'nix-output-monitor' as an alternative 'nix build' frontend"`
 	UseGitCommitMsg       bool   `koanf:"use_git_commit_msg" description:"Use last git commit message for --tag by default"`
+	IgnoreDirtyTree       bool   `koanf:"ignore_dirty_tree" description:"Ignore dirty working tree when using Git commit message for --tag"`
 }
 
 type EnterSettings struct {
