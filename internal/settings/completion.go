@@ -205,5 +205,5 @@ func completeValues(key string, value string) ([]string, cobra.ShellCompDirectiv
 		return completeFunc(key, value)
 	}
 
-	return []string{}, cobra.ShellCompDirectiveDefault
+	return []string{}, cobra.ShellCompDirectiveNoFileComp
 }

@@ -21,7 +21,7 @@ func CompleteProfileFlag(_ *cobra.Command, args []string, toComplete string) ([]
 
 	entries, err := os.ReadDir(constants.NixSystemProfileDirectory)
 	if err != nil {
-		return []string{}, cobra.ShellCompDirectiveDefault
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
 	}
 
 	for _, v := range entries {
@@ -36,7 +36,7 @@ func CompleteProfileFlag(_ *cobra.Command, args []string, toComplete string) ([]
 
 	sort.Strings(profiles)
 
-	return profiles, cobra.ShellCompDirectiveDefault
+	return profiles, cobra.ShellCompDirectiveNoFileComp
 }
 
 func CompleteGenerationNumber(profile *string, limit int) types.CompletionFunc {
@@ -44,12 +44,12 @@ func CompleteGenerationNumber(profile *string, limit int) types.CompletionFunc {
 		log := logger.FromContext(cmd.Context())
 
 		if limit != 0 && len(args) >= limit {
-			return []string{}, cobra.ShellCompDirectiveDefault
+			return []string{}, cobra.ShellCompDirectiveNoFileComp
 		}
 
 		generations, err := CollectGenerationsInProfile(log, *profile)
 		if err != nil {
-			return []string{}, cobra.ShellCompDirectiveDefault
+			return []string{}, cobra.ShellCompDirectiveNoFileComp
 		}
 
 		exclude := []uint64{}
@@ -75,7 +75,7 @@ func CompleteGenerationNumber(profile *string, limit int) types.CompletionFunc {
 
 		sort.Strings(genNumbers)
 
-		return genNumbers, cobra.ShellCompDirectiveDefault
+		return genNumbers, cobra.ShellCompDirectiveNoFileComp
 	}
 }
 
@@ -85,7 +85,7 @@ func CompleteGenerationNumberFlag(profile *string) types.CompletionFunc {
 
 		generations, err := CollectGenerationsInProfile(log, *profile)
 		if err != nil {
-			return []string{}, cobra.ShellCompDirectiveDefault
+			return []string{}, cobra.ShellCompDirectiveNoFileComp
 		}
 
 		genNumbers := []string{}
@@ -99,6 +99,6 @@ func CompleteGenerationNumberFlag(profile *string) types.CompletionFunc {
 
 		sort.Strings(genNumbers)
 
-		return genNumbers, cobra.ShellCompDirectiveDefault
+		return genNumbers, cobra.ShellCompDirectiveNoFileComp
 	}
 }

@@ -66,7 +66,7 @@ func addAliasCmd(parent *cobra.Command, alias string, args []string) error {
 
 			os.Exit(0)
 
-			return []string{}, cobra.ShellCompDirectiveDefault
+			return []string{}, cobra.ShellCompDirectiveNoFileComp
 		},
 	}
 
