@@ -37,6 +37,8 @@ func GenerationRollbackCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command 
 	cmd.Flags().BoolVarP(&opts.Verbose, "verbose", "v", false, "Show verbose logging")
 	cmd.Flags().BoolVarP(&opts.AlwaysConfirm, "yes", "y", false, "Automatically confirm activation")
 
+	_ = cmd.RegisterFlagCompletionFunc("specialisation", completeSpecialisationFlag(genOpts.ProfileName))
+
 	cmdUtils.SetHelpFlagText(&cmd)
 
 	return &cmd
@@ -58,26 +60,10 @@ func generationRollbackMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts
 	// While it is possible to use the `rollback` command, we still need
 	// to find the previous generation number ourselves in order to run
 	// `nvd` or `nix store diff-closures` properly.
-	generations, err := genUtils.LoadGenerations(log, genOpts.ProfileName, false)
+	previousGen, err := findPreviousGeneration(log, genOpts.ProfileName)
 	if err != nil {
 		return err
 	}
-
-	currentGenIdx := slices.IndexFunc(generations, func(g generation.Generation) bool {
-		return g.IsCurrent
-	})
-	if currentGenIdx == -1 {
-		panic("current generation not found, this is a bug")
-	}
-	currentGen := generations[currentGenIdx]
-
-	if currentGenIdx == 0 {
-		msg := fmt.Sprintf("no generation older than the current one (%v) exists", currentGen.Number)
-		log.Error(msg)
-		return fmt.Errorf("%v", msg)
-	}
-
-	previousGen := generations[currentGenIdx-1]
 
 	profileDirectory := constants.NixProfileDirectory
 	if genOpts.ProfileName != "system" {
@@ -178,4 +164,48 @@ func generationRollbackMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts
 	}
 
 	return nil
+}
+
+func findPreviousGeneration(log *logger.Logger, profileName string) (*generation.Generation, error) {
+	generations, err := genUtils.LoadGenerations(log, profileName, false)
+	if err != nil {
+		return nil, err
+	}
+
+	currentGenIdx := slices.IndexFunc(generations, func(g generation.Generation) bool {
+		return g.IsCurrent
+	})
+	if currentGenIdx == -1 {
+		panic("current generation not found, this is a bug")
+	}
+	currentGen := generations[currentGenIdx]
+
+	if currentGenIdx == 0 {
+		msg := fmt.Sprintf("no generation older than the current one (%v) exists", currentGen.Number)
+		log.Error(msg)
+		return nil, fmt.Errorf("%v", msg)
+	}
+
+	return &generations[currentGenIdx-1], nil
+}
+
+func completeSpecialisationFlag(profileName string) cmdTypes.CompletionFunc {
+	profileDirectory := constants.NixProfileDirectory
+	if profileName != "system" {
+		profileDirectory = constants.NixSystemProfileDirectory
+	}
+
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		// I was too lazy to not
+		log := logger.FromContext(cmd.Context())
+
+		previousGen, err := findPreviousGeneration(log, profileName)
+		if err != nil {
+			return []string{}, cobra.ShellCompDirectiveNoFileComp
+		}
+
+		generationLink := filepath.Join(profileDirectory, fmt.Sprintf("%v-%v-link", profileName, previousGen.Number))
+
+		return generation.CompleteSpecialisationFlag(generationLink)(cmd, args, toComplete)
+	}
 }

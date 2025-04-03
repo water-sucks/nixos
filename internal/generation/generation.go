@@ -121,19 +121,12 @@ func GenerationFromDirectory(generationDirname string, number uint64) (*Generati
 		info.KernelVersion = filepath.Base(kernelVersionMatches[0])
 	}
 
-	specialisations := []string{}
-	specialisationsGlob := filepath.Join(generationDirname, "specialisation", "*")
-	specialisationsMatches, err := filepath.Glob(specialisationsGlob)
+	specialisations, err := CollectSpecialisations(generationDirname)
 	if err != nil {
 		encounteredErrors = append(encounteredErrors, err)
-	} else {
-		for _, match := range specialisationsMatches {
-			specialisations = append(specialisations, filepath.Base(match))
-		}
 	}
-	info.Specialisations = specialisations
 
-	sort.Strings(info.Specialisations)
+	info.Specialisations = specialisations
 
 	if len(encounteredErrors) > 0 {
 		return info, &GenerationReadError{

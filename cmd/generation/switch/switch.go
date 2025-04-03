@@ -36,6 +36,7 @@ func GenerationSwitchCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("{GEN} must be integer value, got '%v'", arg)
 			}
+
 			opts.Generation = uint(gen)
 
 			return nil
@@ -51,6 +52,8 @@ func GenerationSwitchCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 	cmd.Flags().BoolVarP(&opts.Verbose, "verbose", "v", false, "Show verbose logging")
 	cmd.Flags().BoolVarP(&opts.AlwaysConfirm, "yes", "y", false, "Automatically confirm activation")
 
+	_ = cmd.RegisterFlagCompletionFunc("specialisation", completeSpecialisationFlag(genOpts.ProfileName))
+
 	cmdUtils.SetHelpFlagText(&cmd)
 	cmd.SetHelpTemplate(cmd.HelpTemplate() + `
 Arguments:
@@ -58,6 +61,33 @@ Arguments:
 `)
 
 	return &cmd
+}
+
+func completeSpecialisationFlag(profileName string) cmdTypes.CompletionFunc {
+	profileDirectory := constants.NixProfileDirectory
+	if profileName != "system" {
+		profileDirectory = constants.NixSystemProfileDirectory
+	}
+
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		// Cobra does not parse out the generation number, because it has not
+		// validated them yet.
+		// Let's pull it out ourselves based on the first provided
+		// command-line positional argument
+		if len(args) < 1 {
+			return []string{}, cobra.ShellCompDirectiveNoFileComp
+		}
+		arg := args[0]
+
+		genNumber, err := strconv.ParseInt(arg, 10, 32)
+		if err != nil {
+			return []string{}, cobra.ShellCompDirectiveNoFileComp
+		}
+
+		generationLink := filepath.Join(profileDirectory, fmt.Sprintf("%v-%v-link", profileName, genNumber))
+
+		return generation.CompleteSpecialisationFlag(generationLink)(cmd, args, toComplete)
+	}
 }
 
 func generationSwitchMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationSwitchOpts) error {
