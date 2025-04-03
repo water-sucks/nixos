@@ -33,10 +33,7 @@ func GenerationCommand() *cobra.Command {
 
 	cmdUtils.SetHelpFlagText(&cmd)
 
-	err := cmd.RegisterFlagCompletionFunc("profile", generation.CompleteProfileFlag)
-	if err != nil {
-		panic(err)
-	}
+	_ = cmd.RegisterFlagCompletionFunc("profile", generation.CompleteProfileFlag)
 
 	return &cmd
 }

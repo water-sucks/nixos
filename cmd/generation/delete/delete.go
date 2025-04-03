@@ -91,18 +91,9 @@ func GenerationDeleteCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 	cmd.Flags().BoolVarP(&opts.Verbose, "verbose", "v", false, "Show verbose logging")
 	cmd.Flags().BoolVarP(&opts.AlwaysConfirm, "yes", "y", false, "Automatically confirm generation deletion")
 
-	err := cmd.RegisterFlagCompletionFunc("from", generation.CompleteGenerationNumberFlag(&genOpts.ProfileName))
-	if err != nil {
-		panic(err)
-	}
-	err = cmd.RegisterFlagCompletionFunc("to", generation.CompleteGenerationNumberFlag(&genOpts.ProfileName))
-	if err != nil {
-		panic(err)
-	}
-	err = cmd.RegisterFlagCompletionFunc("keep", generation.CompleteGenerationNumberFlag(&genOpts.ProfileName))
-	if err != nil {
-		panic(err)
-	}
+	_ = cmd.RegisterFlagCompletionFunc("from", generation.CompleteGenerationNumberFlag(&genOpts.ProfileName))
+	_ = cmd.RegisterFlagCompletionFunc("to", generation.CompleteGenerationNumberFlag(&genOpts.ProfileName))
+	_ = cmd.RegisterFlagCompletionFunc("keep", generation.CompleteGenerationNumberFlag(&genOpts.ProfileName))
 
 	cmdUtils.SetHelpFlagText(&cmd)
 	cmd.SetHelpTemplate(cmd.HelpTemplate() + `

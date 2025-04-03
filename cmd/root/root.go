@@ -131,10 +131,7 @@ func mainCommand() (*cobra.Command, error) {
 	cmd.PersistentFlags().BoolVar(&opts.ColorAlways, "color-always", false, "Always color output when possible")
 	cmd.PersistentFlags().StringToStringVar(&opts.ConfigValues, "config", map[string]string{}, "Set a configuration `key=value`")
 
-	err = cmd.RegisterFlagCompletionFunc("config", settings.CompleteConfigFlag)
-	if err != nil {
-		return nil, err
-	}
+	_ = cmd.RegisterFlagCompletionFunc("config", settings.CompleteConfigFlag)
 
 	cmd.AddCommand(applyCmd.ApplyCommand(cfg))
 	cmd.AddCommand(completionCmd.CompletionCommand())
