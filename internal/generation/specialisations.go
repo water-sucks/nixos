@@ -41,8 +41,11 @@ func CollectSpecialisationsFromConfig(cfg configuration.Configuration) []string 
 	case *configuration.FlakeRef:
 		attr := fmt.Sprintf("%s#nixosConfigurations.%s.config.specialisation", c.URI, c.System)
 		argv = []string{"nix", "eval", attr, "--apply", "builtins.attrNames", "--json"}
-	default:
-		return []string{}
+	case *configuration.LegacyConfiguration:
+		argv = []string{
+			"nix-instantiate", "--eval", "--json", "--expr", "builtins.attrNames",
+			"builtins.attrNames (import <nixpkgs/nixos> {}).config.specialisation",
+		}
 	}
 
 	cmd := exec.Command(argv[0], argv[1:]...)
