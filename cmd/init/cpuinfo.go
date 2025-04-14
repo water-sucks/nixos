@@ -83,6 +83,29 @@ const (
 	VirtualisationTypeUnknown
 )
 
+func (v VirtualisationType) String() string {
+	switch v {
+	case VirtualisationTypeOracle:
+		return "Oracle"
+	case VirtualisationTypeParallels:
+		return "Parallels"
+	case VirtualisationTypeQemu:
+		return "QEMU"
+	case VirtualisationTypeKVM:
+		return "KVM"
+	case VirtualisationTypeBochs:
+		return "Bochs"
+	case VirtualisationTypeHyperV:
+		return "Hyper-V"
+	case VirtualisationTypeSystemdNspawn:
+		return "systemd-nspawn"
+	case VirtualisationTypeNone:
+		return "none"
+	default:
+		return "unknown"
+	}
+}
+
 func determineVirtualisationType(s system.CommandRunner, log *logger.Logger) VirtualisationType {
 	cmd := system.NewCommand("systemd-detect-virt")
 
