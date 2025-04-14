@@ -72,9 +72,16 @@ func initMain(cmd *cobra.Command, opts *cmdTypes.InitOpts) error {
 
 	log.Step("Writing configuration...")
 
+	configDir := filepath.Join(opts.Root, opts.Directory)
+	err = os.MkdirAll(configDir, 0o755)
+	if err != nil {
+		log.Errorf("failed to create %v: %v", configDir, err)
+		return err
+	}
+
 	if buildOpts.Flake == "true" {
 		flakeNixText := generateFlakeNix()
-		flakeNixFilename := filepath.Join(opts.Root, opts.Directory, "flake.nix")
+		flakeNixFilename := filepath.Join(configDir, "flake.nix")
 		log.Infof("writing %v", flakeNixFilename)
 
 		if _, err := os.Stat(flakeNixFilename); err == nil {
@@ -93,7 +100,7 @@ func initMain(cmd *cobra.Command, opts *cmdTypes.InitOpts) error {
 		}
 	}
 
-	configNixFilename := filepath.Join(opts.Root, opts.Directory, "configuration.nix")
+	configNixFilename := filepath.Join(configDir, "configuration.nix")
 	log.Infof("writing %v", configNixFilename)
 	if _, err := os.Stat(configNixFilename); err == nil {
 		if opts.ForceWrite {
@@ -109,9 +116,9 @@ func initMain(cmd *cobra.Command, opts *cmdTypes.InitOpts) error {
 		return err
 	}
 
-	hwConfigNixFilename := filepath.Join(opts.Root, opts.Directory, "hardware-configuration.nix")
+	hwConfigNixFilename := filepath.Join(configDir, "hardware-configuration.nix")
 	log.Infof("writing %v", hwConfigNixFilename)
-	if _, err := os.Stat(configNixFilename); err == nil {
+	if _, err := os.Stat(hwConfigNixFilename); err == nil {
 		log.Warn("overwriting existing hardware-configuration.nix")
 	}
 	err = os.WriteFile(hwConfigNixFilename, []byte(hwConfigNixText), 0o644)
