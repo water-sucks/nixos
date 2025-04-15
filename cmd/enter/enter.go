@@ -114,14 +114,32 @@ func enterMain(cmd *cobra.Command, opts *cmdTypes.EnterOpts) error {
 				goto resolvConfDone
 			}
 
+			// Ensure parent directory exists
+			err = os.MkdirAll(filepath.Dir(targetResolvConf), 0o755)
+			if err != nil {
+				log.Warnf("failed to create parent dir for target resolv.conf: %v", err)
+				resolvConfErr = err
+				goto resolvConfDone
+			}
+
+			// Ensure the target file exists
+			targetFile, err := os.OpenFile(targetResolvConf, os.O_CREATE, 0o644)
+			if err != nil {
+				log.Warnf("failed to create target resolv.conf: %v", err)
+				resolvConfErr = err
+				goto resolvConfDone
+			}
+			_ = targetFile.Close()
+
+			// Do the bind mount
 			err = syscall.Mount("/etc/resolv.conf", targetResolvConf, "", syscall.MS_BIND, "")
 			if err != nil {
-				log.Warnf("failed to bind-mount /etc/resolv.conf: %v", err)
+				log.Warnf("failed to bind-mount /etc/resolv.conf to chroot: %v", err)
 				resolvConfErr = err
 				goto resolvConfDone
 			}
 		} else {
-			log.Warnf("/etc/resolv.conf does not exist, skipping mounting", err)
+			log.Warnf("/etc/resolv.conf does not exist, skipping mounting: %v", err)
 		}
 	}
 
@@ -200,17 +218,16 @@ func execSandboxedEnterProcess(log *logger.Logger, verbose bool) error {
 	return err
 }
 
-func bindMountDirectory(root string, target string) error {
-	targetDirname := filepath.Join(root, target)
+func bindMountDirectory(root string, subdir string) error {
+	source := subdir
+	target := filepath.Join(root, subdir)
 
-	err := os.MkdirAll(targetDirname, 0o755)
-	if err != nil {
-		if !os.IsExist(err) {
-			return err
-		}
+	err := os.MkdirAll(target, 0o755)
+	if err != nil && !os.IsExist(err) {
+		return err
 	}
 
-	err = syscall.Mount(root, target, "", syscall.MS_BIND, "")
+	err = syscall.Mount(source, target, "", syscall.MS_BIND|syscall.MS_REC, "")
 	return err
 }
 
@@ -221,7 +238,7 @@ func findResolvConfLocation(root string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	resolvConf.Close()
+	_ = resolvConf.Close()
 
 	resolvedLocation, err := filepath.EvalSymlinks(targetResolvConf)
 	if err != nil {
@@ -289,7 +306,11 @@ func startChroot(s system.CommandRunner, root string, args []string, verbose boo
 		s.Logger().CmdArray(argv)
 	}
 
-	cmd := system.NewCommand(argv[0], argv[1:]...)
-	_, err := s.Run(cmd)
+	execPath, err := exec.LookPath(argv[0])
+	if err != nil {
+		panic(argv[0] + " not found, this should not be reachable")
+	}
+
+	err = syscall.Exec(execPath, argv, os.Environ())
 	return err
 }
