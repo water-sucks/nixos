@@ -1,5 +1,7 @@
 package types
 
+import "github.com/water-sucks/nixos/internal/configuration"
+
 type MainOpts struct {
 	ColorAlways  bool
 	ConfigValues map[string]string
@@ -139,7 +141,7 @@ type InstallOpts struct {
 	Root           string
 	SystemClosure  string
 	Verbose        bool
-	FlakeRef       string
+	FlakeRef       *configuration.FlakeRef
 
 	NixOptions struct {
 		Quiet          bool

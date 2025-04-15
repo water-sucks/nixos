@@ -135,6 +135,16 @@ func (l *LegacyConfiguration) BuildSystem(buildType SystemBuildType, opts *Syste
 		argv = append(argv, nixopts.NixOptionsToArgsList(opts.CmdFlags, opts.NixOpts)...)
 	}
 
+	if opts.ResultLocation != "" {
+		argv = append(argv, "--out-link", opts.ResultLocation)
+	} else {
+		argv = append(argv, "--no-out-link")
+	}
+
+	if opts.ExtraArgs != nil {
+		argv = append(argv, opts.ExtraArgs...)
+	}
+
 	if opts.Verbose {
 		argv = append(argv, "-v")
 		l.Builder.Logger().CmdArray(argv)
@@ -150,6 +160,10 @@ func (l *LegacyConfiguration) BuildSystem(buildType SystemBuildType, opts *Syste
 
 	if l.Builder == nil {
 		panic("LegacyConfiguration.Builder is nil")
+	}
+
+	for k, v := range opts.Env {
+		cmd.SetEnv(k, v)
 	}
 
 	_, err := l.Builder.Run(cmd)

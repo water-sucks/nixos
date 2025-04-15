@@ -113,6 +113,10 @@ func (f *FlakeRef) BuildSystem(buildType SystemBuildType, opts *SystemBuildOptio
 		argv = append(argv, nixopts.NixOptionsToArgsList(opts.CmdFlags, opts.NixOpts)...)
 	}
 
+	if opts.ExtraArgs != nil {
+		argv = append(argv, opts.ExtraArgs...)
+	}
+
 	if opts.Verbose {
 		argv = append(argv, "-v")
 		f.Builder.Logger().CmdArray(argv)
@@ -124,6 +128,10 @@ func (f *FlakeRef) BuildSystem(buildType SystemBuildType, opts *SystemBuildOptio
 
 	if opts.GenerationTag != "" {
 		cmd.SetEnv("NIXOS_GENERATION_TAG", opts.GenerationTag)
+	}
+
+	for k, v := range opts.Env {
+		cmd.SetEnv(k, v)
 	}
 
 	if f.Builder == nil {

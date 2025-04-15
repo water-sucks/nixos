@@ -20,8 +20,10 @@ type SystemBuildOptions struct {
 	// Command-line flags that were passed for the command context.
 	// This is needed to determine the proper Nix options to pass
 	// when building, if any were passed through.
-	CmdFlags *pflag.FlagSet
-	NixOpts  any
+	CmdFlags  *pflag.FlagSet
+	NixOpts   any
+	Env       map[string]string
+	ExtraArgs []string
 }
 
 type Configuration interface {
