@@ -60,6 +60,10 @@ func enterMain(cmd *cobra.Command, opts *cmdTypes.EnterOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
 
+	if opts.Silent {
+		log.SetLogLevel(logger.LogLevelError)
+	}
+
 	nixosMarker := filepath.Join(opts.RootLocation, constants.NixOSMarker)
 	if _, err := os.Stat(nixosMarker); err != nil {
 		log.Errorf("%v is not a valid NixOS system", opts.RootLocation)
