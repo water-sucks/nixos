@@ -57,7 +57,9 @@ func buildOptionCache(s system.CommandRunner, cfg configuration.Configuration) (
 	cmd := system.NewCommand(argv[0], argv[1:]...)
 
 	var stdout bytes.Buffer
+	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
 	_, err := s.Run(cmd)
 	if err != nil {

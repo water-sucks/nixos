@@ -1,6 +1,7 @@
 package option
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"github.com/water-sucks/nixos/internal/option"
 	"github.com/water-sucks/nixos/internal/settings"
 	"github.com/water-sucks/nixos/internal/system"
+	"github.com/yarlson/pin"
 )
 
 func OptionCommand() *cobra.Command {
@@ -31,9 +33,10 @@ func OptionCommand() *cobra.Command {
 		Long:  "Query available NixOS module options for this system.",
 		Args: func(cmd *cobra.Command, args []string) error {
 			argsFunc := cobra.ExactArgs(1)
-			if opts.Interactive && len(args) > 0 {
+			if opts.Interactive {
 				argsFunc = cobra.MaximumNArgs(1)
 			}
+
 			if err := argsFunc(cmd, args); err != nil {
 				return err
 			}
@@ -91,6 +94,17 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 		return err
 	}
 
+	spinner := pin.New("Loading...",
+		pin.WithSpinnerColor(pin.ColorCyan),
+		pin.WithTextColor(pin.ColorRed),
+		pin.WithPosition(pin.PositionRight),
+		pin.WithSpinnerFrames([]rune{'-', '\\', '|', '/'}),
+	)
+	cancelSpinner := spinner.Start(context.Background())
+	defer cancelSpinner()
+
+	spinner.UpdateMessage("Loading options...")
+
 	useCache := !opts.NoUseCache
 	if useCache {
 		_, err := os.Stat(prebuiltOptionCachePath)
@@ -102,10 +116,11 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 
 	optionsFile := prebuiltOptionCachePath
 	if !useCache {
-		log.Info("building options list")
 		f, err := buildOptionCache(s, nixosConfig)
 		if err != nil {
+			spinner.Stop()
 			log.Errorf("failed to build option list: %v", err)
+			log.Errorf("evaluation trace:", f)
 			return err
 		}
 		optionsFile = f
@@ -113,20 +128,26 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 
 	options, err := option.LoadOptionsFromFile(optionsFile)
 	if err != nil {
+		spinner.Stop()
 		log.Errorf("failed to load options: %v", err)
 		return err
 	}
 
 	if opts.Interactive {
+		spinner.Stop()
 		log.Info("interactive search not implemented yet, coming soon")
 		return nil
 	}
+
+	spinner.UpdateMessage(fmt.Sprintf("Finding option %v...", opts.OptionInput))
 
 	exactOptionMatchIdx := slices.IndexFunc(options, func(o option.NixosOption) bool {
 		return o.Name == opts.OptionInput
 	})
 	if exactOptionMatchIdx != -1 {
 		o := options[exactOptionMatchIdx]
+
+		spinner.UpdateMessage("Evaluating option value...")
 
 		var evalTrace string
 		evaluatedValue, err := nixosConfig.EvalAttribute(o.Name)
@@ -146,6 +167,8 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 			}
 		}
 
+		spinner.Stop()
+
 		if opts.DisplayJson {
 			displayOptionJson(&o, evaluatedValue)
 		} else if opts.DisplayValueOnly {
@@ -156,6 +179,8 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 
 		return nil
 	}
+
+	spinner.Stop()
 
 	msg := fmt.Sprintf("no exact match for query '%s' found", opts.OptionInput)
 	err = fmt.Errorf("%v", msg)
@@ -190,6 +215,7 @@ func displayOptionJson(o *option.NixosOption, evaluatedValue *string) {
 		Name         string   `json:"name"`
 		Description  string   `json:"description"`
 		Type         string   `json:"type"`
+		Value        *string  `json:"value"`
 		Default      string   `json:"default"`
 		Example      string   `json:"example"`
 		Location     []string `json:"loc"`
@@ -211,6 +237,7 @@ func displayOptionJson(o *option.NixosOption, evaluatedValue *string) {
 		Name:         o.Name,
 		Description:  o.Description,
 		Type:         o.Type,
+		Value:        evaluatedValue,
 		Default:      defaultText,
 		Example:      exampleText,
 		Location:     o.Location,
@@ -238,22 +265,24 @@ func displayErrorJson(msg string, matches fuzzy.Matches) {
 	fmt.Printf("%v\n", string(bytes))
 }
 
-var (
-	titleStyle  = color.New(color.Bold)
-	italicStyle = color.New(color.Italic)
-)
-
 func prettyPrintOption(o *option.NixosOption, evaluatedValue *string, evalTrace string, pretty bool) {
-	r := markdownRenderer()
+	var (
+		titleStyle  = color.New(color.Bold)
+		italicStyle = color.New(color.Italic)
+	)
+
 	desc := strings.TrimSpace(stripInlineCodeAnnotations(o.Description))
 	if desc == "" {
 		desc = italicStyle.Sprint("(none)")
 	} else {
-		d, err := r.Render(desc)
-		if err != nil {
-			desc = italicStyle.Sprintf("failed to render description: %v", err)
-		} else {
-			desc = strings.TrimSpace(d)
+		if pretty {
+			r := markdownRenderer()
+			d, err := r.Render(desc)
+			if err != nil {
+				desc = italicStyle.Sprintf("warning: failed to render description: %v\n", err) + desc
+			} else {
+				desc = strings.TrimSpace(d)
+			}
 		}
 	}
 
