@@ -4,3 +4,6 @@
 
 # Binary destination from `make`
 /nixos
+
+# For bubbletea log files
+*.log

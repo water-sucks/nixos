@@ -135,7 +135,7 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 
 	if opts.Interactive {
 		spinner.Stop()
-		log.Info("interactive search not implemented yet, coming soon")
+		optionTUI(options, opts.MinScore)
 		return nil
 	}
 
