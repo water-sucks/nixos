@@ -135,7 +135,7 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 
 	if opts.Interactive {
 		spinner.Stop()
-		optionTUI(options, opts.MinScore)
+		optionTUI(options, &cfg.Option)
 		return nil
 	}
 
