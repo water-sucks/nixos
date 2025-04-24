@@ -76,6 +76,10 @@ func (m ResultListModel) SetHeight(height int) ResultListModel {
 // Scroll up one entry in the result list window. Note that
 // scrolling up in the results list means less relevant results.
 func (m ResultListModel) ScrollUp() ResultListModel {
+	if !m.focused {
+		return m
+	}
+
 	if m.selected > 0 {
 		m.selected--
 
@@ -88,6 +92,10 @@ func (m ResultListModel) ScrollUp() ResultListModel {
 }
 
 func (m ResultListModel) ScrollDown() ResultListModel {
+	if !m.focused {
+		return m
+	}
+
 	if m.selected < len(m.filtered)-1 {
 		m.selected++
 
@@ -109,6 +117,17 @@ func (m ResultListModel) GetSelectedOption() *option.NixosOption {
 }
 
 func (m ResultListModel) Update(msg tea.Msg) (ResultListModel, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "up":
+			m = m.ScrollUp()
+
+		case "down":
+			m = m.ScrollDown()
+		}
+	}
+
 	// Make sure that resizes don't result in the start row ending
 	// up past an impossible index (i.e. there will be empty space
 	// on the bottom of the screen).

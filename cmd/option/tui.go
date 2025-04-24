@@ -77,19 +77,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "tab":
-			m = m.updateFocus()
-
-		case "up":
-			m = m.updateScrollUp()
-
-		case "down":
-			m = m.updateScrollDown()
-
-		case "left":
-			m = m.updateScrollLeft()
-
-		case "right":
-			m = m.updateScrollRight()
+			m = m.toggleFocus()
 		}
 
 	case tea.WindowSizeMsg:
@@ -168,14 +156,15 @@ func searchCmd(m Model, query string) tea.Cmd {
 	})
 }
 
-func (m Model) updateFocus() Model {
-	if m.focus == FocusAreaResults {
+func (m Model) toggleFocus() Model {
+	switch m.focus {
+	case FocusAreaResults:
 		m.focus = FocusAreaPreview
 
 		m.results = m.results.SetFocused(false)
 		m.search = m.search.SetFocused(false)
 		m.preview = m.preview.SetFocused(true)
-	} else {
+	case FocusAreaPreview:
 		m.focus = FocusAreaResults
 
 		m.results = m.results.SetFocused(true)
@@ -183,43 +172,6 @@ func (m Model) updateFocus() Model {
 		m.preview = m.preview.SetFocused(false)
 	}
 
-	return m
-}
-
-func (m Model) updateScrollUp() Model {
-	if m.focus == FocusAreaResults {
-		m.results = m.results.ScrollUp()
-	} else {
-		m.preview = m.preview.ScrollUp()
-	}
-
-	return m
-}
-
-func (m Model) updateScrollDown() Model {
-	if m.focus == FocusAreaResults {
-		m.results = m.results.ScrollDown()
-	} else {
-		m.preview = m.preview.ScrollDown()
-	}
-	return m
-}
-
-func (m Model) updateScrollLeft() Model {
-	if m.focus != FocusAreaResults {
-		return m
-	}
-
-	m.preview.ScrollLeft()
-	return m
-}
-
-func (m Model) updateScrollRight() Model {
-	if m.focus != FocusAreaResults {
-		return m
-	}
-
-	m.preview.ScrollRight()
 	return m
 }
 
