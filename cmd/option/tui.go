@@ -289,6 +289,8 @@ func (m *Model) renderResultsView() string {
 }
 
 func (m Model) renderSearchBar() string {
+	m.textinput.Width = m.searchWidth
+
 	left := m.textinput.View()
 	right := m.resultCountStr()
 
