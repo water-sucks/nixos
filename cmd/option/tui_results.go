@@ -5,8 +5,17 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/sahilm/fuzzy"
 	"github.com/water-sucks/nixos/internal/option"
+)
+
+var (
+	selectedResultStyle = lipgloss.NewStyle().
+				Background(lipgloss.ANSIColor(termenv.ANSIBlue)).
+				Foreground(lipgloss.ANSIColor(termenv.ANSIBrightWhite)).
+				Padding(0, 2)
+	resultItemStyle = lipgloss.NewStyle().Padding(0, 2)
 )
 
 type ResultListModel struct {

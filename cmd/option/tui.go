@@ -1,8 +1,6 @@
 package option
 
 import (
-	"fmt"
-	"os"
 	"slices"
 	"time"
 
@@ -23,12 +21,6 @@ var (
 	focusedBorderStyle  = lipgloss.NewStyle().
 				Border(lipgloss.NormalBorder()).
 				BorderForeground(lipgloss.ANSIColor(termenv.ANSIMagenta))
-
-	selectedResultStyle = lipgloss.NewStyle().
-				Background(lipgloss.ANSIColor(termenv.ANSIBlue)).
-				Foreground(lipgloss.ANSIColor(termenv.ANSIBrightWhite)).
-				Padding(0, 2)
-	resultItemStyle = lipgloss.NewStyle().Padding(0, 2)
 
 	marginStyle = lipgloss.NewStyle().Margin(2, 2)
 )
@@ -271,14 +263,15 @@ func (m Model) View() string {
 	return marginStyle.Render(main)
 }
 
-func optionTUI(options option.NixosOptionSource, cfg *settings.OptionSettings) {
+func optionTUI(options option.NixosOptionSource, cfg *settings.OptionSettings) error {
 	closeLogFile, _ := cmdUtils.ConfigureBubbleTeaLogger("option-tui")
 	defer closeLogFile()
 
 	p := tea.NewProgram(NewModel(options, cfg), tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
-		fmt.Println("Error:", err)
-		os.Exit(1)
+		return err
 	}
+
+	return nil
 }
