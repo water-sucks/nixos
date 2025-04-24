@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -35,9 +36,11 @@ var (
 type Model struct {
 	focus FocusArea
 
-	options  option.NixosOptionSource
-	filtered []fuzzy.Match
-	minScore int64
+	options    option.NixosOptionSource
+	filtered   []fuzzy.Match
+	minScore   int64
+	debounce   int64
+	debounceID int
 
 	search  SearchBarModel
 	results ResultListModel
@@ -60,6 +63,7 @@ func NewModel(options option.NixosOptionSource, minScore int64, prettify bool) M
 	return Model{
 		options:  options,
 		minScore: minScore,
+		debounce: 25,
 
 		focus: FocusAreaResults,
 
@@ -101,6 +105,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Force a re-render. The option string is cached otherwise,
 		// and this can screw with the centered portion.
 		m.preview = m.preview.ForceContentUpdate()
+
+	case searchMsg:
+		if msg.id != m.debounceID {
+			// Explicitly return the model early here, since this
+			// is a stale debounce command; there's no need to rebuild
+			// the UI off this message.
+			return m, nil
+		}
+		m = m.runSearch(msg.query)
 	}
 
 	var cmds []tea.Cmd
@@ -115,7 +128,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Re-run the fuzzy search query only when it changes.
 	// This may need a debounce later.
 	if query != oldQuery {
-		m = m.runSearch(query)
+		m.debounceID++
+		cmds = append(cmds, searchCmd(m, query))
 	}
 
 	var resultsCmd tea.Cmd
@@ -145,6 +159,21 @@ func (m Model) runSearch(query string) Model {
 		SetSelectedIndex(len(m.filtered) - 1)
 
 	return m
+}
+
+type searchMsg struct {
+	id    int
+	query string
+}
+
+func searchCmd(m Model, query string) tea.Cmd {
+	delay := time.Duration(m.debounce) * time.Millisecond
+	return tea.Tick(delay, func(t time.Time) tea.Msg {
+		return searchMsg{
+			id:    m.debounceID,
+			query: query,
+		}
+	})
 }
 
 func (m Model) updateFocus() Model {
