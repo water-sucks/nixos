@@ -52,12 +52,12 @@ func (m PreviewModel) SetOption(opt *option.NixosOption) PreviewModel {
 }
 
 func (m PreviewModel) ScrollUp() PreviewModel {
-	m.vp.LineUp(1)
+	m.vp.ScrollUp(1)
 	return m
 }
 
 func (m PreviewModel) ScrollDown() PreviewModel {
-	m.vp.LineDown(1)
+	m.vp.ScrollDown(1)
 	return m
 }
 
