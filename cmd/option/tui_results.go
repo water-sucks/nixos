@@ -15,7 +15,12 @@ var (
 				Background(lipgloss.ANSIColor(termenv.ANSIBlue)).
 				Foreground(lipgloss.ANSIColor(termenv.ANSIBrightWhite)).
 				Padding(0, 2)
-	resultItemStyle = lipgloss.NewStyle().Padding(0, 2)
+	resultItemStyle  = lipgloss.NewStyle().Padding(0, 2)
+	matchedCharStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.ANSIColor(termenv.ANSIGreen)).
+				Bold(true)
+	unmatchedCharStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.ANSIColor(termenv.ANSIBrightWhite))
 )
 
 type ResultListModel struct {
@@ -131,14 +136,32 @@ func (m ResultListModel) View() string {
 	}
 
 	for i := m.start; i < end; i++ {
-		candidate := m.options[m.filtered[i].Index]
+		match := m.filtered[i]
+		o := m.options[match.Index]
 
-		line := lipgloss.NewStyle().Width(m.width).Render(candidate.Name)
+		name := o.Name
+		matched := map[int]struct{}{}
+		for _, idx := range match.MatchedIndexes {
+			matched[idx] = struct{}{}
+		}
+
 		style := resultItemStyle
 		if i == m.selected {
 			style = selectedResultStyle
 		}
-		lines = append(lines, style.Width(m.width).Render(line))
+
+		var b strings.Builder
+		for j, r := range name {
+			s := unmatchedCharStyle
+			if _, ok := matched[j]; ok {
+				s = matchedCharStyle
+			}
+
+			b.WriteString(s.Inherit(style).Render(string(r)))
+		}
+
+		line := style.Width(m.width).Render(b.String())
+		lines = append(lines, line)
 
 	}
 
