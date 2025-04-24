@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
@@ -36,21 +35,18 @@ var (
 
 type Model struct {
 	minScore int64
-	prettify bool
 
 	focus FocusArea
 
 	options     option.NixosOptionSource
-	textinput   textinput.Model
 	filtered    []fuzzy.Match
 	selectedIdx int
 	startRow    int
 
 	resultsWidth  int
 	resultsHeight int
-	searchWidth   int
-	searchHeight  int
 
+	search  SearchBarModel
 	preview PreviewModel
 }
 
@@ -62,20 +58,17 @@ const (
 )
 
 func NewModel(options option.NixosOptionSource, minScore int64, prettify bool) Model {
-	ti := textinput.New()
-	ti.Placeholder = "Search for options..."
-	ti.Prompt = "> "
-	ti.Focus()
-
 	preview := NewPreviewModel(prettify)
+	search := NewSearchBarModel(len(options)).
+		SetFocused(true)
 
 	return Model{
-		options:   options,
-		minScore:  minScore,
-		prettify:  prettify,
-		preview:   preview,
-		textinput: ti,
-		focus:     FocusAreaResults,
+		options:  options,
+		minScore: minScore,
+
+		focus:   FocusAreaResults,
+		preview: preview,
+		search:  search,
 	}
 }
 
@@ -115,11 +108,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmds []tea.Cmd
 
-	newTextInput, tiCmd := m.textinput.Update(msg)
+	newSearch, tiCmd := m.search.Update(msg)
 	cmds = append(cmds, tiCmd)
 
-	query := newTextInput.Value()
-	oldQuery := m.textinput.Value()
+	oldQuery := m.search.Value()
+	m.search = newSearch
+	query := m.search.Value()
 
 	// Re-run the fuzzy search query only when it changes.
 	// This may need a debounce later.
@@ -133,6 +127,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		visible := min(m.visibleResultRows(), len(m.filtered))
 		m.startRow = max(m.selectedIdx-(visible-1), 0)
 	}
+
+	m.search = m.search.SetResultCount(len(m.filtered))
 
 	// Make sure that resizes don't result in the start row ending
 	// up past an impossible index (i.e. there will be empty space
@@ -154,16 +150,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.preview, previewCmd = m.preview.Update(msg)
 	cmds = append(cmds, previewCmd)
 
-	m.textinput = newTextInput
-
 	return m, tea.Batch(cmds...)
-}
-
-func (m *Model) resultCountStr() string {
-	if query := m.textinput.Value(); query != "" {
-		return fmt.Sprintf("%d/%d", len(m.filtered), len(m.options))
-	}
-	return ""
 }
 
 func (m Model) visibleResultRows() int {
@@ -173,11 +160,11 @@ func (m Model) visibleResultRows() int {
 func (m Model) updateFocus() Model {
 	if m.focus == FocusAreaResults {
 		m.focus = FocusAreaPreview
-		m.textinput.Blur()
+		m.search = m.search.SetFocused(false)
 		m.preview = m.preview.SetFocused(true)
 	} else {
 		m.focus = FocusAreaResults
-		m.textinput.Focus()
+		m.search = m.search.SetFocused(true)
 		m.preview = m.preview.SetFocused(false)
 	}
 
@@ -248,11 +235,14 @@ func (m Model) updateWindowSize(width, height int) Model {
 	leftWidth := (usableWidth + 1) / 2
 	rightWidth := usableWidth - leftWidth
 
-	m.searchWidth = leftWidth - borderPadding
-	m.searchHeight = 3
+	searchHeight := 3
 
 	m.resultsWidth = leftWidth - borderPadding
-	m.resultsHeight = usableHeight - m.searchHeight - borderPadding
+	m.resultsHeight = usableHeight - searchHeight - borderPadding
+
+	m.search = m.search.
+		SetWidth(leftWidth - borderPadding).
+		SetHeight(searchHeight)
 
 	m.preview = m.preview.ScrollDown().
 		SetWidth(rightWidth - borderPadding).
@@ -263,7 +253,7 @@ func (m Model) updateWindowSize(width, height int) Model {
 
 func (m Model) View() string {
 	results := m.renderResultsView()
-	search := m.renderSearchBar()
+	search := m.search.View()
 	preview := m.preview.View()
 
 	left := lipgloss.JoinVertical(lipgloss.Top, results, search)
@@ -273,7 +263,7 @@ func (m Model) View() string {
 	return marginStyle.Render(main)
 }
 
-func (m *Model) renderResultsView() string {
+func (m Model) renderResultsView() string {
 	title := lipgloss.PlaceHorizontal(m.resultsWidth, lipgloss.Center, titleStyle.Render("Results"))
 
 	height := m.visibleResultRows()
@@ -309,35 +299,6 @@ func (m *Model) renderResultsView() string {
 	style := m.getBorderStyle(FocusAreaResults)
 
 	return style.Width(m.resultsWidth).Render(title + "\n" + body)
-}
-
-func (m Model) renderSearchBar() string {
-	m.textinput.Width = m.searchWidth
-
-	left := m.textinput.View()
-	right := m.resultCountStr()
-
-	rightWidth := lipgloss.Width(right)
-	spaceBetween := 1
-
-	maxLeftWidth := max(m.searchWidth-rightWidth-spaceBetween, 0)
-	leftWidth := lipgloss.Width(left)
-	if leftWidth > maxLeftWidth {
-		left = truncateString(left, maxLeftWidth)
-	}
-
-	padding := m.searchWidth - lipgloss.Width(left) - rightWidth
-	style := m.getBorderStyle(FocusAreaResults)
-
-	return style.Width(m.searchWidth).Render(left + strings.Repeat(" ", padding) + right)
-}
-
-func truncateString(s string, width int) string {
-	runes := []rune(s)
-	if len(runes) <= width {
-		return s
-	}
-	return string(runes[:width])
 }
 
 func (m Model) getBorderStyle(area FocusArea) lipgloss.Style {
