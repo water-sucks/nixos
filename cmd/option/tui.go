@@ -33,11 +33,11 @@ var (
 	marginStyle = lipgloss.NewStyle().Margin(2, 2)
 )
 
-type model struct {
+type Model struct {
 	minScore int64
 	prettify bool
 
-	focus focusArea
+	focus FocusArea
 
 	options     option.NixosOptionSource
 	textinput   textinput.Model
@@ -53,14 +53,14 @@ type model struct {
 	preview PreviewModel
 }
 
-type focusArea int
+type FocusArea int
 
 const (
-	focusResults focusArea = iota
-	focusPreview
+	FocusAreaResults FocusArea = iota
+	FocusAreaPreview
 )
 
-func newModel(options option.NixosOptionSource, minScore int64, prettify bool) model {
+func NewModel(options option.NixosOptionSource, minScore int64, prettify bool) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search for options..."
 	ti.Prompt = "> "
@@ -68,32 +68,21 @@ func newModel(options option.NixosOptionSource, minScore int64, prettify bool) m
 
 	preview := NewPreviewModel(prettify)
 
-	return model{
+	return Model{
 		options:   options,
 		minScore:  minScore,
 		prettify:  prettify,
 		preview:   preview,
 		textinput: ti,
-		focus:     focusResults,
+		focus:     FocusAreaResults,
 	}
 }
 
-func (m *model) resultCountStr() string {
-	if query := m.textinput.Value(); query != "" {
-		return fmt.Sprintf("%d/%d", len(m.filtered), len(m.options))
-	}
-	return ""
-}
-
-func (m model) visibleResultRows() int {
-	return m.resultsHeight - 3 // one for title, two for borders
-}
-
-func (m model) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return nil
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -165,13 +154,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m model) updateFocus() model {
-	if m.focus == focusResults {
-		m.focus = focusPreview
+func (m *Model) resultCountStr() string {
+	if query := m.textinput.Value(); query != "" {
+		return fmt.Sprintf("%d/%d", len(m.filtered), len(m.options))
+	}
+	return ""
+}
+
+func (m Model) visibleResultRows() int {
+	return m.resultsHeight - 3 // one for title, two for borders
+}
+
+func (m Model) updateFocus() Model {
+	if m.focus == FocusAreaResults {
+		m.focus = FocusAreaPreview
 		m.textinput.Blur()
 		m.preview = m.preview.SetFocused(true)
 	} else {
-		m.focus = focusResults
+		m.focus = FocusAreaResults
 		m.textinput.Focus()
 		m.preview = m.preview.SetFocused(false)
 	}
@@ -179,8 +179,8 @@ func (m model) updateFocus() model {
 	return m
 }
 
-func (m model) updateScrollUp() model {
-	if m.focus == focusResults {
+func (m Model) updateScrollUp() Model {
+	if m.focus == FocusAreaResults {
 		// Scrolling up in the results list means accessing less
 		// relevant results.
 		if m.selectedIdx > 0 {
@@ -197,8 +197,8 @@ func (m model) updateScrollUp() model {
 	return m
 }
 
-func (m model) updateScrollDown() model {
-	if m.focus == focusResults {
+func (m Model) updateScrollDown() Model {
+	if m.focus == FocusAreaResults {
 		// Scrolling down in the results list means accessing more
 		// relevant results.
 		if m.selectedIdx < len(m.filtered)-1 {
@@ -214,7 +214,7 @@ func (m model) updateScrollDown() model {
 	return m
 }
 
-func (m model) updateWindowSize(width, height int) model {
+func (m Model) updateWindowSize(width, height int) Model {
 	marginX := 2
 	marginY := 2
 	borderPadding := 2
@@ -238,7 +238,7 @@ func (m model) updateWindowSize(width, height int) model {
 	return m
 }
 
-func (m model) View() string {
+func (m Model) View() string {
 	results := m.renderResultsView()
 	search := m.renderSearchBar()
 	preview := m.preview.View()
@@ -250,7 +250,7 @@ func (m model) View() string {
 	return marginStyle.Render(main)
 }
 
-func (m *model) renderResultsView() string {
+func (m *Model) renderResultsView() string {
 	title := lipgloss.PlaceHorizontal(m.resultsWidth, lipgloss.Center, titleStyle.Render("Results"))
 
 	height := m.visibleResultRows()
@@ -283,12 +283,12 @@ func (m *model) renderResultsView() string {
 
 	body := strings.Join(lines, "\n")
 
-	style := m.getBorderStyle(focusResults)
+	style := m.getBorderStyle(FocusAreaResults)
 
 	return style.Width(m.resultsWidth).Render(title + "\n" + body)
 }
 
-func (m model) renderSearchBar() string {
+func (m Model) renderSearchBar() string {
 	left := m.textinput.View()
 	right := m.resultCountStr()
 
@@ -302,7 +302,7 @@ func (m model) renderSearchBar() string {
 	}
 
 	padding := m.searchWidth - lipgloss.Width(left) - rightWidth
-	style := m.getBorderStyle(focusResults)
+	style := m.getBorderStyle(FocusAreaResults)
 
 	return style.Width(m.searchWidth).Render(left + strings.Repeat(" ", padding) + right)
 }
@@ -315,7 +315,7 @@ func truncateString(s string, width int) string {
 	return string(runes[:width])
 }
 
-func (m model) getBorderStyle(area focusArea) lipgloss.Style {
+func (m Model) getBorderStyle(area FocusArea) lipgloss.Style {
 	if area == m.focus {
 		return focusedBorderStyle
 	}
@@ -323,7 +323,7 @@ func (m model) getBorderStyle(area focusArea) lipgloss.Style {
 }
 
 func optionTUI(options option.NixosOptionSource, cfg *settings.OptionSettings) {
-	p := tea.NewProgram(newModel(options, cfg.MinScore, cfg.Prettify), tea.WithAltScreen())
+	p := tea.NewProgram(NewModel(options, cfg.MinScore, cfg.Prettify), tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error:", err)
