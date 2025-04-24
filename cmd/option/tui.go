@@ -7,10 +7,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/fatih/color"
 	"github.com/muesli/termenv"
 
 	"github.com/sahilm/fuzzy"
@@ -52,8 +50,7 @@ type model struct {
 	searchWidth   int
 	searchHeight  int
 
-	preview        viewport.Model
-	lastPreviewIdx int
+	preview PreviewModel
 }
 
 type focusArea int
@@ -69,16 +66,15 @@ func newModel(options option.NixosOptionSource, minScore int64, prettify bool) m
 	ti.Prompt = "> "
 	ti.Focus()
 
-	preview := viewport.New(0, 0)
+	preview := NewPreviewModel(prettify)
 
 	return model{
-		options:        options,
-		minScore:       minScore,
-		prettify:       prettify,
-		preview:        preview,
-		textinput:      ti,
-		lastPreviewIdx: -1,
-		focus:          focusResults,
+		options:   options,
+		minScore:  minScore,
+		prettify:  prettify,
+		preview:   preview,
+		textinput: ti,
+		focus:     focusResults,
 	}
 }
 
@@ -105,60 +101,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "tab":
-			if m.focus == focusResults {
-				m.focus = focusPreview
-				m.textinput.Blur()
-			} else {
-				m.focus = focusResults
-				m.textinput.Focus()
-			}
+			m = m.updateFocus()
 
 		case "up":
-			if m.focus == focusResults {
-				if m.selectedIdx > 0 {
-					m.selectedIdx--
-
-					if m.selectedIdx < m.startRow {
-						m.startRow--
-					}
-				}
-			} else {
-				m.preview.LineUp(1)
-			}
+			m = m.updateScrollUp()
 
 		case "down":
-			if m.focus == focusResults {
-				if m.selectedIdx < len(m.filtered)-1 {
-					m.selectedIdx++
+			m = m.updateScrollDown()
 
-					if m.selectedIdx >= m.startRow+m.visibleResultRows() {
-						m.startRow++
-					}
-				}
-			} else {
-				m.preview.LineDown(1)
-			}
+			// TODO: implement left/right scrolling for the preview viewport
+			// This is already in a `bubbles` release, just needs to be updated.
 		}
 
 	case tea.WindowSizeMsg:
-		marginX := 2
-		marginY := 2
-		borderPadding := 2
-
-		usableWidth := msg.Width - marginX
-		usableHeight := msg.Height - marginY
-
-		leftWidth := (usableWidth + 1) / 2
-		rightWidth := usableWidth - leftWidth
-
-		m.searchWidth = leftWidth - borderPadding
-		m.searchHeight = 3
-
-		m.resultsWidth = leftWidth - borderPadding
-		m.resultsHeight = usableHeight - m.searchHeight - borderPadding
-
-		m.preview.Width = rightWidth - borderPadding
-		m.preview.Height = usableHeight - borderPadding
+		m = m.updateWindowSize(msg.Width, msg.Height)
+		// Force a re-render. The option string is cached.
+		m.preview = m.preview.ForceContentUpdate()
 	}
 
 	var cmds []tea.Cmd
@@ -190,95 +148,92 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.startRow = maxStart
 	}
 
-	if m.focus == focusPreview {
-		newPreview, previewCmd := m.preview.Update(msg)
-		m.preview = newPreview
-		cmds = append(cmds, previewCmd)
+	var selectedOption *option.NixosOption
+	if m.selectedIdx >= 0 && len(m.filtered) > 0 {
+		optionIdx := m.filtered[m.selectedIdx].Index
+		selectedOption = &m.options[optionIdx]
 	}
 
+	m.preview = m.preview.SetOption(selectedOption)
+
+	var previewCmd tea.Cmd
+	m.preview, previewCmd = m.preview.Update(msg)
+	cmds = append(cmds, previewCmd)
+
 	m.textinput = newTextInput
-	m = m.updateOptionPreview()
 
 	return m, tea.Batch(cmds...)
 }
 
-func (m model) updateOptionPreview() model {
-	var (
-		titleStyle  = color.New(color.Bold)
-		italicStyle = color.New(color.Italic)
-	)
-
-	sb := strings.Builder{}
-
-	title := lipgloss.PlaceHorizontal(m.preview.Width, lipgloss.Center, titleStyle.Sprint("Option Preview"))
-	sb.WriteString(title)
-	sb.WriteString("\n\n")
-
-	if len(m.filtered) == 0 || m.selectedIdx < 0 {
-		m.lastPreviewIdx = -1
-		sb.WriteString("No option selected.")
-
-		m.preview.SetContent(sb.String())
-		return m
-	}
-
-	optionIndex := m.filtered[m.selectedIdx].Index
-
-	// Do not re-render options if it has already been rendered.
-	// Setting content will reset the scroll counter, and rendering
-	// an option is expensive.
-	if m.lastPreviewIdx == optionIndex {
-		return m
-	}
-
-	o := &m.options[optionIndex]
-
-	desc := strings.TrimSpace(stripInlineCodeAnnotations(o.Description))
-	if desc == "" {
-		desc = italicStyle.Sprint("(none)")
+func (m model) updateFocus() model {
+	if m.focus == focusResults {
+		m.focus = focusPreview
+		m.textinput.Blur()
+		m.preview = m.preview.SetFocused(true)
 	} else {
-		if m.prettify {
-			r := markdownRenderer()
-			d, err := r.Render(desc)
-			if err != nil {
-				desc = italicStyle.Sprintf("warning: failed to render description: %v\n", err) + desc
-			} else {
-				desc = strings.TrimSpace(d)
+		m.focus = focusResults
+		m.textinput.Focus()
+		m.preview = m.preview.SetFocused(false)
+	}
+
+	return m
+}
+
+func (m model) updateScrollUp() model {
+	if m.focus == focusResults {
+		// Scrolling up in the results list means accessing less
+		// relevant results.
+		if m.selectedIdx > 0 {
+			m.selectedIdx--
+
+			if m.selectedIdx < m.startRow {
+				m.startRow--
 			}
 		}
-	}
-
-	var defaultText string
-	if o.Default != nil {
-		defaultText = color.WhiteString(strings.TrimSpace(o.Default.Text))
 	} else {
-		defaultText = italicStyle.Sprint("(none)")
+		m.preview = m.preview.ScrollUp()
 	}
 
-	exampleText := ""
-	if o.Example != nil {
-		exampleText = color.WhiteString(strings.TrimSpace(o.Example.Text))
-	}
+	return m
+}
 
-	sb.WriteString(fmt.Sprintf("%v\n%v\n\n", titleStyle.Sprint("Name"), o.Name))
-	sb.WriteString(fmt.Sprintf("%v\n%v\n\n", titleStyle.Sprint("Description"), desc))
-	sb.WriteString(fmt.Sprintf("%v\n%v\n\n", titleStyle.Sprint("Type"), italicStyle.Sprint(o.Type)))
-	sb.WriteString(fmt.Sprintf("%v\n%v\n\n", titleStyle.Sprint("Default"), defaultText))
-	if exampleText != "" {
-		sb.WriteString(fmt.Sprintf("%v\n%v\n\n", titleStyle.Sprint("Example"), exampleText))
-	}
+func (m model) updateScrollDown() model {
+	if m.focus == focusResults {
+		// Scrolling down in the results list means accessing more
+		// relevant results.
+		if m.selectedIdx < len(m.filtered)-1 {
+			m.selectedIdx++
 
-	if len(o.Declarations) > 0 {
-		sb.WriteString(fmt.Sprintf("%v\n", titleStyle.Sprint("Declared In")))
-		for _, v := range o.Declarations {
-			sb.WriteString(fmt.Sprintf("  - %v\n", italicStyle.Sprint(v)))
+			if m.selectedIdx >= m.startRow+m.visibleResultRows() {
+				m.startRow++
+			}
 		}
+	} else {
+		m.preview = m.preview.ScrollDown()
 	}
-	sb.WriteString(fmt.Sprintf("\n%v\n", color.YellowString("This option is read-only.")))
+	return m
+}
 
-	m.preview.SetContent(sb.String())
-	m.preview.GotoTop()
-	m.lastPreviewIdx = optionIndex
+func (m model) updateWindowSize(width, height int) model {
+	marginX := 2
+	marginY := 2
+	borderPadding := 2
+
+	usableWidth := width - marginX
+	usableHeight := height - marginY
+
+	leftWidth := (usableWidth + 1) / 2
+	rightWidth := usableWidth - leftWidth
+
+	m.searchWidth = leftWidth - borderPadding
+	m.searchHeight = 3
+
+	m.resultsWidth = leftWidth - borderPadding
+	m.resultsHeight = usableHeight - m.searchHeight - borderPadding
+
+	m.preview = m.preview.ScrollDown().
+		SetWidth(rightWidth - borderPadding).
+		SetHeight(usableHeight - borderPadding)
 
 	return m
 }
@@ -286,10 +241,11 @@ func (m model) updateOptionPreview() model {
 func (m model) View() string {
 	results := m.renderResultsView()
 	search := m.renderSearchBar()
-	preview := m.renderOptionPreview()
+	preview := m.preview.View()
 
-	leftPane := lipgloss.JoinVertical(lipgloss.Top, results, search)
-	main := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, preview)
+	left := lipgloss.JoinVertical(lipgloss.Top, results, search)
+
+	main := lipgloss.JoinHorizontal(lipgloss.Top, left, preview)
 
 	return marginStyle.Render(main)
 }
@@ -364,12 +320,6 @@ func (m model) getBorderStyle(area focusArea) lipgloss.Style {
 		return focusedBorderStyle
 	}
 	return inactiveBorderStyle
-}
-
-func (m model) renderOptionPreview() string {
-	m.preview.Style = m.getBorderStyle(focusPreview)
-
-	return m.preview.View()
 }
 
 func optionTUI(options option.NixosOptionSource, cfg *settings.OptionSettings) {
