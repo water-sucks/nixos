@@ -98,13 +98,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "down":
 			m = m.updateScrollDown()
 
-			// TODO: implement left/right scrolling for the preview viewport
-			// This is already in a `bubbles` release, just needs to be updated.
+		case "left":
+			m = m.updateScrollLeft()
+
+		case "right":
+			m = m.updateScrollRight()
 		}
 
 	case tea.WindowSizeMsg:
 		m = m.updateWindowSize(msg.Width, msg.Height)
-		// Force a re-render. The option string is cached.
+		// Force a re-render. The option string is cached otherwise,
+		// and this can screw with the centered portion.
 		m.preview = m.preview.ForceContentUpdate()
 	}
 
@@ -211,6 +215,24 @@ func (m Model) updateScrollDown() Model {
 	} else {
 		m.preview = m.preview.ScrollDown()
 	}
+	return m
+}
+
+func (m Model) updateScrollLeft() Model {
+	if m.focus != FocusAreaResults {
+		return m
+	}
+
+	m.preview.ScrollLeft()
+	return m
+}
+
+func (m Model) updateScrollRight() Model {
+	if m.focus != FocusAreaResults {
+		return m
+	}
+
+	m.preview.ScrollRight()
 	return m
 }
 

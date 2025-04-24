@@ -24,6 +24,7 @@ type PreviewModel struct {
 
 func NewPreviewModel(prettify bool) PreviewModel {
 	vp := viewport.New(0, 0)
+	vp.SetHorizontalStep(1)
 
 	return PreviewModel{
 		prettify: prettify,
@@ -58,6 +59,16 @@ func (m PreviewModel) ScrollUp() PreviewModel {
 
 func (m PreviewModel) ScrollDown() PreviewModel {
 	m.vp.ScrollDown(1)
+	return m
+}
+
+func (m PreviewModel) ScrollLeft() PreviewModel {
+	m.vp.ScrollLeft(1)
+	return m
+}
+
+func (m PreviewModel) ScrollRight() PreviewModel {
+	m.vp.ScrollRight(1)
 	return m
 }
 
