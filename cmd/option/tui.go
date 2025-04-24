@@ -12,6 +12,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/sahilm/fuzzy"
+	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/option"
 	"github.com/water-sucks/nixos/internal/settings"
 )
@@ -347,6 +348,9 @@ func (m Model) getBorderStyle(area FocusArea) lipgloss.Style {
 }
 
 func optionTUI(options option.NixosOptionSource, cfg *settings.OptionSettings) {
+	closeLogFile, _ := cmdUtils.ConfigureBubbleTeaLogger("option-tui")
+	defer closeLogFile()
+
 	p := tea.NewProgram(NewModel(options, cfg.MinScore, cfg.Prettify), tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {

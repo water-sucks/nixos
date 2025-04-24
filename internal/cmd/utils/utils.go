@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
 
@@ -24,4 +25,19 @@ func CommandErrorHandler(err error) error {
 		return CommandError
 	}
 	return nil
+}
+
+func ConfigureBubbleTeaLogger(prefix string) (func(), error) {
+	if os.Getenv("NIXOS_CLI_DEBUG_MODE") == "" {
+		return func() {}, nil
+	}
+
+	file, err := tea.LogToFile("debug.log", prefix)
+
+	return func() {
+		if err != nil || file == nil {
+			return
+		}
+		_ = file.Close()
+	}, err
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	genUtils "github.com/water-sucks/nixos/cmd/generation/shared"
+	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/generation"
 	"github.com/water-sucks/nixos/internal/logger"
 )
@@ -292,6 +293,9 @@ func newGenerationList(generations []generation.Generation) list.Model {
 }
 
 func generationUI(log *logger.Logger, profile string, generations []generation.Generation) error {
+	closeLogFile, _ := cmdUtils.ConfigureBubbleTeaLogger("genlist")
+	defer closeLogFile()
+
 	l := newGenerationList(generations)
 
 	m := model{
