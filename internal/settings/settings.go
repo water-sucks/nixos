@@ -45,8 +45,9 @@ type InitSettings struct {
 }
 
 type OptionSettings struct {
-	MinScore int64 `koanf:"min_score" description:"Minimum distance score to consider an option a match"`
-	Prettify bool  `koanf:"prettify" description:"Attempt to render option descriptions using Markdown"`
+	MinScore     int64 `koanf:"min_score" description:"Minimum distance score to consider an option a match"`
+	Prettify     bool  `koanf:"prettify" description:"Attempt to render option descriptions using Markdown"`
+	DebounceTime int64 `koanf:"debounce_time" description:"Debounce time for searching options using the UI, in milliseconds"`
 }
 
 func NewSettings() *Settings {
@@ -59,8 +60,9 @@ func NewSettings() *Settings {
 		Init:        InitSettings{},
 		RootCommand: "sudo",
 		Option: OptionSettings{
-			MinScore: 1,
-			Prettify: true,
+			MinScore:     1,
+			Prettify:     true,
+			DebounceTime: 25,
 		},
 	}
 }

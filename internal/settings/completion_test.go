@@ -29,7 +29,7 @@ func TestCompleteConfigFlag(t *testing.T) {
 		{"ent", []string{"enter."}},
 
 		// Fields after a . should be underneath the nested option
-		{"option.", []string{"option.min_score", "option.prettify"}},
+		{"option.", []string{"option.min_score", "option.prettify", "option.debounce_time"}},
 
 		{"apply.use_", []string{"apply.use_nom", "apply.use_git_commit_msg"}},
 

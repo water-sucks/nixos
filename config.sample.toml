@@ -58,6 +58,8 @@ extra_config = ""
 
 # Configuration for the `option` subcommand.
 [option]
+# Debounce time for searching through options using the UI, in milliseconds.
+debounce_time = 25
 # Minimum distance score to consider an option a match. This can be any number,
 # including negative numbers. Lower scores will give less relevant (but more)
 # results, while higher scores will give more relevant results while being

@@ -54,18 +54,18 @@ const (
 	FocusAreaPreview
 )
 
-func NewModel(options option.NixosOptionSource, minScore int64, prettify bool) Model {
-	preview := NewPreviewModel(prettify)
+func NewModel(options option.NixosOptionSource, cfg *settings.OptionSettings) Model {
+	preview := NewPreviewModel(cfg.Prettify)
 	search := NewSearchBarModel(len(options)).
 		SetFocused(true)
 	results := NewResultListModel(options)
 
 	return Model{
 		options:  options,
-		minScore: minScore,
-		debounce: 25,
+		minScore: cfg.MinScore,
 
-		focus: FocusAreaResults,
+		focus:    FocusAreaResults,
+		debounce: cfg.DebounceTime,
 
 		results: results,
 		preview: preview,
@@ -275,7 +275,7 @@ func optionTUI(options option.NixosOptionSource, cfg *settings.OptionSettings) {
 	closeLogFile, _ := cmdUtils.ConfigureBubbleTeaLogger("option-tui")
 	defer closeLogFile()
 
-	p := tea.NewProgram(NewModel(options, cfg.MinScore, cfg.Prettify), tea.WithAltScreen())
+	p := tea.NewProgram(NewModel(options, cfg), tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error:", err)
