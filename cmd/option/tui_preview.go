@@ -58,6 +58,13 @@ var (
 )
 
 func (m PreviewModel) Update(msg tea.Msg) (PreviewModel, tea.Cmd) {
+	switch msg.(type) {
+	case tea.WindowSizeMsg:
+		// Force a re-render. The option string is cached otherwise,
+		// and this can screw with the centered portion.
+		m = m.ForceContentUpdate()
+	}
+
 	var cmd tea.Cmd
 	if m.focused {
 		m.vp, cmd = m.vp.Update(msg)

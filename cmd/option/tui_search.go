@@ -3,6 +3,7 @@ package option
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,7 +11,10 @@ import (
 )
 
 type SearchBarModel struct {
-	input   textinput.Model
+	input        textinput.Model
+	debouncer    Debouncer
+	debounceTime int64
+
 	width   int
 	height  int
 	focused bool
@@ -24,16 +28,50 @@ func NewSearchBarModel(totalCount int) SearchBarModel {
 	ti.Placeholder = "Search for options..."
 	ti.Prompt = "> "
 
+	debouncer := Debouncer{}
+
 	return SearchBarModel{
-		input:      ti,
-		totalCount: totalCount,
+		input:        ti,
+		debouncer:    debouncer,
+		debounceTime: 25,
+		totalCount:   totalCount,
 	}
 }
 
 func (m SearchBarModel) Update(msg tea.Msg) (SearchBarModel, tea.Cmd) {
-	var cmd tea.Cmd
-	m.input, cmd = m.input.Update(msg)
-	return m, cmd
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		oldValue := m.input.Value()
+		input, cmd := m.input.Update(msg)
+		m.input = input
+
+		if oldValue != m.input.Value() {
+			delay := time.Duration(m.debounceTime) * time.Millisecond
+			cmd := m.debouncer.Tick(delay, func() tea.Msg {
+				return searchChangedMsg(m.input.Value())
+			})
+			return m, cmd
+		}
+
+		return m, cmd
+
+	case DebounceMsg:
+		if msg.ID != m.debouncer.ID {
+			// Explicitly return the model early here, since this
+			// is a stale debounce command; there's no need to rebuild
+			// the UI off this message.
+			return m, nil
+		}
+
+		switch inner := msg.Msg.(type) {
+		case searchChangedMsg:
+			return m, func() tea.Msg {
+				return RunSearchMsg{Query: string(inner)}
+			}
+		}
+	}
+
+	return m, nil
 }
 
 func (m SearchBarModel) SetFocused(focused bool) SearchBarModel {
@@ -106,3 +144,26 @@ func truncateString(s string, width int) string {
 	}
 	return string(runes[:width])
 }
+
+type Debouncer struct {
+	ID int
+}
+
+func (d *Debouncer) Tick(dur time.Duration, msg func() tea.Msg) tea.Cmd {
+	d.ID++
+	newDebounceID := d.ID
+
+	return tea.Tick(dur, func(time.Time) tea.Msg {
+		return DebounceMsg{
+			ID:  newDebounceID,
+			Msg: msg(),
+		}
+	})
+}
+
+type DebounceMsg struct {
+	ID  int
+	Msg tea.Msg
+}
+
+type searchChangedMsg string

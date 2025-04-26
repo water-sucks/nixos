@@ -2,7 +2,6 @@ package option
 
 import (
 	"slices"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -30,12 +29,11 @@ var (
 
 type Model struct {
 	focus FocusArea
+	mode  ViewMode
 
-	options    option.NixosOptionSource
-	filtered   []fuzzy.Match
-	minScore   int64
-	debounce   int64
-	debounceID int
+	options  option.NixosOptionSource
+	filtered []fuzzy.Match
+	minScore int64
 
 	width  int
 	height int
@@ -46,12 +44,20 @@ type Model struct {
 	help    HelpModel
 }
 
+type ViewMode int
+
+const (
+	ViewModeSearch = iota
+	ViewModeHelp
+)
+
+type ChangeViewModeMsg ViewMode
+
 type FocusArea int
 
 const (
 	FocusAreaResults FocusArea = iota
 	FocusAreaPreview
-	FocusAreaHelp
 )
 
 func NewModel(options option.NixosOptionSource, cfg *settings.OptionSettings) Model {
@@ -63,11 +69,11 @@ func NewModel(options option.NixosOptionSource, cfg *settings.OptionSettings) Mo
 	help := NewHelpModel()
 
 	return Model{
+		mode:  ViewModeSearch,
+		focus: FocusAreaResults,
+
 		options:  options,
 		minScore: cfg.MinScore,
-
-		focus:    FocusAreaResults,
-		debounce: cfg.DebounceTime,
 
 		results: results,
 		preview: preview,
@@ -83,70 +89,60 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if m.help.Focused() {
-			switch msg.String() {
-			case "q", "esc":
-				m = m.setHelpFocus(false)
-				return m, nil
-			}
-
-			var cmd tea.Cmd
-			m.help, cmd = m.help.Update(msg)
-			return m, cmd
-		}
-
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
+		}
+	case tea.WindowSizeMsg:
+		m = m.updateWindowSize(msg.Width, msg.Height)
 
+		// Always forward resize events to components that need them.
+		m.help, _ = m.help.Update(msg)
+
+		return m, nil
+
+	case ChangeViewModeMsg:
+		m.mode = ViewMode(msg)
+	}
+
+	switch m.mode {
+	case ViewModeSearch:
+		return m.updateSearch(msg)
+	case ViewModeHelp:
+		var helpCmd tea.Cmd
+		m.help, helpCmd = m.help.Update(msg)
+		return m, helpCmd
+	}
+
+	return m, nil
+}
+
+func (m Model) updateSearch(msg tea.Msg) (Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
 		case "tab":
 			m = m.toggleFocus()
 
 		case "ctrl+g":
-			m = m.setHelpFocus(true)
+			return m, func() tea.Msg {
+				return ChangeViewModeMsg(ViewModeHelp)
+			}
 		}
-
-	case tea.WindowSizeMsg:
-		m = m.updateWindowSize(msg.Width, msg.Height)
-		// Force a re-render. The option string is cached otherwise,
-		// and this can screw with the centered portion.
-		m.preview = m.preview.ForceContentUpdate()
-
-	case searchMsg:
-		if msg.id != m.debounceID {
-			// Explicitly return the model early here, since this
-			// is a stale debounce command; there's no need to rebuild
-			// the UI off this message.
-			return m, nil
-		}
-		m = m.runSearch(msg.query)
+	case RunSearchMsg:
+		m = m.runSearch(msg.Query)
+		m.search = m.search.SetResultCount(len(m.filtered))
 	}
 
 	var cmds []tea.Cmd
 
-	help, helpCmd := m.help.Update(msg)
-	m.help = help
-	cmds = append(cmds, helpCmd)
-
-	newSearch, tiCmd := m.search.Update(msg)
-	cmds = append(cmds, tiCmd)
-
-	oldQuery := m.search.Value()
-	m.search = newSearch
-	query := m.search.Value()
-
-	// Re-run the fuzzy search query only when it changes.
-	// This may need a debounce later.
-	if query != oldQuery {
-		m.debounceID++
-		cmds = append(cmds, searchCmd(m, query))
-	}
+	var searchCmd tea.Cmd
+	m.search, searchCmd = m.search.Update(msg)
+	cmds = append(cmds, searchCmd)
 
 	var resultsCmd tea.Cmd
 	m.results, resultsCmd = m.results.Update(msg)
 	cmds = append(cmds, resultsCmd)
-
-	m.search = m.search.SetResultCount(len(m.filtered))
 
 	selectedOption := m.results.GetSelectedOption()
 	m.preview = m.preview.SetOption(selectedOption)
@@ -171,24 +167,11 @@ func (m Model) runSearch(query string) Model {
 	return m
 }
 
-type searchMsg struct {
-	id    int
-	query string
-}
-
-func searchCmd(m Model, query string) tea.Cmd {
-	delay := time.Duration(m.debounce) * time.Millisecond
-	return tea.Tick(delay, func(t time.Time) tea.Msg {
-		return searchMsg{
-			id:    m.debounceID,
-			query: query,
-		}
-	})
+type RunSearchMsg struct {
+	Query string
 }
 
 func (m Model) toggleFocus() Model {
-	m.help = m.help.SetFocused(false)
-
 	switch m.focus {
 	case FocusAreaResults:
 		m.focus = FocusAreaPreview
@@ -202,35 +185,6 @@ func (m Model) toggleFocus() Model {
 		m.results = m.results.SetFocused(true)
 		m.search = m.search.SetFocused(true)
 		m.preview = m.preview.SetFocused(false)
-	}
-
-	return m
-}
-
-func (m Model) setHelpFocus(focus bool) Model {
-	if focus {
-		m.focus = FocusAreaHelp
-		m.help = m.help.SetFocused(true)
-
-		m.results = m.results.SetFocused(false)
-		m.search = m.search.SetFocused(false)
-		m.preview = m.preview.SetFocused(false)
-	} else {
-		// Always toggle back to the result focus
-		m.focus = FocusAreaResults
-
-		m.help = m.help.SetFocused(false)
-		m.preview = m.preview.SetFocused(false)
-
-		m.results = m.results.SetFocused(true)
-		m.search = m.search.SetFocused(true)
-	}
-
-	switch m.focus {
-	case FocusAreaResults, FocusAreaPreview:
-
-	case FocusAreaHelp:
-
 	}
 
 	return m
@@ -263,7 +217,7 @@ func (m Model) updateWindowSize(width, height int) Model {
 }
 
 func (m Model) View() string {
-	if m.focus == FocusAreaHelp {
+	if m.mode == ViewModeHelp {
 		return marginStyle.Render(m.help.View())
 	}
 

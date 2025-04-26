@@ -21,8 +21,7 @@ func init() {
 }
 
 type HelpModel struct {
-	focused bool
-	vp      viewport.Model
+	vp viewport.Model
 
 	width  int
 	height int
@@ -35,13 +34,20 @@ func NewHelpModel() HelpModel {
 	vp.Style = focusedBorderStyle
 
 	return HelpModel{
-		focused: false,
-		vp:      vp,
+		vp: vp,
 	}
 }
 
 func (m HelpModel) Update(msg tea.Msg) (HelpModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "esc":
+			return m, func() tea.Msg {
+				return ChangeViewModeMsg(ViewModeSearch)
+			}
+		}
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width - 4
 		m.height = msg.Height - 4
@@ -50,6 +56,7 @@ func (m HelpModel) Update(msg tea.Msg) (HelpModel, tea.Cmd) {
 		m.vp.Height = m.height
 
 		m.vp.SetContent(m.constructHelpContent())
+		return m, nil
 	}
 
 	var cmd tea.Cmd
@@ -75,13 +82,4 @@ func (m HelpModel) constructHelpContent() string {
 		Render("")
 
 	return title + "\n" + line + helpContent
-}
-
-func (m HelpModel) SetFocused(focus bool) HelpModel {
-	m.focused = focus
-	return m
-}
-
-func (m HelpModel) Focused() bool {
-	return m.focused
 }
