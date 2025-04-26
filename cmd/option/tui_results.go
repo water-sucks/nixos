@@ -179,7 +179,7 @@ func (m ResultListModel) View() string {
 			b.WriteString(s.Inherit(style).Render(string(r)))
 		}
 
-		line := style.Width(m.width).Render(b.String())
+		line := style.Width(m.width).MaxHeight(1).Render(b.String())
 		lines = append(lines, line)
 
 	}
