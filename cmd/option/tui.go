@@ -22,7 +22,10 @@ var (
 				Border(lipgloss.NormalBorder()).
 				BorderForeground(lipgloss.ANSIColor(termenv.ANSIMagenta))
 
-	marginStyle = lipgloss.NewStyle().Margin(2, 2)
+	marginStyle = lipgloss.NewStyle().Margin(2, 2, 0, 2)
+	hintStyle   = lipgloss.NewStyle().
+			Foreground(lipgloss.ANSIColor(termenv.ANSIYellow)) // Soft gray
+
 )
 
 type Model struct {
@@ -34,9 +37,13 @@ type Model struct {
 	debounce   int64
 	debounceID int
 
+	width  int
+	height int
+
 	search  SearchBarModel
 	results ResultListModel
 	preview PreviewModel
+	help    HelpModel
 }
 
 type FocusArea int
@@ -44,13 +51,16 @@ type FocusArea int
 const (
 	FocusAreaResults FocusArea = iota
 	FocusAreaPreview
+	FocusAreaHelp
 )
 
 func NewModel(options option.NixosOptionSource, cfg *settings.OptionSettings) Model {
 	preview := NewPreviewModel(cfg.Prettify)
 	search := NewSearchBarModel(len(options)).
 		SetFocused(true)
-	results := NewResultListModel(options)
+	results := NewResultListModel(options).
+		SetFocused(true)
+	help := NewHelpModel()
 
 	return Model{
 		options:  options,
@@ -62,6 +72,7 @@ func NewModel(options option.NixosOptionSource, cfg *settings.OptionSettings) Mo
 		results: results,
 		preview: preview,
 		search:  search,
+		help:    help,
 	}
 }
 
@@ -72,12 +83,27 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if m.help.Focused() {
+			switch msg.String() {
+			case "q", "esc":
+				m = m.setHelpFocus(false)
+				return m, nil
+			}
+
+			var cmd tea.Cmd
+			m.help, cmd = m.help.Update(msg)
+			return m, cmd
+		}
+
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
 
 		case "tab":
 			m = m.toggleFocus()
+
+		case "ctrl+g":
+			m = m.setHelpFocus(true)
 		}
 
 	case tea.WindowSizeMsg:
@@ -97,6 +123,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmds []tea.Cmd
+
+	help, helpCmd := m.help.Update(msg)
+	m.help = help
+	cmds = append(cmds, helpCmd)
 
 	newSearch, tiCmd := m.search.Update(msg)
 	cmds = append(cmds, tiCmd)
@@ -157,6 +187,8 @@ func searchCmd(m Model, query string) tea.Cmd {
 }
 
 func (m Model) toggleFocus() Model {
+	m.help = m.help.SetFocused(false)
+
 	switch m.focus {
 	case FocusAreaResults:
 		m.focus = FocusAreaPreview
@@ -175,44 +207,80 @@ func (m Model) toggleFocus() Model {
 	return m
 }
 
+func (m Model) setHelpFocus(focus bool) Model {
+	if focus {
+		m.focus = FocusAreaHelp
+		m.help = m.help.SetFocused(true)
+
+		m.results = m.results.SetFocused(false)
+		m.search = m.search.SetFocused(false)
+		m.preview = m.preview.SetFocused(false)
+	} else {
+		// Always toggle back to the result focus
+		m.focus = FocusAreaResults
+
+		m.help = m.help.SetFocused(false)
+		m.preview = m.preview.SetFocused(false)
+
+		m.results = m.results.SetFocused(true)
+		m.search = m.search.SetFocused(true)
+	}
+
+	switch m.focus {
+	case FocusAreaResults, FocusAreaPreview:
+
+	case FocusAreaHelp:
+
+	}
+
+	return m
+}
+
 func (m Model) updateWindowSize(width, height int) Model {
-	marginX := 2
-	marginY := 2
-	borderPadding := 2
+	m.width = width
+	m.height = height
 
-	usableWidth := width - marginX
-	usableHeight := height - marginY
-
-	leftWidth := (usableWidth + 1) / 2
-	rightWidth := usableWidth - leftWidth
+	usableWidth := width - 4   // 2 left + 2 right margins
+	usableHeight := height - 2 // 2 top margin
 
 	searchHeight := 3
 
+	halfWidth := usableWidth / 2
+
 	m.results = m.results.
-		SetWidth(leftWidth - borderPadding).
-		SetHeight(usableHeight - searchHeight - borderPadding)
+		SetWidth(halfWidth - 2). // 1 border each side
+		SetHeight(usableHeight - searchHeight - 2)
 
 	m.search = m.search.
-		SetWidth(leftWidth - borderPadding).
+		SetWidth(halfWidth - 2).
 		SetHeight(searchHeight)
 
-	m.preview = m.preview.ScrollDown().
-		SetWidth(rightWidth - borderPadding).
-		SetHeight(usableHeight - borderPadding)
+	m.preview = m.preview.
+		SetWidth(halfWidth - 2).
+		SetHeight(usableHeight - 2)
 
 	return m
 }
 
 func (m Model) View() string {
+	if m.focus == FocusAreaHelp {
+		return marginStyle.Render(m.help.View())
+	}
+
 	results := m.results.View()
 	search := m.search.View()
 	preview := m.preview.View()
 
 	left := lipgloss.JoinVertical(lipgloss.Top, results, search)
-
 	main := lipgloss.JoinHorizontal(lipgloss.Top, left, preview)
 
-	return marginStyle.Render(main)
+	hint := lipgloss.PlaceHorizontal(m.width, lipgloss.Center, hintStyle.Render("For basic help, press Ctrl-G."))
+
+	return lipgloss.JoinVertical(
+		lipgloss.Top,
+		marginStyle.Render(main),
+		hint,
+	)
 }
 
 func optionTUI(options option.NixosOptionSource, cfg *settings.OptionSettings) error {

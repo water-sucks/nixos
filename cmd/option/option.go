@@ -135,8 +135,7 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 
 	if opts.Interactive {
 		spinner.Stop()
-		optionTUI(options, &cfg.Option)
-		return nil
+		return optionTUI(options, &cfg.Option)
 	}
 
 	spinner.UpdateMessage(fmt.Sprintf("Finding option %v...", opts.OptionInput))

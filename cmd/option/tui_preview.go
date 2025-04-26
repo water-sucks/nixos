@@ -52,65 +52,12 @@ func (m PreviewModel) SetOption(opt *option.NixosOption) PreviewModel {
 	return m
 }
 
-func (m PreviewModel) ScrollUp() PreviewModel {
-	if !m.focused {
-		return m
-	}
-
-	m.vp.ScrollUp(1)
-	return m
-}
-
-func (m PreviewModel) ScrollDown() PreviewModel {
-	if !m.focused {
-		return m
-	}
-
-	m.vp.ScrollDown(1)
-	return m
-}
-
-func (m PreviewModel) ScrollLeft() PreviewModel {
-	if !m.focused {
-		return m
-	}
-
-	m.vp.ScrollLeft(1)
-	return m
-}
-
-func (m PreviewModel) ScrollRight() PreviewModel {
-	if !m.focused {
-		return m
-	}
-
-	m.vp.ScrollRight(1)
-	return m
-}
-
 var (
 	titleColor  = color.New(color.Bold)
 	italicColor = color.New(color.Italic)
 )
 
 func (m PreviewModel) Update(msg tea.Msg) (PreviewModel, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "left", "h":
-			m = m.ScrollLeft()
-
-		case "down", "j":
-			m = m.ScrollDown()
-
-		case "up", "k":
-			m = m.ScrollUp()
-
-		case "right", "l":
-			m = m.ScrollRight()
-		}
-	}
-
 	var cmd tea.Cmd
 	if m.focused {
 		m.vp, cmd = m.vp.Update(msg)
