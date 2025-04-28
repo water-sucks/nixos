@@ -9,6 +9,7 @@ import (
 
 	"github.com/sahilm/fuzzy"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/option"
 	"github.com/water-sucks/nixos/internal/settings"
 )
@@ -20,6 +21,13 @@ var (
 	focusedBorderStyle  = lipgloss.NewStyle().
 				Border(lipgloss.NormalBorder()).
 				BorderForeground(lipgloss.ANSIColor(termenv.ANSIMagenta))
+	titleRuleStyle = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.ANSIColor(termenv.ANSIWhite)).
+			BorderTop(true).
+			BorderRight(false).
+			BorderBottom(false).
+			BorderLeft(false)
 
 	marginStyle = lipgloss.NewStyle().Margin(2, 2, 0, 2)
 	hintStyle   = lipgloss.NewStyle().
@@ -31,7 +39,9 @@ type Model struct {
 	focus FocusArea
 	mode  ViewMode
 
-	options  option.NixosOptionSource
+	options option.NixosOptionSource
+	cfg     configuration.Configuration
+
 	filtered []fuzzy.Match
 	minScore int64
 
@@ -42,6 +52,7 @@ type Model struct {
 	results ResultListModel
 	preview PreviewModel
 	help    HelpModel
+	eval    EvalValueModel
 }
 
 type ViewMode int
@@ -49,6 +60,7 @@ type ViewMode int
 const (
 	ViewModeSearch = iota
 	ViewModeHelp
+	ViewModeEvalValue
 )
 
 type ChangeViewModeMsg ViewMode
@@ -60,25 +72,29 @@ const (
 	FocusAreaPreview
 )
 
-func NewModel(options option.NixosOptionSource, cfg *settings.OptionSettings) Model {
+func NewModel(options option.NixosOptionSource, nixosConfig configuration.Configuration, cfg *settings.OptionSettings) Model {
 	preview := NewPreviewModel(cfg.Prettify)
 	search := NewSearchBarModel(len(options)).
 		SetFocused(true)
 	results := NewResultListModel(options).
 		SetFocused(true)
 	help := NewHelpModel()
+	eval := NewEvalValueModel(nixosConfig)
 
 	return Model{
 		mode:  ViewModeSearch,
 		focus: FocusAreaResults,
 
-		options:  options,
+		options: options,
+		cfg:     nixosConfig,
+
 		minScore: cfg.MinScore,
 
 		results: results,
 		preview: preview,
 		search:  search,
 		help:    help,
+		eval:    eval,
 	}
 }
 
@@ -98,11 +114,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Always forward resize events to components that need them.
 		m.help, _ = m.help.Update(msg)
+		m.eval, _ = m.eval.Update(msg)
 
 		return m, nil
 
 	case ChangeViewModeMsg:
 		m.mode = ViewMode(msg)
+
+	case EvalValueStartMsg:
+		m.mode = ViewMode(ViewModeEvalValue)
 	}
 
 	switch m.mode {
@@ -112,6 +132,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var helpCmd tea.Cmd
 		m.help, helpCmd = m.help.Update(msg)
 		return m, helpCmd
+	case ViewModeEvalValue:
+		var evalCmd tea.Cmd
+		m.eval, evalCmd = m.eval.Update(msg)
+		return m, evalCmd
 	}
 
 	return m, nil
@@ -217,8 +241,11 @@ func (m Model) updateWindowSize(width, height int) Model {
 }
 
 func (m Model) View() string {
-	if m.mode == ViewModeHelp {
+	switch m.mode {
+	case ViewModeHelp:
 		return marginStyle.Render(m.help.View())
+	case ViewModeEvalValue:
+		return marginStyle.Render(m.eval.View())
 	}
 
 	results := m.results.View()
@@ -237,11 +264,11 @@ func (m Model) View() string {
 	)
 }
 
-func optionTUI(options option.NixosOptionSource, cfg *settings.OptionSettings) error {
+func optionTUI(options option.NixosOptionSource, nixosConfig configuration.Configuration, settings *settings.OptionSettings) error {
 	closeLogFile, _ := cmdUtils.ConfigureBubbleTeaLogger("option-tui")
 	defer closeLogFile()
 
-	p := tea.NewProgram(NewModel(options, cfg), tea.WithAltScreen())
+	p := tea.NewProgram(NewModel(options, nixosConfig, settings), tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
 		return err

@@ -125,6 +125,18 @@ func (m ResultListModel) Update(msg tea.Msg) (ResultListModel, tea.Cmd) {
 
 		case "down":
 			m = m.ScrollDown()
+
+		case "enter":
+			if len(m.filtered) < 1 {
+				return m, nil
+			}
+
+			changeModeCmd := func() tea.Msg {
+				o := m.options[m.filtered[m.selected].Index]
+				return EvalValueStartMsg{Option: o.Name}
+			}
+
+			return m, changeModeCmd
 		}
 	}
 

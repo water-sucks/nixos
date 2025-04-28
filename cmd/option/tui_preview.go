@@ -58,7 +58,18 @@ var (
 )
 
 func (m PreviewModel) Update(msg tea.Msg) (PreviewModel, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "enter":
+			if m.option == nil {
+				break
+			}
+			changeModeCmd := func() tea.Msg {
+				return EvalValueStartMsg{Option: m.option.Name}
+			}
+			return m, changeModeCmd
+		}
 	case tea.WindowSizeMsg:
 		// Force a re-render. The option string is cached otherwise,
 		// and this can screw with the centered portion.

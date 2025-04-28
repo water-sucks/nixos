@@ -6,7 +6,6 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 )
 
 //go:embed option_help.md
@@ -71,15 +70,7 @@ func (m HelpModel) View() string {
 
 func (m HelpModel) constructHelpContent() string {
 	title := lipgloss.PlaceHorizontal(m.width, lipgloss.Center, titleStyle.Render("Help"))
-	line := lipgloss.NewStyle().
-		Width(m.width).
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.ANSIColor(termenv.ANSIWhite)).
-		BorderTop(true).
-		BorderRight(false).
-		BorderBottom(false).
-		BorderLeft(false).
-		Render("")
+	line := lipgloss.NewStyle().Width(m.width).Inherit(titleRuleStyle).Render("")
 
 	return title + "\n" + line + helpContent
 }
