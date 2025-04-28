@@ -9,7 +9,7 @@
 }:
 buildGoModule rec {
   pname = "nixos";
-  version = "0.11.1-dev";
+  version = "0.12.0";
   src = nix-gitignore.gitignoreSource [] ./.;
 
   vendorHash = "sha256-Jw8dasyyQd4E/96jo6XB0gdiPDX3O96Nm8mn21fVx9g=";
