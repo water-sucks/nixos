@@ -18,21 +18,24 @@
     flake-parts,
     ...
   } @ inputs:
+  let
+    inherit (nixpkgs) lib;
+  in
     flake-parts.lib.mkFlake {inherit inputs;} {
       imports = [];
 
-      systems = nixpkgs.lib.systems.flakeExposed;
+      systems = lib.systems.flakeExposed;
 
-      perSystem = {pkgs, ...}: let
+      perSystem = {pkgs, self', ...}: let
         inherit (pkgs) callPackage go golangci-lint mkShell;
       in {
-        packages = rec {
-          default = nixos;
+        packages = {
+          default = self'.packages.nixos;
 
-          nixos = callPackage (import ./package.nix) {
+          nixos = callPackage ./package.nix {
             revision = self.rev or self.dirtyRev or "unknown";
           };
-          nixosLegacy = nixos.override {flake = false;};
+          nixosLegacy = self'.packages.nixos.override {flake = false;};
         };
 
         devShells.default = mkShell {
@@ -46,7 +49,7 @@
 
       flake = {
         nixosModules = {
-          nixos-cli = import ./module.nix self;
+          nixos-cli = lib.modules.importApply ./module.nix self;
         };
       };
     };
