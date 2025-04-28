@@ -3,30 +3,12 @@
 
 ## Introduction
 
-<table class="alert-warn" align=center>
-<tr>
-    <td>🚨</td>
-    <td>
-      <p>
-      This project is undergoing a rewrite to make it more feasible to
-      work on certain features, and also to make development time faster.
-      The rewrite is here, but will be missing many features as I am rewriting
-      them. Use the `main` branch if you are not willing to put up with this.
-      </p>
-      <p>
-        The rewrite will also bring some substantial UX improvements, and
-        hopefully some new things on the roadmap. Check the [TODO](#todo)
-        section for a list of things that this rewrite will bring.
-      </p>
-    </td>
-</tr>
-</table>
-
-This is a unification of all the different pick NixOS tooling into one executable.
-NixOS has its various tools spread out between several large scripts that have
-become on the verge of unmaintainable. This tool has one goal: to create a modular
-NixOS CLI that mirrors or enhances the functionality of all current NixOS tooling in
-`nixpkgs`, adds on to it if needed, and eventually come to replace it entirely.
+This is a unification of all the different pick NixOS tooling into one
+executable. NixOS has its various tools spread out between several large scripts
+that have become on the verge of unmaintainable. This tool has one goal: to
+create a modular NixOS CLI that mirrors or enhances the functionality of all
+current NixOS tooling in `nixpkgs`, adds on to it if needed, and eventually come
+to replace it entirely.
 
 - `nixos-rebuild` → `nixos apply` + `nixos generation`
 - `nixos-enter` → `nixos enter`
@@ -41,8 +23,8 @@ planned to be implemented.
 
 ## Usage
 
-Use this repo as a flake input. A NixOS module is also provided, and this is
-the recommended way to use this program.
+Use this repo as a flake input. A NixOS module is also provided, and this is the
+recommended way to use this program.
 
 ```nix
 {
@@ -69,11 +51,11 @@ the recommended way to use this program.
 
 This is primarily a flake-oriented package, since flakes are the future, at
 least as far as can be seen. However, legacy configurations managed with
-`nix-channel` and a `configuration.nix`, or any other preferred methods such
-as `niv` and `npins` are maintained here as well, albeit they are a little
-harder to use. The `nixos-cli` package that manages legacy configurations is
-completely separated from the flake-enabled `nixos-cli`, as to not mix usage
-between the two and separate concerns.
+`nix-channel` and a `configuration.nix`, or any other preferred methods such as
+`niv` and `npins` are maintained here as well, albeit they are a little harder
+to use. The `nixos-cli` package that manages legacy configurations is completely
+separated from the flake-enabled `nixos-cli`, as to not mix usage between the
+two and separate concerns.
 
 To use the NixOS module in legacy mode, import the `default.nix` provided in
 this repository. An example is provided below with `fetchTarball`:
@@ -123,9 +105,9 @@ $ cachix use watersucks
 ```
 
 There are rare cases in which you want to automatically configure a cache when
-using flakes, such as when installing NixOS configurations using this tool.
-The following configuration in the `flake.nix` can help with this (beware
-though, as this is a fairly undocumented feature!):
+using flakes, such as when installing NixOS configurations using this tool. The
+following configuration in the `flake.nix` can help with this (beware though, as
+this is a fairly undocumented feature!):
 
 ```nix
 {
@@ -144,42 +126,18 @@ though, as this is a fairly undocumented feature!):
 ## Configuration
 
 This can be configured using the NixOS module (the preferred way), which
-generates a file at `/etc/nixos-cli/config.toml`. A path to a configuration
-file can also be specified using the `NIXOS_CLI_CONFIG` environment variable.
+generates a file at `/etc/nixos-cli/config.toml`. A path to a configuration file
+can also be specified using the `NIXOS_CLI_CONFIG` environment variable.
 
 A sample configuration file with all available options, along with some example
 configuration is located in [`config.sample.toml`](./config.sample.toml).
 
-## TODO
-
-Checklist of what needs to happen before this rewrite can be merged back into
-`main` and released (in order):
-
-- ✅ Remove Zig/replace with Go application
-- ✅ Setup CLI interface
-- ✅ Setup basic completions
-- ✅ Setup config
-- ✅ Setup logging
-- ✅ `apply`
-- ✅ `generation`
-  - ✅ `list`
-  - ✅ `switch`
-  - ✅ `rollback`
-  - ✅ `delete`
-  - ✅ `diff`
-- ✅ `info`
-- ✅ `enter`
-- ✅ `repl`
-- 🚧 `option`
-- ✅ `init`
-- ❌ `install`
-- ✅ `manual`
-
-### Roadmap (for after rewrite)
+### Roadmap
 
 - ❌ Documentation (via man pages)
 - ❌ Remote application of configurations
-- ❌ Remote installation (a la [`nixos-anywhere`](https;//github.com/numtide/nixos-anywhere))
+- ❌ Remote installation (a la
+  [`nixos-anywhere`](https;//github.com/numtide/nixos-anywhere))
 - ❌ Container management (a la `nixos-container`, lower priority)
 
 Check the [issues](https://github.com/water-sucks/nixos/issues) page for more on
@@ -187,11 +145,12 @@ this; this is just a high-level overview.
 
 ## Talk!
 
-Join the Matrix room at [#nixos-cli:matrix.org](https://matrix.to/#/#nixos-cli:matrix.org)!
-It's open for chatting about NixOS in general, and for making it a better
-experience for all that involved.
+Join the Matrix room at
+[#nixos-cli:matrix.org](https://matrix.to/#/#nixos-cli:matrix.org)! It's open
+for chatting about NixOS in general, and for making it a better experience for
+all that involved.
 
 I would like for this to become a standard NixOS tool, which means that I want
-to cater to potentially many interests. If you would like for any commands
-to be implemented that you think fit this project, talk to me on Matrix or
-file a GitHub issue.
+to cater to potentially many interests. If you would like for any commands to be
+implemented that you think fit this project, talk to me on Matrix or file a
+GitHub issue.
