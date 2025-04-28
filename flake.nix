@@ -18,6 +18,9 @@
     flake-parts,
     ...
   } @ inputs:
+  let
+    inherit (nixpkgs) lib;
+  in
     flake-parts.lib.mkFlake {inherit inputs;} {
       imports = [];
 
@@ -46,7 +49,7 @@
 
       flake = {
         nixosModules = {
-          nixos-cli = import ./module.nix self;
+          nixos-cli = lib.modules.importApply ./module.nix self;
         };
       };
     };

@@ -1,4 +1,4 @@
-{pkgs ? import <nixpkgs> {}}: let
+{pkgs ? import <nixpkgs> {}, lib ? pkgs.lib}: let
   flake-self =
     (
       import
@@ -27,5 +27,5 @@ in {
     inherit rev;
   };
 
-  module = import ./module.nix flake-self;
+  module = lib.modules.importApply ./module.nix flake-self;
 }
