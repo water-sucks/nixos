@@ -72,10 +72,11 @@ const (
 	FocusAreaPreview
 )
 
-func NewModel(options option.NixosOptionSource, nixosConfig configuration.Configuration, cfg *settings.OptionSettings) Model {
+func NewModel(options option.NixosOptionSource, nixosConfig configuration.Configuration, cfg *settings.OptionSettings, initialInput string) Model {
 	preview := NewPreviewModel(cfg.Prettify)
 	search := NewSearchBarModel(len(options)).
-		SetFocused(true)
+		SetFocused(true).
+		SetValue(initialInput)
 	results := NewResultListModel(options).
 		SetFocused(true)
 	help := NewHelpModel()
@@ -99,6 +100,12 @@ func NewModel(options option.NixosOptionSource, nixosConfig configuration.Config
 }
 
 func (m Model) Init() tea.Cmd {
+	if m.search.Value() != "" {
+		return func() tea.Msg {
+			return RunSearchMsg{Query: m.search.Value()}
+		}
+	}
+
 	return nil
 }
 
@@ -264,11 +271,11 @@ func (m Model) View() string {
 	)
 }
 
-func optionTUI(options option.NixosOptionSource, nixosConfig configuration.Configuration, settings *settings.OptionSettings) error {
+func optionTUI(options option.NixosOptionSource, nixosConfig configuration.Configuration, settings *settings.OptionSettings, initialInput string) error {
 	closeLogFile, _ := cmdUtils.ConfigureBubbleTeaLogger("option-tui")
 	defer closeLogFile()
 
-	p := tea.NewProgram(NewModel(options, nixosConfig, settings), tea.WithAltScreen())
+	p := tea.NewProgram(NewModel(options, nixosConfig, settings, initialInput), tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
 		return err

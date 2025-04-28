@@ -102,6 +102,11 @@ func (m SearchBarModel) SetResultCount(count int) SearchBarModel {
 	return m
 }
 
+func (m SearchBarModel) SetValue(input string) SearchBarModel {
+	m.input.SetValue(input)
+	return m
+}
+
 func (m SearchBarModel) Value() string {
 	return m.input.Value()
 }
@@ -119,7 +124,7 @@ func (m SearchBarModel) View() string {
 		left = truncateString(left, maxLeftWidth)
 	}
 
-	padding := m.width - lipgloss.Width(left) - rightWidth
+	padding := max(m.width-lipgloss.Width(left)-rightWidth, 0)
 
 	style := inactiveBorderStyle
 	if m.focused {
