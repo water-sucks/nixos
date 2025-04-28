@@ -5,7 +5,6 @@
   installShellFiles,
   revision ? "unknown",
   flake ? true,
-  ...
 }:
 buildGoModule rec {
   pname = "nixos";
