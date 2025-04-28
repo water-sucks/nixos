@@ -29,7 +29,7 @@
         packages = rec {
           default = nixos;
 
-          nixos = callPackage (import ./package.nix) {
+          nixos = callPackage ./package.nix {
             revision = self.rev or self.dirtyRev or "unknown";
           };
           nixosLegacy = nixos.override {flake = false;};
