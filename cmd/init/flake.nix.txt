@@ -1,0 +1,16 @@
+{
+  description = "A basic NixOS configuration";
+
+  inputs = {
+    %s
+  };
+
+  outputs = {nixpkgs, ...}: {
+    # Change `my-nixos` to your desired hostname or machine name.
+    nixosConfigurations.my-nixos = nixpkgs.lib.nixosSystem {
+      modules = [
+        ./configuration.nix
+      ];
+    };
+  };
+}

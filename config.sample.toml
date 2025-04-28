@@ -1,8 +1,14 @@
+# Enable colors or not. Prefer setting NO_COLOR or -C over
+# using this option to ensure colors always match even
+# in case of errors.
+color = true
 # Where to look for configuration by default
 config_location = "/etc/nixos"
 # Disable confirmation dialogs. This is good for ensuring
 # that commands will run to completion without user input.
 no_confirm = false
+# Command to use to promote process to root
+root_comand = "sudo"
 # Use `nvd` (https://gitlab.com/khumba/nvd) instead of
 # `nix store diff-closures` when showing closure diffs
 use_nvd = false
@@ -29,6 +35,11 @@ imply_impure_with_tag = false
 # generation automatically if a tag is not provided.
 # This setting does not work with dirty Git trees.
 use_git_commit_msg = false
+# Ignore dirty working tree when using Git commit message for --tag.
+# This may result in generation descriptions that don't match the
+# commit history, so only use this if you are judicious about using
+# Git commits for configuration changes.
+ignore_dirty_tree = false
 
 # Configuration for the `enter` subcommand.
 [enter]
@@ -47,10 +58,13 @@ extra_config = ""
 
 # Configuration for the `option` subcommand.
 [option]
-# The maximum distance score allowed for search results. This can be any number
-# above 1; higher scores will give less relevant results, while smaller scores
-# will be more strict in matching.
-max_rank = 3.00
+# Debounce time for searching through options using the UI, in milliseconds.
+debounce_time = 25
+# Minimum distance score to consider an option a match. This can be any number,
+# including negative numbers. Lower scores will give less relevant (but more)
+# results, while higher scores will give more relevant results while being
+# harder to filter initially.
+min_score = 0
 # Attempt to prettify option descriptions with colors and formatting.
 prettify = true
 

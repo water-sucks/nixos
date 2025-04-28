@@ -1,47 +1,39 @@
 {
-  stdenv,
   lib,
-  zig,
+  buildGoModule,
   nix-gitignore,
-  pkg-config,
-  autoPatchelfHook,
-  revision ? "dirty",
+  installShellFiles,
+  revision ? "unknown",
   flake ? true,
-  fetchZigDeps,
+  ...
 }:
-stdenv.mkDerivation rec {
+buildGoModule rec {
   pname = "nixos";
-  version = "0.12.0-dev";
+  version = "0.11.1-dev";
   src = nix-gitignore.gitignoreSource [] ./.;
 
-  postPatch = let
-    deps = fetchZigDeps {
-      inherit stdenv zig;
-      name = pname;
-      src = ./.;
-      depsHash = "sha256-HvGYGbvfhgdVY9i6HrEMyhtLlWb8xo6G3zvoUz7LMas=";
-    };
-  in ''
-    mkdir -p .cache
-    ln -s ${deps} .cache/p
-  '';
+  vendorHash = "sha256-Jw8dasyyQd4E/96jo6XB0gdiPDX3O96Nm8mn21fVx9g=";
 
-  nativeBuildInputs = [zig pkg-config autoPatchelfHook];
-
-  dontConfigure = true;
-  dontInstall = true;
-
-  _NIXOS_GIT_REV = revision;
+  nativeBuildInputs = [installShellFiles];
 
   buildPhase = ''
-    mkdir -p $out
-    zig build install \
-      --cache-dir $(pwd)/zig-cache \
-      --global-cache-dir $(pwd)/.cache \
-      -Dcpu=baseline \
-      -Doptimize=ReleaseSafe \
-      -Dflake=${lib.boolToString flake} \
-      --prefix $out
+    runHook preBuild
+    make \
+      VERSION=${version} \
+      COMMIT_HASH=${revision} \
+      FLAKE=${lib.boolToString flake}
+    runHook postBuild
+  '';
+
+  installPhase = ''
+    runHook preInstall
+    install -Dm755 ./nixos -t $out/bin
+    runHook postInstall
+
+    installShellCompletion --cmd nixos \
+      --bash <($out/bin/nixos completion bash) \
+      --fish <($out/bin/nixos completion fish) \
+      --zsh <($out/bin/nixos completion zsh)
   '';
 
   meta = with lib; {

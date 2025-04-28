@@ -6,18 +6,10 @@
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
-    # Make sure this flake input is in sync with the Zig-fetched package
-    # by updating the corresponding dependency inside build.zig.zon.
-    # Otherwise, the symbols exported by Nix may # not be guaranteed to
-    # be the same as the ones in the upstream Nix bindings package.
-    # zignix.url = "github:water-sucks/zignix";
-
     flake-compat = {
       url = "github:edolstra/flake-compat";
       flake = false;
     };
-
-    zig-deps-fod.url = "github:water-sucks/zig-deps-fod";
   };
 
   outputs = {
@@ -31,20 +23,14 @@
 
       systems = nixpkgs.lib.systems.flakeExposed;
 
-      perSystem = {
-        pkgs,
-        lib,
-        system,
-        ...
-      }: let
-        inherit (pkgs) callPackage zig pkg-config mkShell;
-        # nix = inputs.zignix.inputs.nix.packages.${system}.nix;
+      perSystem = {pkgs, ...}: let
+        inherit (pkgs) callPackage go golangci-lint mkShell;
       in {
         packages = rec {
           default = nixos;
+
           nixos = callPackage (import ./package.nix) {
-            revision = self.rev or "dirty";
-            inherit (inputs.zig-deps-fod.lib) fetchZigDeps;
+            revision = self.rev or self.dirtyRev or "unknown";
           };
           nixosLegacy = nixos.override {flake = false;};
         };
@@ -52,11 +38,9 @@
         devShells.default = mkShell {
           name = "nixos-shell";
           nativeBuildInputs = [
-            zig
-            pkg-config
+            go
+            golangci-lint
           ];
-
-          ZIG_DOCS = "${zig}/doc/langref.html";
         };
       };
 

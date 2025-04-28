@@ -19,16 +19,13 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Use magic Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
-
       - name: Check for compile errors
         run: |
-          nix develop .# -c zig build check
-          nix develop .# -c zig build -Dflake=false check
+          nix develop .# -c make
+          nix develop .# -c make FLAKE=false
 
       - name: Run tests
-        run: nix develop .# -c zig build test
+        run: nix develop .# -c make test
 
       - name: Build Nix packages
         run: nix build .#{nixos,nixosLegacy}
