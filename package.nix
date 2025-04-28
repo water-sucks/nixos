@@ -6,7 +6,7 @@
   revision ? "unknown",
   flake ? true,
 }:
-buildGoModule rec {
+buildGoModule (finalAttrs: {
   pname = "nixos";
   version = "0.13.0-dev";
   src = nix-gitignore.gitignoreSource [] ./.;
@@ -18,7 +18,7 @@ buildGoModule rec {
   buildPhase = ''
     runHook preBuild
     make \
-      VERSION=${version} \
+      VERSION=${finalAttrs.version} \
       COMMIT_HASH=${revision} \
       FLAKE=${lib.boolToString flake}
     runHook postBuild
@@ -41,4 +41,4 @@ buildGoModule rec {
     license = licenses.gpl3Only;
     maintainers = with maintainers; [water-sucks];
   };
-}
+})
