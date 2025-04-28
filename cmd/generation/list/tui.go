@@ -50,7 +50,7 @@ func (i generationItem) FilterValue() string {
 
 type generationItemDelegate struct{}
 
-func (d generationItemDelegate) Height() int { return 6 }
+func (d generationItemDelegate) Height() int { return 7 }
 
 func (d generationItemDelegate) Spacing() int { return 1 }
 
@@ -71,7 +71,8 @@ func (d generationItemDelegate) Render(w io.Writer, m list.Model, index int, lis
 
 	str := boldStyle.Render(fmt.Sprintf("%v%v", g.Number, current))
 	if len(g.Description) > 0 {
-		str += italicStyle.Render(fmt.Sprintf(" - %v", g.Description))
+		trimmedDesc, _, _ := strings.Cut(g.Description, "\n")
+		str += italicStyle.Render(fmt.Sprintf(" - %v", trimmedDesc))
 	}
 
 	cfgRev := g.ConfigurationRevision
