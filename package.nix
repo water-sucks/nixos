@@ -3,6 +3,7 @@
   buildGoModule,
   nix-gitignore,
   installShellFiles,
+  stdenv,
   revision ? "unknown",
   flake ? true,
 }:
@@ -28,7 +29,9 @@ buildGoModule (finalAttrs: {
     runHook preInstall
     install -Dm755 ./nixos -t $out/bin
     runHook postInstall
+  '';
 
+  postInstall = lib.optionalString (stdenv.buildPlatform.canExecute stdenv.hostPlatform) ''
     installShellCompletion --cmd nixos \
       --bash <($out/bin/nixos completion bash) \
       --fish <($out/bin/nixos completion fish) \
