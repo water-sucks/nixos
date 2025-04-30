@@ -7,3 +7,6 @@
 
 # For bubbletea log files
 *.log
+
+# Built documentation site
+/site/

@@ -17,8 +17,7 @@
     nixpkgs,
     flake-parts,
     ...
-  } @ inputs:
-  let
+  } @ inputs: let
     inherit (nixpkgs) lib;
   in
     flake-parts.lib.mkFlake {inherit inputs;} {
@@ -26,8 +25,13 @@
 
       systems = lib.systems.flakeExposed;
 
-      perSystem = {pkgs, self', ...}: let
-        inherit (pkgs) callPackage go golangci-lint mkShell;
+      perSystem = {
+        pkgs,
+        self',
+        ...
+      }: let
+        inherit (pkgs) callPackage go golangci-lint mkShell mdbook;
+        inherit (pkgs.nodePackages) prettier;
       in {
         packages = {
           default = self'.packages.nixos;
@@ -43,6 +47,9 @@
           nativeBuildInputs = [
             go
             golangci-lint
+
+            mdbook
+            prettier
           ];
         };
       };

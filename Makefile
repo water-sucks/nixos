@@ -32,3 +32,12 @@ clean:
 test:
 	@echo "running tests..."
 	CGO_ENABLED=$(CGO_ENABLED) go test ./...
+
+.PHONY: site
+site:
+	# -d is interpreted relative to the book directory.
+	mdbook build ./doc -d ../site
+
+.PHONY: serve-site
+serve-site:
+	mdbook serve ./doc --open
