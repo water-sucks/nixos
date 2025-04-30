@@ -13,24 +13,24 @@ import (
 )
 
 type Settings struct {
-	Aliases        map[string][]string `koanf:"aliases" noset:"true" description:"Shortcuts for long commands"`
-	Apply          ApplySettings       `koanf:"apply" description:"Settings for 'apply' command"`
-	UseColor       bool                `koanf:"color" description:"Enable colored output"`
-	ConfigLocation string              `koanf:"config_location" description:"Where to look for configuration by default"`
-	Enter          EnterSettings       `koanf:"enter" description:"Settings for 'enter' command"`
-	Init           InitSettings        `koanf:"init" description:"Settings for 'init' command"`
-	NoConfirm      bool                `koanf:"no_confirm" description:"Disable interactive confirmation input"`
-	Option         OptionSettings      `koanf:"option" description:"Settings for 'option' command"`
-	RootCommand    string              `koanf:"root_command" description:"Command to use to promote process to root"`
-	UseNvd         bool                `koanf:"use_nvd" description:"Use 'nvd' instead of 'nix store diff-closures'"`
+	Aliases        map[string][]string `koanf:"aliases" noset:"true"`
+	Apply          ApplySettings       `koanf:"apply"`
+	UseColor       bool                `koanf:"color"`
+	ConfigLocation string              `koanf:"config_location"`
+	Enter          EnterSettings       `koanf:"enter"`
+	Init           InitSettings        `koanf:"init"`
+	NoConfirm      bool                `koanf:"no_confirm"`
+	Option         OptionSettings      `koanf:"option"`
+	RootCommand    string              `koanf:"root_command"`
+	UseNvd         bool                `koanf:"use_nvd"`
 }
 
 type ApplySettings struct {
-	ImplyImpureWithTag    bool   `koanf:"imply_impure_with_tag" description:"Add --impure automatically when using --tag with flakes"`
-	DefaultSpecialisation string `koanf:"specialisation" description:"Name of specialisation to use by default when activating"`
-	UseNom                bool   `koanf:"use_nom" description:"Use 'nix-output-monitor' as an alternative 'nix build' frontend"`
-	UseGitCommitMsg       bool   `koanf:"use_git_commit_msg" description:"Use last git commit message for --tag by default"`
-	IgnoreDirtyTree       bool   `koanf:"ignore_dirty_tree" description:"Ignore dirty working tree when using Git commit message for --tag"`
+	ImplyImpureWithTag    bool   `koanf:"imply_impure_with_tag"`
+	DefaultSpecialisation string `koanf:"specialisation"`
+	UseNom                bool   `koanf:"use_nom"`
+	UseGitCommitMsg       bool   `koanf:"use_git_commit_msg"`
+	IgnoreDirtyTree       bool   `koanf:"ignore_dirty_tree"`
 }
 
 type EnterSettings struct {
@@ -38,16 +38,104 @@ type EnterSettings struct {
 }
 
 type InitSettings struct {
-	EnableXserver bool              `koanf:"xserver_enabled" description:"Generate options to enable X11 display server"`
-	DesktopConfig string            `koanf:"desktop_config" description:"Config options for desktop environment"`
-	ExtraAttrs    map[string]string `koanf:"extra_attrs" noset:"true" description:"Extra config attrs to append to 'configuration.nix'"`
-	ExtraConfig   string            `koanf:"extra_config" noset:"true" description:"Extra config string to append to 'configuration.nix'"`
+	EnableXserver bool              `koanf:"xserver_enabled"`
+	DesktopConfig string            `koanf:"desktop_config"`
+	ExtraAttrs    map[string]string `koanf:"extra_attrs" noset:"true"`
+	ExtraConfig   string            `koanf:"extra_config" noset:"true"`
 }
 
 type OptionSettings struct {
-	MinScore     int64 `koanf:"min_score" description:"Minimum distance score to consider an option a match"`
-	Prettify     bool  `koanf:"prettify" description:"Attempt to render option descriptions using Markdown"`
-	DebounceTime int64 `koanf:"debounce_time" description:"Debounce time for searching options using the UI, in milliseconds"`
+	MinScore     int64 `koanf:"min_score"`
+	Prettify     bool  `koanf:"prettify"`
+	DebounceTime int64 `koanf:"debounce_time"`
+}
+
+type DescriptionEntry struct {
+	Short string
+	Long  string
+}
+
+var SettingsDocs = map[string]DescriptionEntry{
+	"aliases": {
+		Short: "Shortcuts for long commands",
+		Long:  "Defines alternative aliases for long commands to improve user ergonomics.",
+	},
+	"apply": {
+		Short: "Settings for `apply` command",
+	},
+	"apply.imply_impure_with_tag": {
+		Short: "Add --impure automatically when using --tag with flakes",
+		Long:  "Automatically appends '--impure' to the 'apply' command when using '--tag' in flake-based workflows.",
+	},
+	"apply.specialisation": {
+		Short: "Name of specialisation to use by default when activating",
+		Long:  "Specifies which systemd specialisation to use when activating a configuration with 'apply'.",
+	},
+	"apply.use_nom": {
+		Short: "Use 'nix-output-monitor' as an alternative 'nix build' frontend",
+		Long:  "Enables nix-output-monitor to show more user-friendly build progress output for the 'apply' command.",
+	},
+	"apply.use_git_commit_msg": {
+		Short: "Use last git commit message for --tag by default",
+		Long:  "When enabled, the last Git commit message will be used as the value for '--tag' automatically.",
+	},
+	"apply.ignore_dirty_tree": {
+		Short: "Ignore dirty working tree when using Git commit message for --tag",
+		Long:  "Allows 'apply' to use Git commit messages even when the working directory is dirty.",
+	},
+	"color": {
+		Short: "Enable colored output",
+		Long:  "Turns on ANSI color sequences for decorated output in supported terminals.",
+	},
+	"config_location": {
+		Short: "Where to look for configuration by default",
+		Long:  "Path to a Nix file or directory to look for user configuration in by default.",
+	},
+	"enter": {
+		Short: "Settings for `enter` command",
+	},
+	"enter.mount_resolv_conf": {
+		Short: "Bind-mount host 'resolv.conf' inside chroot for internet accesss",
+		Long:  "Ensures internet access by mounting the host's /etc/resolv.conf into the chroot environment.",
+	},
+	"init": {
+		Short: "Settings for `init` command",
+	},
+	"init.xserver_enabled": {
+		Short: "Generate options to enable X11 display server",
+		Long:  "Controls whether X11-related services and packages are configured by default during init.",
+	},
+	"init.desktop_config": {
+		Short: "Config options for desktop environment",
+		Long:  "Specifies the desktop environment configuration to inject during initialization.",
+	},
+	"no_confirm": {
+		Short: "Disable interactive confirmation input",
+		Long:  "Disables prompts that ask for user confirmation, useful for automation.",
+	},
+	"option": {
+		Short: "Settings for `option` command",
+	},
+	"option.min_score": {
+		Short: "Minimum distance score to consider an option a match",
+		Long:  "Sets the cutoff score for showing results in fuzzy-matched option lookups.",
+	},
+	"option.prettify": {
+		Short: "Attempt to render options using Markdown",
+		Long:  "If enabled, renders option documentation in a prettier Markdown format where applicable.",
+	},
+	"option.debounce_time": {
+		Short: "Debounce time for searching options using the UI, in milliseconds",
+		Long:  "Controls how often search results are recomputed when typing in the options UI, in milliseconds.",
+	},
+	"root_command": {
+		Short: "Command to use to promote process to root",
+		Long:  "Specifies which command to use for privilege escalation (e.g., sudo or doas).",
+	},
+	"use_nvd": {
+		Short: "Use 'nvd' instead of `nix store diff-closures`",
+		Long:  "Use the better-looking `nvd` diffing tool when comparing configurations instead of `nix store diff-closures`.",
+	},
 }
 
 func NewSettings() *Settings {

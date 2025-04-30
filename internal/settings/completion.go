@@ -27,28 +27,33 @@ func findFieldCompletions(value any, prefix string) ([]fieldCompleteResult, bool
 	}
 
 	current := reflect.ValueOf(value)
-
 	if current.Kind() == reflect.Ptr {
 		current = current.Elem()
 	}
 
-	for i, fieldName := range fieldNames {
-		if i == len(fieldNames)-1 {
-			break
-		}
-
+	// Traverse into the structure following all components except the final one
+	for _, fieldName := range previousComponents {
 		found := false
-		for j := 0; j < current.Type().NumField(); j++ {
-			fieldInfo := current.Type().Field(j)
-			if fieldInfo.Tag.Get("koanf") == fieldName {
-				current = current.Field(j)
+
+		for i := 0; i < current.Type().NumField(); i++ {
+			field := current.Type().Field(i)
+			if field.Tag.Get("koanf") == fieldName {
+				current = current.Field(i)
+				if current.Kind() == reflect.Ptr {
+					if current.IsNil() {
+						current.Set(reflect.New(current.Type().Elem()))
+					}
+
+					current = current.Elem()
+				}
+
 				found = true
 				break
 			}
 		}
 
-		if !found {
-			return []fieldCompleteResult{}, false
+		if !found || current.Kind() != reflect.Struct {
+			return nil, false
 		}
 	}
 
@@ -60,72 +65,80 @@ func findFieldCompletions(value any, prefix string) ([]fieldCompleteResult, bool
 	}
 
 	if current.Kind() != reflect.Struct {
-		return []fieldCompleteResult{}, false
+		return nil, false
 	}
 
 	for i := 0; i < current.Type().NumField(); i++ {
 		structField := current.Type().Field(i)
 
-		if skip := structField.Tag.Get("noset"); skip == "true" {
+		if structField.Tag.Get("noset") == "true" {
 			continue
 		}
 
 		name := structField.Tag.Get("koanf")
-		description := structField.Tag.Get("description")
+		if name == "" {
+			continue
+		}
+
+		fullName := strings.Join(append(previousComponents, name), ".")
+		description := bestDescriptionFor(fullName)
 
 		if name == finalFieldComponent {
 			field := current.Field(i)
 			isComplete := isSettable(&field)
-
-			completeCandidate := strings.Join(append(previousComponents, name), ".")
-
-			result := fieldCompleteResult{
-				Name:        completeCandidate,
-				Description: description,
-			}
-
-			return []fieldCompleteResult{result}, isComplete
+			return []fieldCompleteResult{
+				{
+					Name:        fullName,
+					Description: description,
+				},
+			}, isComplete
 		}
 
 		if strings.HasPrefix(name, finalFieldComponent) {
 			candidates = append(candidates, fieldCompleteResult{
-				Name:        name,
+				Name:        fullName,
 				Description: description,
 			})
 		}
 	}
 
 	isComplete := false
+
 	if len(candidates) == 1 {
 		candidate := candidates[0].Name
-
-		var autocompleted string = ""
+		lastDot := strings.LastIndex(candidate, ".")
+		fieldName := candidate
+		if lastDot != -1 {
+			fieldName = candidate[lastDot+1:]
+		}
 
 		for i := 0; i < current.Type().NumField(); i++ {
 			structField := current.Type().Field(i)
-
-			name := structField.Tag.Get("koanf")
-
-			if strings.HasPrefix(name, candidate) {
-				autocompleted = name
+			if structField.Tag.Get("koanf") == fieldName {
 				field := current.Field(i)
 				isComplete = isSettable(&field)
 				break
 			}
 		}
-
-		if autocompleted != "" {
-			candidates[0].Name = autocompleted
-		} else {
-			panic("no autocompleted result for name " + candidate + " when there should be one")
-		}
-	}
-
-	for i, v := range candidates {
-		candidates[i].Name = strings.Join(append(previousComponents, v.Name), ".")
 	}
 
 	return candidates, isComplete
+}
+
+func bestDescriptionFor(name string) string {
+	best := ""
+	shortestLen := -1
+
+	for k, v := range SettingsDocs {
+		if strings.HasSuffix(k, name) {
+			if shortestLen == -1 || len(k) < shortestLen {
+				best = v.Short
+				shortestLen = len(k)
+			}
+		}
+	}
+
+	return best
 }
 
 func CompleteConfigFlag(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
