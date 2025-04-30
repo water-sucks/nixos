@@ -205,18 +205,61 @@ func boolCompletionFunc(key string, candidate string) ([]string, cobra.ShellComp
 	return matches, cobra.ShellCompDirectiveNoFileComp
 }
 
-var completionValueFuncs = map[string]CompletionValueFunc{
-	"apply.imply_impure_with_tag": boolCompletionFunc,
-	"apply.use_nom":               boolCompletionFunc,
-	"apply.use_git_commit_msg":    boolCompletionFunc,
-	"color":                       boolCompletionFunc,
-	"use_nvd":                     boolCompletionFunc,
-}
+// For custom completion functions, use this.
+var completionValueFuncs = map[string]CompletionValueFunc{}
 
 func completeValues(key string, value string) ([]string, cobra.ShellCompDirective) {
+	cfg := NewSettings()
+
 	if completeFunc, ok := completionValueFuncs[key]; ok {
 		return completeFunc(key, value)
 	}
 
+	if isBoolField(cfg, key) {
+		return boolCompletionFunc(key, value)
+	}
+
 	return []string{}, cobra.ShellCompDirectiveNoFileComp
+}
+
+func isBoolField(root any, key string) bool {
+	field := findField(root, key)
+	kind := field.Kind()
+	return kind == reflect.Bool
+}
+
+func findField(root any, key string) *reflect.Value {
+	parts := strings.Split(key, ".")
+	current := reflect.ValueOf(root)
+
+	if current.Kind() == reflect.Ptr {
+		current = current.Elem()
+	}
+
+	for _, part := range parts {
+		if current.Kind() != reflect.Struct {
+			return nil
+		}
+
+		found := false
+		for i := 0; i < current.Type().NumField(); i++ {
+			field := current.Type().Field(i)
+			if field.Tag.Get("koanf") == part {
+				current = current.Field(i)
+				if current.Kind() == reflect.Ptr {
+					if current.IsNil() {
+						return nil
+					}
+					current = current.Elem()
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil
+		}
+	}
+
+	return &current
 }
