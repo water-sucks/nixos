@@ -33,10 +33,21 @@ test:
 	@echo "running tests..."
 	CGO_ENABLED=$(CGO_ENABLED) go test ./...
 
+.PHONY: gen-docs
+gen-docs: gen-manpages gen-site
+
 .PHONY: site
-site:
+site: gen-site
 	# -d is interpreted relative to the book directory.
 	mdbook build ./doc -d ../site
+
+.PHONY: gen-site
+gen-site:
+	go run doc/build.go site
+
+.PHONY: gen-site
+gen-manpages:
+	go run doc/build.go man
 
 .PHONY: serve-site
 serve-site:

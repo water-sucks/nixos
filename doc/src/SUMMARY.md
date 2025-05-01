@@ -1,10 +1,14 @@
-# Summary
+[Introduction](introduction.md)
 
-- [Introduction](introduction.md)
+# Usage
+
 - [Installation](installation.md)
-- [Usage](usage/overview.md)
-    - [Commands](usage/commands.md)
-    - [Settings](usage/settings.md)
-    - [Module](usage/module.md)
+- [Overview](overview.md)
+- [Settings](settings.md)
+- [Module](module.md)
+
+# Community
+
+- [FAQ](faq.md)
 - [Contributing](contributing.md)
 - [Roadmap](roadmap.md)

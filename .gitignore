@@ -10,3 +10,7 @@
 
 # Built documentation site
 /site/
+
+# Generated documentation artifacts
+/doc/src/generated-module.md
+/doc/src/generated-settings.md

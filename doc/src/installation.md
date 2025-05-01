@@ -1,24 +1,22 @@
 # Installation
 
-`nixos-cli` is split into two separate executables. While this may seem like an
-unusual design choice, this is very intentional for a number of reasons.
+`nixos-cli` is split into two separate executables. This is very intentional for
+a number of reasons.
 
 1. The majority of NixOS users use either flakes or legacy-style Nix, without
    mixing the two.
 2. While the majority of logic is shared between the two styles of
    configuration, the command-line interface should not be forced to deal with
    the differences, for the sake of clarity.
-3. If one decides to mix the two, they should do so intentionally, and this
-   should be reflected in the executables themselves, not in the command
-   interface.
+3. If users want to mix styles, they should do so intentionally. This
+   distinction is reflected in the CLI binaries themselves—not hidden in command
+   behavior.
 
 The flake-style configuration is the default. Nix flakes have been available for
-a number of years now, and while they are still in an experimental stage, they
-have been relatively stable for long enough that the community has started to
-use them _everywhere_. It seems imminent that flakes are in a stage where one
-can presumably think that they are stable; they have been codified as stable in
-alternate forks such as [Lix](https://lix.systems) as well. Legacy
-configurations are actively supported regardless of this status, though.
+several years; although still technically experimental, they are widely adopted
+and considered stable in practice, particularly in forks like
+[Lix](https://lix.systems). Legacy configurations are actively supported
+regardless of this status, though.
 
 NixOS has quite a large ecosystem of tools, and can be quite the moving target
 in terms of features, so `nixos-unstable` and the current stable release are the
@@ -26,8 +24,12 @@ only actively supported releases.
 
 ## Configuration
 
-Depending on the system type (either "flake" or "legacy" style), you'll need to
-configure `nixos-cli` slightly differently.
+Use the following sections depending on whether or not your systems are
+configured with flakes or legacy-style configurations.
+
+Available configuration settings for `nixos-cli` are defined in the more
+detailed [settings](./usage/settings.md) section, and are specified in
+Nix attribute set format here. Internally, they are converted to TOML.
 
 ### Flakes
 
@@ -42,13 +44,7 @@ to the system configuration.
     nixosConfigurations.system-name = nixpkgs.lib.nixosSystem {
       modules = [
         nixos-cli.nixosModules.nixos-cli
-        {
-          services.nixos-cli = {
-            enable = true;
-            # Other configuration for nixos-cli
-          };
-        }
-        # other configuration goes here
+        # ...
       ];
     };
   };
@@ -64,7 +60,7 @@ Then, enable the module.
   services.nixos-cli = {
     enable = true;
     config = {
-      # Whatever settings desired, in TOML format.
+      # Whatever settings desired.
     }
   };
 }
@@ -82,9 +78,9 @@ this repository. An example is provided below with `builtins.fetchTarball`:
 { config, system, pkgs, ...}:
 
 let
-  # Make sure to specify the full Git revision to fetch in pure evaluation mode,
-  # rather than using a branch.
-  nixos-cli = import "${builtins.fetchTarball "github:water-sucks/nixos/archive/GITREVORBRANCHDEADBEEFDEADBEEF0000.tar.gz}" {inherit pkgs;}";
+  # In pure evaluation mode, always use a full Git commit hash instead of a branch name.
+  nixos-cli-url = "github:water-sucks/nixos/archive/GITREVORBRANCHDEADBEEFDEADBEEF0000.tar.gz"
+  nixos-cli = import "${builtins.fetchTarball nixos-cli-url}" {inherit pkgs;};
 in {
   imports = [
     nixos-cli.module
@@ -93,7 +89,9 @@ in {
   services.nixos-cli = {
     enable = true;
     package = nixos-cli.nixosLegacy;
-    # Other configuration for nixos-cli
+    config = {
+      # Other configuration for nixos-cli
+    };
   };
 
   # ... rest of config
@@ -131,8 +129,7 @@ $ cachix use watersucks
 
 There are rare cases in which you want to automatically configure a cache when
 using flakes, such as when installing NixOS configurations using this tool. The
-following configuration in the `flake.nix` can help with this (beware though, as
-this is a fairly undocumented feature!):
+following configuration in the `flake.nix` can help with this:
 
 ```nix
 {
@@ -148,7 +145,9 @@ this is a fairly undocumented feature!):
 }
 ```
 
-## Nice!
+⚠️ Beware, though: this is a relatively undocumented feature—use with caution.
+
+## Rebuild
 
 After adding the next sections to your configuration, rebuild your configuration
 once, and then the `nixos` command should be available. Nice! `nixos-cli` is now

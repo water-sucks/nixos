@@ -46,14 +46,14 @@ func main() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("generating settings documentation")
 
-			generatedSettingsPath := filepath.Join("src", "usage", "generated-settings.md")
+			generatedSettingsPath := filepath.Join("src", "generated-settings.md")
 			if err := generateSettingsDoc(generatedSettingsPath, *settings.NewSettings()); err != nil {
 				return err
 			}
 
 			fmt.Println("generating module documentation")
 
-			generatedModulePath := filepath.Join("src", "usage", "generated-module.md")
+			generatedModulePath := filepath.Join("src", "generated-module.md")
 			if err := generateModuleDoc(generatedModulePath); err != nil {
 				return err
 			}
