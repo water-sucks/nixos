@@ -4,6 +4,7 @@
 - [Installation](installation.md)
 - [Usage](usage/overview.md)
     - [Commands](usage/commands.md)
-    - [Configuration](usage/configuration.md)
+    - [Settings](usage/settings.md)
+    - [Module](usage/module.md)
 - [Contributing](contributing.md)
 - [Roadmap](roadmap.md)

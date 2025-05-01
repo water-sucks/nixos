@@ -55,10 +55,18 @@ type DescriptionEntry struct {
 	Long  string
 }
 
+const (
+	aliasExample = "```toml" + `[aliases]
+genlist = ["generation", "list"]
+switch = ["generation", "switch"]
+rollback = ["generation", "rollback"]
+` + "```\n"
+)
+
 var SettingsDocs = map[string]DescriptionEntry{
 	"aliases": {
 		Short: "Shortcuts for long commands",
-		Long:  "Defines alternative aliases for long commands to improve user ergonomics.",
+		Long:  "Defines alternative aliases for long commands to improve user ergonomics.\nExample:\n" + aliasExample,
 	},
 	"apply": {
 		Short: "Settings for `apply` command",

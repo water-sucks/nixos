@@ -10,6 +10,8 @@
       url = "github:edolstra/flake-compat";
       flake = false;
     };
+
+    nix-options-doc.url = "github:Thunderbottom/nix-options-doc";
   };
 
   outputs = {
@@ -28,10 +30,12 @@
       perSystem = {
         pkgs,
         self',
+        system,
         ...
       }: let
         inherit (pkgs) callPackage go golangci-lint mkShell mdbook;
         inherit (pkgs.nodePackages) prettier;
+        nix-options-doc = inputs.nix-options-doc.packages.${system}.default;
       in {
         packages = {
           default = self'.packages.nixos;
@@ -50,6 +54,7 @@
 
             mdbook
             prettier
+            nix-options-doc
           ];
         };
       };
