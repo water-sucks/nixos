@@ -19,6 +19,13 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
 
+      - name: Initialize Cachix
+        uses: cachix/cachix-action@v14
+        with:
+          name: watersucks
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: true
+
       - name: Check for compile errors
         run: |
           nix develop .# -c make
