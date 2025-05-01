@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       git-ref:
-        description: "Git ref to publish to Cachix"
+        description: 'Git ref to publish to Cachix'
         required: true
         type: string
   release:
@@ -26,7 +26,7 @@ jobs:
         uses: cachix/cachix-action@v14
         with:
           name: watersucks
-          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - name: Build Nix packages
         run: nix build .#{nixos,nixosLegacy}

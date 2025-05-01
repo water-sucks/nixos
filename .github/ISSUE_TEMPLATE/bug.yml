@@ -1,6 +1,6 @@
 name: Bug Report
 description: File a bug report
-labels: ["bug"]
+labels: ['bug']
 body:
   - type: markdown
     attributes:
@@ -16,8 +16,9 @@ body:
     id: what-happened
     attributes:
       label: What Happened?
-      description: "Explain what happened, in as much detail as necessary."
-      placeholder: "I encountered a bug, and this is what happened, in good detail."
+      description: 'Explain what happened, in as much detail as necessary.'
+      placeholder:
+        'I encountered a bug, and this is what happened, in good detail.'
     validations:
       required: true
   - type: textarea
@@ -38,8 +39,9 @@ body:
     id: expected
     attributes:
       label: Expected Behavior
-      description: "What behavior was expected to occur?"
-      placeholder: "I expected to be able to run ___ without a segmentation fault."
+      description: 'What behavior was expected to occur?'
+      placeholder:
+        'I expected to be able to run ___ without a segmentation fault.'
     validations:
       required: true
   - type: textarea

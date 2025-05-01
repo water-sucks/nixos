@@ -29,12 +29,12 @@ including (but not limited to the following)
 ## Key Features
 
 - Re-implementations of the following commands:
-    - `nixos-rebuild` → `nixos apply` + `nixos generation`
-    - `nixos-enter` → `nixos enter`
-    - `nixos-generate-config` → `nixos init`
-    - `nixos-version` → `nixos info`
-    - `nixos-install` → `nixos install`
-    - `nixos-info` → `nixos manual`
+  - `nixos-rebuild` → `nixos apply` + `nixos generation`
+  - `nixos-enter` → `nixos enter`
+  - `nixos-generate-config` → `nixos init`
+  - `nixos-version` → `nixos info`
+  - `nixos-install` → `nixos install`
+  - `nixos-info` → `nixos manual`
 - An integrated NixOS option search UI
 - An improved generation manager, with an additional UI (more fine-tuned than
   `nix-collect-garbage -d`)

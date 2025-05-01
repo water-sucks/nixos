@@ -28,8 +28,8 @@ Use the following sections depending on whether or not your systems are
 configured with flakes or legacy-style configurations.
 
 Available configuration settings for `nixos-cli` are defined in the more
-detailed [settings](./usage/settings.md) section, and are specified in
-Nix attribute set format here. Internally, they are converted to TOML.
+detailed [settings](./usage/settings.md) section, and are specified in Nix
+attribute set format here. Internally, they are converted to TOML.
 
 ### Flakes
 
