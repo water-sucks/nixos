@@ -5,16 +5,25 @@
 
 ## Why?
 
-NixOS has its various tools spread out between several large scripts that have
-become on the verge of unmaintainable, or that have too much functionality in
-them that is not exposed properly. Some examples:
+NixOS tooling today is fragmented across large, aging shell and Perl scripts
+that are difficult to maintain or extend. Prolific examples include:
 
 - [`nixos-rebuild.sh`](https://github.com/NixOS/nixpkgs/blob/master/pkgs/os-specific/linux/nixos-rebuild/nixos-rebuild.sh)
 - [`switch-to-configuration.pl`](https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/system/activation/switch-to-configuration.pl)
 
-This tool has one goal: to create a modular NixOS CLI that mirrors or enhances
-the functionality of all current NixOS tooling in `nixpkgs`, adds on to it if
-needed, and eventually **come to replace it entirely**.
+These tools contain deep functionality, but much of it is hidden, hard to
+modify, or locked behind poor ergonomics.
+
+`nixos-cli` aims to modernize this experience by:
+
+- Replacing and improving existing tooling
+- Providing a consistent interface across all commands
+- Making functionality more accessible and extensible
+- Offering a clean, discoverable CLI experience for both users and developers
+
+In summary, this tool has one goal: to create a modular NixOS CLI that mirrors
+or enhances the functionality of all current NixOS tooling in `nixpkgs`, adds on
+to it if needed, and eventually **come to replace it entirely**.
 
 Yes, this is already being done somewhat by `switch-to-configuration-ng` and
 `nixos-rebuild-ng`. However, `nixos-cli` strives to achieve further goals,
@@ -28,31 +37,31 @@ including (but not limited to the following)
 
 ## Key Features
 
-- Re-implementations of the following commands:
-  - `nixos-rebuild` → `nixos apply` + `nixos generation`
-  - `nixos-enter` → `nixos enter`
-  - `nixos-generate-config` → `nixos init`
-  - `nixos-version` → `nixos info`
-  - `nixos-install` → `nixos install`
-  - `nixos-info` → `nixos manual`
+- Drop-in replacements for common NixOS tools (with better names!)
 - An integrated NixOS option search UI
 - An improved generation manager, with an additional UI (more fine-tuned than
   `nix-collect-garbage -d`)
 
-More features are planned, see the [roadmap](roadmap.md) for more information.
+Check out the [overview](./overview.md) page for more information about key
+features.
+
+More features are planned; see the [roadmap](roadmap.md) for more information.
 
 ## Status
 
-`nixos-cli` is in active development, but is considered unstable until a 1.0
-release. Unstable means that settings and/or command-line flags, as well as any
-other exposed resources, are bound to change or break. Watch the
-[Releases](https://github.com/water-sucks/nixos/releases) page for more
-information about breaking changes as results come in, as well as for new
-releases with updated functionality and bug fixes.
+This tool is under **active development**, but is **not yet stable**.  
+Until a 1.0 release, the CLI interface and configuration may change without
+notice.
+
+Watch the [Releases](https://github.com/water-sucks/nixos/releases) page for:
+
+- Breaking changes
+- Feature updates
+- Bug fixes
 
 Core contributors:
 
-- [`@water-sucks`](https://github.com/water-sucks)
+- [`@watersucks`](https://github.com/water-sucks)
 
 Contributions, testing, and bug reports/general feedback are highly encouraged,
 since there are few people working on this project actively.

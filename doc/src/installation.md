@@ -22,6 +22,8 @@ NixOS has quite a large ecosystem of tools, and can be quite the moving target
 in terms of features, so `nixos-unstable` and the current stable release are the
 only actively supported releases.
 
+## Running Using Nix
+
 ## Configuration
 
 Use the following sections depending on whether or not your systems are
