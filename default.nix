@@ -1,4 +1,7 @@
-{pkgs ? import <nixpkgs> {}, lib ? pkgs.lib}: let
+{
+  pkgs ? import <nixpkgs> {},
+  lib ? pkgs.lib,
+}: let
   flake-self =
     (
       import
@@ -15,16 +18,16 @@
     )
     .outputs;
 
-  rev = (builtins.fetchGit ./.).rev;
+  revision = (builtins.fetchGit ./.).rev;
 in {
   nixos = pkgs.callPackage ./package.nix {
     flake = true;
-    inherit rev;
+    inherit revision;
   };
 
   nixosLegacy = pkgs.callPackage ./package.nix {
     flake = false;
-    inherit rev;
+    inherit revision;
   };
 
   module = lib.modules.importApply ./module.nix flake-self;
