@@ -11,7 +11,7 @@
       flake = false;
     };
 
-    nix-options-doc.url = "github:Thunderbottom/nix-options-doc";
+    nix-options-doc.url = "github:Thunderbottom/nix-options-doc/v0.2.0";
   };
 
   outputs = {
