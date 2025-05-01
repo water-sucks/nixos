@@ -22,9 +22,7 @@ NixOS has quite a large ecosystem of tools, and can be quite the moving target
 in terms of features, so `nixos-unstable` and the current stable release are the
 only actively supported releases.
 
-## Running Using Nix
-
-## Configuration
+## Adding To Configuration
 
 Use the following sections depending on whether or not your systems are
 configured with flakes or legacy-style configurations.
@@ -149,8 +147,44 @@ following configuration in the `flake.nix` can help with this:
 
 ⚠️ Beware, though: this is a relatively undocumented feature—use with caution.
 
+## Running Using Nix Shells
+
+Sometimes, you may not want to add it to your configuration, and instead run
+`nixos-cli` on an ad-hoc basis.
+
+This is the preferred way to use `nixos-cli` when running `nixos init` or
+`nixos install` on a live NixOS USB for installation.
+
+Use `nix develop` (flake-enabled package by default):
+
+```
+$ nix shell github:water-sucks/nixos
+```
+
+Alternative using legacy-style `nix-shell` and the `nixosLegacy` package:
+
+```sh
+$ nix-shell -E 'with import (fetchTarball "https://github.com/water-sucks/nixos/archive/refs/heads/main.tar.gz") {}; nixosLegacy'
+```
+
 ## Rebuild
 
 After adding the next sections to your configuration, rebuild your configuration
-once, and then the `nixos` command should be available. Nice! `nixos-cli` is now
-ready for usage.
+once, and then the `nixos` command should be available. Verify by running
+`nixos features`:
+
+```sh
+# Example output of `nixos features`
+$ nixos features
+nixos 0.13.0-dev
+git rev: 53beba5f09042ab8361708a5e0196098d642ba5b
+go version: go1.24.1
+nix version: nix (Nix) 2.28.2
+
+Compilation Options
+-------------------
+flake           :: true
+nixpkgs_version :: 24.11
+```
+
+Nice! `nixos-cli` is now ready for usage.
