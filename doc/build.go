@@ -16,22 +16,6 @@ import (
 )
 
 func main() {
-	// Attempt to find the root of the Git repository. This is where
-	// documentation generation will start from
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
-	rootDir, err := cmd.Output()
-	if err != nil {
-		fmt.Printf("error: couldn't find repository root directory: %v\n", err)
-		os.Exit(1)
-	}
-
-	docsPath := filepath.Join(strings.TrimSpace(string(rootDir)), "doc")
-	err = os.Chdir(docsPath)
-	if err != nil {
-		fmt.Printf("error: couldn't change working directory to %v: %v\n", docsPath, err)
-		os.Exit(1)
-	}
-
 	rootCmd := &cobra.Command{
 		Use: "build",
 		CompletionOptions: cobra.CompletionOptions{
@@ -40,21 +24,23 @@ func main() {
 		},
 	}
 
+	var gitRev string
+
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "site",
 		Short: "Generate Markdown documentation for settings and modules",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("generating settings documentation")
 
-			generatedSettingsPath := filepath.Join("src", "generated-settings.md")
+			generatedSettingsPath := filepath.Join("doc", "src", "generated-settings.md")
 			if err := generateSettingsDoc(generatedSettingsPath, *settings.NewSettings()); err != nil {
 				return err
 			}
 
 			fmt.Println("generating module documentation")
 
-			generatedModulePath := filepath.Join("src", "generated-module.md")
-			if err := generateModuleDoc(generatedModulePath); err != nil {
+			generatedModulePath := filepath.Join("doc", "src", "generated-module.md")
+			if err := generateModuleDoc(generatedModulePath, gitRev); err != nil {
 				return err
 			}
 
@@ -63,14 +49,18 @@ func main() {
 			return nil
 		},
 	})
+	rootCmd.Flags().StringVarP(&gitRev, "revision", "r", "main", "Git rev to use when generating module doc links")
+
+	var outputManDir string
 
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "man",
 		Short: "Generate man pages using lowdown",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return nil
+			return generateManPages(filepath.Join("doc", "man"), outputManDir)
 		},
 	})
+	rootCmd.Flags().StringVarP(&outputManDir, "output", "o", "man", "Where to place generated man pages")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -85,13 +75,10 @@ func generateSettingsDoc(filename string, defaults settings.Settings) error {
 	return os.WriteFile(filename, []byte(sb.String()), 0o644)
 }
 
-func generateModuleDoc(filename string) error {
+func generateModuleDoc(filename string, rev string) error {
 	var sb strings.Builder
 
-	// Set cwd to parent directory to match expected module root
-	cwd, _ := os.Getwd()
 	cmd := exec.Command("nix-options-doc", "--strip-prefix")
-	cmd.Dir = filepath.Dir(cwd)
 	cmd.Stdout = &sb
 
 	if err := cmd.Run(); err != nil {
@@ -106,17 +93,7 @@ func generateModuleDoc(filename string) error {
 	}
 	lines = lines[3:]
 
-	gitCmd := exec.Command("git", "rev-parse", "HEAD")
-	gitCmd.Dir = filepath.Dir(cwd)
-	var gitOut bytes.Buffer
-	gitCmd.Stdout = &gitOut
-	if err := gitCmd.Run(); err != nil {
-		fmt.Printf("error: couldn't get Git commit: %v\n", err)
-		return err
-	}
-	commit := strings.TrimSpace(gitOut.String())
-
-	repoBaseURL := fmt.Sprintf("https://github.com/water-sucks/nixos/blob/%s", commit)
+	repoBaseURL := fmt.Sprintf("https://github.com/water-sucks/nixos/blob/%s", rev)
 
 	// Regex to match Markdown header links: ## [`something`](module.nix#L123)
 	re := regexp.MustCompile(`(?m)^## \[` +
@@ -216,4 +193,43 @@ func formatValue(v reflect.Value) string {
 	default:
 		return fmt.Sprintf("`%v`", v.Interface())
 	}
+}
+
+func generateManPages(inputDir string, outputDir string) error {
+	return filepath.WalkDir(inputDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || filepath.Ext(path) != ".scd" {
+			return err
+		}
+
+		content, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return fmt.Errorf("failed to read %s: %w", path, readErr)
+		}
+
+		cmd := exec.Command("scdoc")
+		cmd.Stdin = bytes.NewReader(content)
+
+		var outBuf bytes.Buffer
+		cmd.Stdout = &outBuf
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("scdoc failed for %s: %w", path, err)
+		}
+
+		base := filepath.Base(path)
+		manFile := base[:len(base)-len(".scd")]
+		outPath := filepath.Join(outputDir, manFile)
+
+		if err := os.MkdirAll(outputDir, 0o755); err != nil {
+			return err
+		}
+
+		if writeErr := os.WriteFile(outPath, outBuf.Bytes(), 0o644); writeErr != nil {
+			return fmt.Errorf("failed to write %s: %w", outPath, writeErr)
+		}
+
+		fmt.Printf("generated %s\n", outPath)
+		return nil
+	})
 }

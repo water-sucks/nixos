@@ -1,5 +1,5 @@
 # Nix/direnv
-/result
+/result*
 /.direnv/
 
 # Binary destination from `make`
@@ -10,6 +10,9 @@
 
 # Built documentation site
 /site/
+
+# Built man pages
+/man/
 
 # Generated documentation artifacts
 /doc/src/generated-module.md

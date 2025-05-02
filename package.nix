@@ -4,6 +4,7 @@
   nix-gitignore,
   installShellFiles,
   stdenv,
+  scdoc,
   revision ? "unknown",
   flake ? true,
 }:
@@ -14,20 +15,31 @@ buildGoModule (finalAttrs: {
 
   vendorHash = "sha256-Jw8dasyyQd4E/96jo6XB0gdiPDX3O96Nm8mn21fVx9g=";
 
-  nativeBuildInputs = [installShellFiles];
+  nativeBuildInputs = [installShellFiles scdoc];
+
+  env = {
+    CGO_ENABLED = 0;
+    COMMIT_HASH = revision;
+    FLAKE = lib.boolToString flake;
+    VERSION = finalAttrs.version;
+  };
 
   buildPhase = ''
     runHook preBuild
-    make \
-      VERSION=${finalAttrs.version} \
-      COMMIT_HASH=${revision} \
-      FLAKE=${lib.boolToString flake}
+    make all gen-manpages
     runHook postBuild
   '';
 
   installPhase = ''
     runHook preInstall
+
     install -Dm755 ./nixos -t $out/bin
+
+    mkdir -p $out/share/man/man1
+    mkdir -p $out/share/man/man5
+    find man -name '*.1' -exec cp {} $out/share/man/man1/ \;
+    find man -name '*.5' -exec cp {} $out/share/man/man5/ \;
+
     runHook postInstall
   '';
 

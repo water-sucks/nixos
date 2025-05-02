@@ -33,7 +33,7 @@
         system,
         ...
       }: let
-        inherit (pkgs) callPackage go golangci-lint mkShell mdbook;
+        inherit (pkgs) callPackage go golangci-lint mkShell mdbook scdoc;
         inherit (pkgs.nodePackages) prettier;
         nix-options-doc = inputs.nix-options-doc.packages.${system}.default;
       in {
@@ -54,6 +54,7 @@
 
             mdbook
             prettier
+            scdoc
             nix-options-doc
           ];
         };
