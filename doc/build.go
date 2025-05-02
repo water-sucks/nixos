@@ -55,7 +55,7 @@ func main() {
 
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "man",
-		Short: "Generate man pages using lowdown",
+		Short: "Generate man pages using scdoc",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return generateManPages(filepath.Join("doc", "man"), outputManDir)
 		},

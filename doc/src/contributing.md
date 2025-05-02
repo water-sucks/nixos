@@ -36,9 +36,10 @@ following things:
 
 Testing every feature edge-case is hard—especially before full releases.
 
-If you're a brave soul, run off the latest available version, and file bug
-reports by [opening a new issue](https://github.com/water-sucks/nixos/issues)
-with the **Bug Report** template. In the bug report, provide:
+If you're a brave soul, use the main branch instead of a release version, and
+file bug reports by
+[opening a new issue](https://github.com/water-sucks/nixos/issues) with the
+**Bug Report** template. In the bug report, provide:
 
 - A clear description of the problem
   - **IMPORTANT**: What was _expected_ vs. what actually _happened_
@@ -61,7 +62,7 @@ Documentation lives in two places:
 - Markdown files for this website, generated using
   [`mdbook`](https://rust-lang.github.io/mdBook/)
 - Manual pages (`man` pages), generated using
-  [`lowdown`](https://kristaps.bsd.lv/lowdown/)
+  [`scdoc`](https://sr.ht/~sircmpwn/scdoc/)
 
 Refer to the code contribution guidelines when submitting documentation
 improvements, or file an issue if the documentation issues are substantial.
