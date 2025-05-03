@@ -135,6 +135,10 @@ command tree. See *nixos-cli-generation(1)* for details.
 	is due to the internal implementation that uses an environment variable to
 	pass it to the Nix configuration.
 
+	Additionally, a tag may be inferred from Git commit messages if the
+	option *apply.use_git_commit_msg* is enabled. This only works for local
+	paths, and will not work with remote flake refs.
+
 *--upgrade*
 	Upgrade the root user's _nixos_ Nix channel before building the
 	configuration, as well as any Nix channels with a file named
