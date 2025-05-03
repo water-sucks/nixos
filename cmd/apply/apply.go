@@ -134,7 +134,7 @@ Arguments:
 	}
 	helpTemplate += `
 This command also forwards Nix options passed here to all relevant Nix invocations.
-Check the Nix manual page for more details on what options are available.
+Check the man page nixos-cli-apply(5) for more details on what options are available.
 `
 
 	cmdUtils.SetHelpFlagText(&cmd)

@@ -60,16 +60,20 @@ nixos-cli - a tool for managing NixOS installations
 	auto-detected for TTYs.
 
 *--config <KEY>=<VALUE>*
-	Override configuration settings directly on the command line. Multiple values
-	can be passed.
+	Override configuration settings directly on the command line. Multiple
+	values can be passed.
 
 	Example: *--config use_nvd=true --config option.prettify=false*
+
+	This only works for simple values such as true/false, string, and number
+	values. Settings such as *aliases* or *init.extra_attrs* are not settable
+	through this option due to implementation complexity.
 
 *-h, --help*
 	Show the help message for this command.
 
 *--version*
-	Display the version of the `nixos-cli` tool.
+	Display the version of the *nixos-cli* tool.
 
 # AUTHORS
 
@@ -80,15 +84,25 @@ be submitted to GitHub's issue tracker.
 # SEE ALSO
 
 *nixos-cli-apply(1)*
+
 *nixos-cli-enter(1)*
+
 *nixos-cli-features(1)*
+
 *nixos-cli-generation(1)*
+
 *nixos-cli-info(1)*
+
 *nixos-cli-init(1)*
+
 *nixos-cli-install(1)*
+
 *nixos-cli-manual(1)*
+
 *nixos-cli-option(1)*
+
 *nixos-cli-repl(1)*
 
 *nixos-cli-settings(5)*
+
 *nixos-cli-env(5)*
