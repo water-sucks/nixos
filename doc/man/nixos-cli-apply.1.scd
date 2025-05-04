@@ -196,7 +196,6 @@ The following options are supported:
 - *--cores*
 - *--builders*
 - *--log-format*
-- *--log-format*
 - *--include*, *-I*
 - *--option* <KEY=VALUE> (single argument, separated by an = sign)
 

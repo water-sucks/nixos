@@ -345,8 +345,6 @@ func installMain(cmd *cobra.Command, opts *cmdTypes.InstallOpts) error {
 	if err := validateMountpoint(log, mountpoint); err != nil {
 		return err
 	}
-	// FIXME: validate behavior checkpoint here.
-
 	tmpDirname, err := os.MkdirTemp(mountpoint, "system")
 	if err != nil {
 		log.Errorf("failed to create temporary directory: %v", err)
@@ -395,16 +393,12 @@ func installMain(cmd *cobra.Command, opts *cmdTypes.InstallOpts) error {
 	}
 	nixConfig.SetBuilder(s)
 
-	// FIXME: validate behavior checkpoint here
-
 	log.Step("Copying channel...")
 
 	err = copyChannel(cmd, s, log, mountpoint, opts.Channel, opts.NixOptions, opts.Verbose)
 	if err != nil {
 		return err
 	}
-
-	// FIXME: validate behavior checkpoint here
 
 	envMap := map[string]string{}
 	if os.Getenv("TMPDIR") == "" {
@@ -430,8 +424,6 @@ func installMain(cmd *cobra.Command, opts *cmdTypes.InstallOpts) error {
 		return err
 	}
 
-	// FIXME: validate behavior checkpoint here
-
 	log.Step("Creating initial generation...")
 
 	if err := createInitialGeneration(s, mountpoint, resultLocation, opts.Verbose); err != nil {
@@ -456,8 +448,6 @@ func installMain(cmd *cobra.Command, opts *cmdTypes.InstallOpts) error {
 		return err
 	}
 	_ = etcNixos.Close()
-
-	// FIXME: validate behavior checkpoint here
 
 	log.Step("Installing bootloader...")
 

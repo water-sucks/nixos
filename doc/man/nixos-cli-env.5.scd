@@ -34,22 +34,23 @@ Among other things.
 	This environment variable takes precedence over the *config_location*
 	setting if it is set.
 
-	- *Flake-enabled CLIs:*
-	  This must be a valid flake ref (e.g., */home/user/config* or
-	  *github:myorg/nixos-config*).
+	*Flake-enabled CLIs:*
+		This must be a valid flake ref (e.g., */home/user/config* or
+		*github:myorg/nixos-config*).
 
-	  Flake refs without a local path may have slightly different behavior,
-	  such as not supporting implicit Git operations. Check relevant man pages
-	  for more information.
+		Flake refs without a local path may have slightly different behavior,
+		such as not supporting implicit Git operations. Check relevant man pages
+		for more information.
 
-	  Paths _MUST_ be absolute. Use *realpath(1)* if you must.
+		Paths _MUST_ be absolute. Use *realpath(1)* if you must.
 
-	- *Legacy CLIs:*
-	  This can be a path to a configuration file directly (*configuration.nix*),
-	  or a directory containing a *default.nix*.
+	*Legacy CLIs:*
+		This can be a path to a configuration file directly
+		(*configuration.nix*), or a directory containing a *default.nix*.
 
-	  Legacy configurations can also be sourced from the *$NIX_PATH* environment
-	  variable, if the _nixos-config=<PATH>_ attribute is specified there.
+		Legacy configurations can also be sourced from the *$NIX_PATH*
+		environment variable, if the _nixos-config=<PATH>_ attribute is
+		specified there.
 
 *NIXOS_CLI_DISABLE_STEPS*
 	Disable showing visual steps with the logger. These "steps" get converted to
