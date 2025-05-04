@@ -1,6 +1,7 @@
 package option
 
 import (
+	"os/exec"
 	"slices"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -51,7 +52,6 @@ type Model struct {
 	search  SearchBarModel
 	results ResultListModel
 	preview PreviewModel
-	help    HelpModel
 	eval    EvalValueModel
 }
 
@@ -59,7 +59,6 @@ type ViewMode int
 
 const (
 	ViewModeSearch = iota
-	ViewModeHelp
 	ViewModeEvalValue
 )
 
@@ -79,7 +78,6 @@ func NewModel(options option.NixosOptionSource, nixosConfig configuration.Config
 		SetValue(initialInput)
 	results := NewResultListModel(options).
 		SetFocused(true)
-	help := NewHelpModel()
 	eval := NewEvalValueModel(nixosConfig)
 
 	return Model{
@@ -94,7 +92,6 @@ func NewModel(options option.NixosOptionSource, nixosConfig configuration.Config
 		results: results,
 		preview: preview,
 		search:  search,
-		help:    help,
 		eval:    eval,
 	}
 }
@@ -120,7 +117,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.updateWindowSize(msg.Width, msg.Height)
 
 		// Always forward resize events to components that need them.
-		m.help, _ = m.help.Update(msg)
 		m.eval, _ = m.eval.Update(msg)
 
 		return m, nil
@@ -135,10 +131,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.mode {
 	case ViewModeSearch:
 		return m.updateSearch(msg)
-	case ViewModeHelp:
-		var helpCmd tea.Cmd
-		m.help, helpCmd = m.help.Update(msg)
-		return m, helpCmd
 	case ViewModeEvalValue:
 		var evalCmd tea.Cmd
 		m.eval, evalCmd = m.eval.Update(msg)
@@ -156,9 +148,7 @@ func (m Model) updateSearch(msg tea.Msg) (Model, tea.Cmd) {
 			m = m.toggleFocus()
 
 		case "ctrl+g":
-			return m, func() tea.Msg {
-				return ChangeViewModeMsg(ViewModeHelp)
-			}
+			return m, m.openHelpManPage()
 		}
 	case RunSearchMsg:
 		m = m.runSearch(msg.Query)
@@ -183,6 +173,15 @@ func (m Model) updateSearch(msg tea.Msg) (Model, tea.Cmd) {
 	cmds = append(cmds, previewCmd)
 
 	return m, tea.Batch(cmds...)
+}
+
+type ManFinishedMsg struct{}
+
+func (m Model) openHelpManPage() tea.Cmd {
+	cmd := exec.Command("man", "nixos-cli-option-tui")
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		return ManFinishedMsg{}
+	})
 }
 
 func (m Model) runSearch(query string) Model {
@@ -249,8 +248,6 @@ func (m Model) updateWindowSize(width, height int) Model {
 
 func (m Model) View() string {
 	switch m.mode {
-	case ViewModeHelp:
-		return marginStyle.Render(m.help.View())
 	case ViewModeEvalValue:
 		return marginStyle.Render(m.eval.View())
 	}
