@@ -24,16 +24,16 @@ func GetProfileDirectoryFromName(profile string) string {
 }
 
 type Generation struct {
-	Number          uint64
-	CreationDate    time.Time
-	IsCurrent       bool
-	KernelVersion   string
-	Specialisations []string
+	Number          uint64    `json:"number"`
+	CreationDate    time.Time `json:"creation_date"`
+	IsCurrent       bool      `json:"is_current"`
+	KernelVersion   string    `json:"kernel_version"`
+	Specialisations []string  `json:"specialisations"`
 
-	NixosVersion          string
-	NixpkgsRevision       string
-	ConfigurationRevision string
-	Description           string
+	NixosVersion          string `json:"nixos_version"`
+	NixpkgsRevision       string `json:"nixpkgs_revision"`
+	ConfigurationRevision string `json:"configuration_revision"`
+	Description           string `json:"description"`
 }
 
 type GenerationManifest struct {
