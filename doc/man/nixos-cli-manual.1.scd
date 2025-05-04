@@ -40,7 +40,7 @@ Examples of `BROWSER` usage:
 *-h*, *--help*
 	Show the help message for this command.
 
-## SEE ALSO
+# SEE ALSO
 
 *xdg-open(1)*
 

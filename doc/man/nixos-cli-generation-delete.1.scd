@@ -44,7 +44,7 @@ delete 22 explicitly at the same time:
 	accompanied by the *--to* parameter, which sets an upper bound.
 
 *-h*, *--help*
-	Show the help menu for this command.
+	Show the help message for this command.
 
 *-k*, *--keep* <GEN>
 	Always keep the specified generation number *GEN*. This option can be

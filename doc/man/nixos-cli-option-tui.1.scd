@@ -58,7 +58,7 @@ Use the cursor keys or _h_, _j_, _k_, and _l_ to scroll around.
 
 _<Esc>_ or _q_ will close this window.
 
-## SEE ALSO
+# SEE ALSO
 
 *nixos-cli-option(1)*
 

@@ -27,7 +27,7 @@ _nixos-config_ attribute properly through *-I* or elsewhere.
 # OPTIONS
 
 *-h*, *--help*
-	Show this help menu.
+	Show the help message for this command.
 
 *-I*, *--include*
 	Specify an additional location to search for Nix expressions. This behaves
@@ -36,7 +36,7 @@ _nixos-config_ attribute properly through *-I* or elsewhere.
 	It can be used to add custom search paths, such as
 	*-I nixpkgs=/path/to/nixpkgs*.
 
-## ARGUMENTS
+# ARGUMENTS
 
 *FLAKE-REF*  
 	Optional flake reference to load attributes from. If the CLI is not
@@ -44,7 +44,7 @@ _nixos-config_ attribute properly through *-I* or elsewhere.
 
 	Default: *$NIXOS_CONFIG*
 
-## SEE ALSO
+# SEE ALSO
 
 *nix repl(1)*
 

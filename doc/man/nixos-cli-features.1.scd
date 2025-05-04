@@ -27,7 +27,7 @@ This command is particularly useful for:
 	Output all metadata in machine-readable JSON format.
 
 *-h*, *--help*
-	Show the help message for this command
+	Show the help message for this command.
 
 # AUTHORS
 

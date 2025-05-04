@@ -26,7 +26,7 @@ what profile is being used.
 # OPTIONS
 
 *-h*, *--help*
-	Show this help message and exit.
+	Show the help message for this command.
 
 *-j*, *--json*
 	Output the information as a structured JSON object.

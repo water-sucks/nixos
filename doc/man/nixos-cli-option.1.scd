@@ -72,13 +72,13 @@ Find an option using the UI (starting with an initial search):
 
 	Useful for scripts where the option name is needed.
 
-## ARGUMENTS
+# ARGUMENTS
 
 *NAME*
 	The name of the option to look up. If not provided, interactive mode
 	is required to explore available options.
 
-## SEE ALSO
+# SEE ALSO
 
 *nixos-cli-option-ui(1)*
 
