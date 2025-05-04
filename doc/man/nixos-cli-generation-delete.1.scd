@@ -14,7 +14,7 @@ Delete NixOS generations from this system based on a flexible set of
 constraints.
 
 You can specify individual generation numbers or combine options to tailor which
-generations are deleted; the order of operations for these flags is defined
+generations are deleted; the order of operations for these options is defined
 below the options and arguments.
 
 # EXAMPLES
@@ -78,7 +78,7 @@ delete 22 explicitly at the same time:
 	alongside the options for more fine-grained control, but are optional.
 
 
-Flags and arguments can be combined ad-hoc to create complex filtering
+Options and arguments can be combined ad-hoc to create complex filtering
 constraints.
 
 # ORDER OF OPERATIONS

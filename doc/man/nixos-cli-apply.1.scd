@@ -15,7 +15,7 @@ Build and activate a NixOS system configuration.
 This command performs the equivalent of evaluating the NixOS module system,
 building the system configuration, and activating the resulting derivation.
 It may also install the bootloader and manage boot entries, depending on
-provided flags.
+provided options.
 
 This command behaves slightly differently based on if it is flake-enabled
 or not, and this requirement will be specified for the relevant options

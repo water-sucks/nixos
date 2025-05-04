@@ -6,7 +6,7 @@ nixos-enter - enter a NixOS chroot environment
 
 # SYNOPSIS
 
-*nixos enter* [FLAGS] [-- ARGS...]
+*nixos enter* [options] [-- ARGS...]
 
 # DESCRIPTION
 
@@ -69,9 +69,9 @@ Run a command in a chrooted Bash shell and exit:
 *[ARGS...]*
 	If provided, arguments are interpreted as the command to execute in the
 	environment. Must be preceded by a double dash (`--`) to separate invoked
-	command flags from *nixos enter* flags.
+	command options from *nixos enter* options.
 
-	If *--command* is specified, these argumetns will be ignored.
+	If *--command* is specified, these arguments will be ignored.
 
 # SEE ALSO
 

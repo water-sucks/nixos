@@ -6,7 +6,7 @@ nixos generation diff - display differences between two generations
 
 # SYNOPSIS
 
-*nixos generation diff* [BEFORE] [AFTER] [flags]
+*nixos generation diff* [BEFORE] [AFTER] [options]
 
 # DESCRIPTION
 

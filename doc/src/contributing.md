@@ -28,7 +28,7 @@ If your changes modify the CLI or any core behavior, please also update the
 relevant `man` pages or documentation in `doc/`. This includes changes to the
 following things:
 
-- CLI commands/flags
+- CLI commands/options
 - Settings
 - NixOS module options
 
