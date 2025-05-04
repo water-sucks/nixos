@@ -32,15 +32,15 @@ faster and more user-friendly.
 
 Extract just the generation numbers using *jq*:
 
-    *nixos generation list -j | jq '.[].number'*
+	*nixos generation list -j | jq '.[].number'*
 
 List generations in table format without the interactive UI:
 
-    *nixos generation list -t*
+	*nixos generation list -t*
 
 Extract just the generation numbers using *cut* from table output:
 
-    *nixos generation list -t | cut -d ' ' -f 1*
+	*nixos generation list -t | cut -d ' ' -f 1*
 
 # OPTIONS
 
