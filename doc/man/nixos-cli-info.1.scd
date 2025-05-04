@@ -1,4 +1,4 @@
-NIXOS-INFO(1)
+NIXOS-CLI-INFO(1)
 
 # NAME
 

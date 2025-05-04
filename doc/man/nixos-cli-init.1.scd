@@ -1,4 +1,4 @@
-NIXOS-INIT(1)
+NIXOS-CLI-INIT(1)
 
 # NAME
 

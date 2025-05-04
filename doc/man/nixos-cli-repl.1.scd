@@ -1,4 +1,4 @@
-NIXOS-REPL(1)
+NIXOS-CLI-REPL(1)
 
 # NAME
 
