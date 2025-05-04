@@ -99,6 +99,7 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 		pin.WithTextColor(pin.ColorRed),
 		pin.WithPosition(pin.PositionRight),
 		pin.WithSpinnerFrames([]rune{'-', '\\', '|', '/'}),
+		pin.WithWriter(os.Stderr),
 	)
 	cancelSpinner := spinner.Start(context.Background())
 	defer cancelSpinner()
