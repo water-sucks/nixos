@@ -34,7 +34,7 @@ type ApplySettings struct {
 }
 
 type EnterSettings struct {
-	MountResolvConf bool `koanf:"mount_resolv_conf" description:"Bind-mount host 'resolv.conf' inside chroot for internet accesss"`
+	MountResolvConf bool `koanf:"mount_resolv_conf"`
 }
 
 type InitSettings struct {
@@ -56,7 +56,7 @@ type DescriptionEntry struct {
 }
 
 const (
-	aliasExample = "```toml" + `[aliases]
+	aliasExample = "```\n" + `[aliases]
 genlist = ["generation", "list"]
 switch = ["generation", "switch"]
 rollback = ["generation", "rollback"]

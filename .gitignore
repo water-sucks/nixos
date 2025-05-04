@@ -17,3 +17,5 @@
 # Generated documentation artifacts
 /doc/src/generated-module.md
 /doc/src/generated-settings.md
+/doc/man/nixos-cli-settings.5.scd
+!/doc/man/nixos-cli-settings.5.scd.template

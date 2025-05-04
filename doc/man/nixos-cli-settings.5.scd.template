@@ -1,0 +1,42 @@
+NIXOS-CLI-SETTINGS(5)
+
+# NAME
+
+nixos-cli-settings - configuration options for nixos-cli
+
+# DESCRIPTION
+
+This man page documents available configuration keys for the *nixos-cli* tool.
+
+Each setting may be configured through a config file, environment variable, or
+command-line flag.
+
+Defaults are noted alongside each option.
+
+For more information about particular commands, run *nixos --help* or refer to
+individual command man pages.
+
+# FORMAT
+
+Settings are stored in a configuration file using the TOML format.
+
+The default location for this file is /etc/nixos-cli/config.toml by default,
+but this can be overridden by the *$NIXOS_CLI_CONFIG* environment variable.
+
+They can also be defined in a NixOS module that will automatically create
+this file, if configured through the 
+
+# OPTIONS
+
+All available settings and their descriptions + default values are located here.
+
+%s
+
+# SEE ALSO
+
+*nixos-cli-env(5)*
+
+# AUTHORS
+
+Maintained by the *nixos-cli* team. See the main man page *nixos-cli(1)* for
+details.
