@@ -180,6 +180,7 @@ type OptionOpts struct {
 	DisplayValueOnly bool
 	MinScore         int64
 	OptionInput      string
+	FlakeRef         string
 }
 
 type ReplOpts struct {
