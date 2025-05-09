@@ -299,10 +299,11 @@ func prettyPrintOption(o *option.NixosOption, evaluatedValue *string, evalTrace 
 
 	valueText := ""
 	if evaluatedValue == nil {
-		valueText = color.RedString("failed to evaluate value: %v")
+		valueText = "failed to evaluate value"
 		if evalTrace != "" {
-			valueText = fmt.Sprintf("%v: %v", valueText, evalTrace)
+			valueText += fmt.Sprintf(" %v: %v", valueText, evalTrace)
 		}
+		valueText = color.RedString(valueText)
 	} else {
 		valueText = color.WhiteString(strings.TrimSpace(*evaluatedValue))
 	}
