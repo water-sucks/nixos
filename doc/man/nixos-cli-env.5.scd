@@ -36,13 +36,26 @@ Among other things.
 
 	*Flake-enabled CLIs:*
 		This must be a valid flake ref (e.g., */home/user/config* or
-		*github:myorg/nixos-config*).
+		*github:myorg/nixos-config#attr*).
 
 		Flake refs without a local path may have slightly different behavior,
 		such as not supporting implicit Git operations. Check relevant man pages
 		for more information.
 
-		Paths _MUST_ be absolute. Use *realpath(1)* if you must.
+		If a flake ref is a path, it _MUST_ be absolute. Use *realpath(1)* if
+		you must.
+
+		Additionally, flake refs will usually be expanded when necessary.
+		For example, the following flake ref:
+
+			_github:water-sucks/nixed#CharlesWoodson_
+
+		will get expanded to the following flake ref and attribute:
+
+			_github:water-sucks/nixed#nixosConfigurations.CharlesWoodson_
+
+		If the ref does not have text after the "#", then the NixOS system
+		attribute name will be inferred to be the current system's hostname.
 
 	*Legacy CLIs:*
 		This can be a path to a configuration file directly

@@ -90,15 +90,16 @@ is also possible, assuming a successful installation.
 # ARGUMENTS
 
 *FLAKE-REF*
-	If running on a flake-enabled CLI, *FLAKE-REF* _must_ be provided in the
-	form of *<FLAKE-URI>#<SYSTEM>* in order to build configurations not on the
-	target machine that can be referenced with flake ref syntax.
+	Specify an explicit flake ref to evaluate options from. Only available
+	on flake-enabled CLIs.
+
+	See *nixos-config-env(5)* for the proper flake ref format.
+
+	The system name is NOT inferred from the hostname, and must be provided
+	explicitly after the #.
 
 	There is no fallback, so if this argument is not provided on a flake-enabled
 	CLI, the program will fail.
-
-	Internally, a flake ref gets expanded to the Nix flake attribute
-	_FLAKE-URI#nixosConfigurations.SYSTEM_ whenever necessary.
 
 # OPTIONS
 

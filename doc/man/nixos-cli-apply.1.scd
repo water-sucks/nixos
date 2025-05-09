@@ -64,15 +64,12 @@ command tree. See *nixos-cli-generation(1)* for details.
 # ARGUMENTS
 
 *FLAKE-REF*
-	If running on a flake-enabled CLI, *FLAKE-REF* can be provided in the form
-	of *<FLAKE-URI>#<SYSTEM>* in order to build configurations not on the local
-	machine that can be referenced with flake ref syntax.
+	Specify an explicit flake ref with a NixOS configuration. Only available
+	on flake-enabled CLIs.
 
-	Internally, a flake ref gets expanded to the Nix flake attribute
-	_FLAKE-URI#nixosConfigurations.SYSTEM_ whenever necessary.
+	See *nixos-config-env(5)* for the proper flake ref format.
 
-	If not provided, then this argument will be auto-populated with the
-	*$NIXOS_CONFIG* environment variable, which must be a valid flake ref.
+	Default: *$NIXOS_CONFIG*
 
 # OPTIONS
 
