@@ -178,6 +178,10 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 	var nixConfig configuration.Configuration
 	if opts.FlakeRef != "" {
 		nixConfig = configuration.FlakeRefFromString(opts.FlakeRef)
+		if err := nixConfig.(*configuration.FlakeRef).InferSystemFromHostnameIfNeeded(); err != nil {
+			log.Errorf("failed to infer hostname: %v", err)
+			return err
+		}
 	} else {
 		c, err := configuration.FindConfiguration(log, cfg, opts.NixOptions.Includes, opts.Verbose)
 		if err != nil {
