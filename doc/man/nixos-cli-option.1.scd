@@ -47,13 +47,18 @@ Find an option in a different flake ref (assume a flake-enabled CLI):
 	Show the help message for this command.
 
 *-f*, *--flake* <REF>
-	Specify an explicit flake *REF* to evaluate options from.
+	Specify an explicit flake *REF* to evaluate options from. Only available
+	on flake-enabled CLIs.
 
 	If the cache is used to retrieve available options, some options that show
 	up may actually not be available on the target configuration.
 
 	Use the *--no-cache* flag to fully evaluate the option set for this
 	configuration to avoid this issue.
+
+	See *nixos-config-env(5)* for the proper flake ref format.
+
+	Default: *$NIXOS_CONFIG*
 
 *-i*, *--interactive*
 	Start an interactive TUI for exploring options with a search bar.
