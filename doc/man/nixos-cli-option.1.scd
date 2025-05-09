@@ -35,12 +35,25 @@ Find an option and obtain the type using structured JSON output and _jq_:
 
 Find an option using the UI (starting with an initial search):
 
-	*nixos option -i search.for.option.with.this.name*
+	*nixos option -i "search.for.option.with.this.name"*
+
+Find an option in a different flake ref (assume a flake-enabled CLI):
+
+	*nixos option -f "github:MattRStoffel/mixed#nixos-machine" "option.name"*
 
 # OPTIONS
 
 *-h*, *--help*
 	Show the help message for this command.
+
+*-f*, *--flake* <REF>
+	Specify an explicit flake *REF* to evaluate options from.
+
+	If the cache is used to retrieve available options, some options that show
+	up may actually not be available on the target configuration.
+
+	Use the *--no-cache* flag to fully evaluate the option set for this
+	configuration to avoid this issue.
 
 *-i*, *--interactive*
 	Start an interactive TUI for exploring options with a search bar.
