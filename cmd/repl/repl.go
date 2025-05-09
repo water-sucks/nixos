@@ -21,8 +21,13 @@ import (
 func ReplCommand() *cobra.Command {
 	opts := cmdTypes.ReplOpts{}
 
+	usage := "repl [flags]"
+	if buildOpts.Flake == "true" {
+		usage += " [FLAKE-REF]"
+	}
+
 	cmd := cobra.Command{
-		Use:   "repl [flags] [FLAKE-REF]",
+		Use:   usage,
 		Short: "Start a Nix REPL with system configuration loaded",
 		Long:  "Start a Nix REPL with current system's configuration loaded.",
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -46,10 +51,12 @@ func ReplCommand() *cobra.Command {
 
 	nixopts.AddIncludesNixOption(&cmd, &opts.NixPathIncludes)
 
-	cmd.SetHelpTemplate(cmd.HelpTemplate() + `
+	if buildOpts.Flake == "true" {
+		cmd.SetHelpTemplate(cmd.HelpTemplate() + `
 Arguments:
     [FLAKE-REF]  Flake ref to load attributes from (default: $NIXOS_CONFIG)
 `)
+	}
 
 	return &cmd
 }
