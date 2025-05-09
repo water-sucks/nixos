@@ -13,6 +13,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/sahilm/fuzzy"
 	"github.com/spf13/cobra"
+	buildOpts "github.com/water-sucks/nixos/internal/build"
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
@@ -59,6 +60,10 @@ func OptionCommand() *cobra.Command {
 	cmd.Flags().Int64VarP(&opts.MinScore, "min-score", "s", 0, "")
 	cmd.Flags().BoolVarP(&opts.DisplayValueOnly, "value-only", "v", false, "Show only the selected option's value")
 
+	if buildOpts.Flake == "true" {
+		cmd.Flags().StringVarP(&opts.FlakeRef, "flake", "f", "", "Flake ref to explicitly load options from")
+	}
+
 	nixopts.AddIncludesNixOption(&cmd, &opts.NixPathIncludes)
 
 	cmd.MarkFlagsMutuallyExclusive("json", "interactive", "value-only")
@@ -88,10 +93,16 @@ func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
 		return fmt.Errorf("%v", msg)
 	}
 
-	nixosConfig, err := configuration.FindConfiguration(log, cfg, opts.NixPathIncludes, false)
-	if err != nil {
-		log.Errorf("failed to find configuration: %v", err)
-		return err
+	var nixosConfig configuration.Configuration
+	if opts.FlakeRef != "" {
+		nixosConfig = configuration.FlakeRefFromString(opts.FlakeRef)
+	} else {
+		c, err := configuration.FindConfiguration(log, cfg, opts.NixPathIncludes, false)
+		if err != nil {
+			log.Errorf("failed to find configuration: %v", err)
+			return err
+		}
+		nixosConfig = c
 	}
 
 	spinner := pin.New("Loading...",
