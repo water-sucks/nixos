@@ -51,9 +51,16 @@ func ApplyCommand(cfg *settings.Settings) *cobra.Command {
 			return nil
 		},
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if opts.NoActivate && opts.NoBoot && opts.InstallBootloader {
-				return fmt.Errorf("--install-bootloader requires activation, remove --no-activate and/or --no-boot to use this option")
+			if opts.NoActivate && opts.NoBoot {
+				if opts.InstallBootloader {
+					return fmt.Errorf("--install-bootloader requires activation, remove --no-activate and/or --no-boot to use this option")
+				}
+
+				if opts.OutputPath == "" {
+					return fmt.Errorf("if --no-activate and --no-boot are both specified, --output must be specified too")
+				}
 			}
+
 			if buildOpts.Flake == "true" && opts.GenerationTag != "" && !opts.NixOptions.Impure {
 				if cfg.Apply.ImplyImpureWithTag {
 					if err := cmd.Flags().Set("impure", "true"); err != nil {
