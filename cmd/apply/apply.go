@@ -406,7 +406,7 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 		stcAction = activation.SwitchToConfigurationActionSwitch
 	} else if opts.NoActivate && !opts.NoBoot {
 		stcAction = activation.SwitchToConfigurationActionBoot
-	} else if opts.NoActivate && opts.NoBoot {
+	} else if !opts.NoActivate && opts.NoBoot {
 		stcAction = activation.SwitchToConfigurationActionTest
 	} else {
 		panic("unknown switch to configuration action to take, this is a bug")
