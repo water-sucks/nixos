@@ -20,20 +20,20 @@ func TestResolveGenerationsToDelete(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		opts      *types.GenerationDeleteOpts
+		opts      *cmdOpts.GenerationDeleteOpts
 		expect    []uint64
 		expectErr error
 	}{
 		{
 			name: "Delete all generations",
-			opts: &types.GenerationDeleteOpts{
+			opts: &cmdOpts.GenerationDeleteOpts{
 				All: true,
 			},
 			expect: []uint64{1, 2},
 		},
 		{
 			name: "Keep specific generations",
-			opts: &types.GenerationDeleteOpts{
+			opts: &cmdOpts.GenerationDeleteOpts{
 				Keep: []uint{1},
 				All:  true,
 			},
@@ -41,7 +41,7 @@ func TestResolveGenerationsToDelete(t *testing.T) {
 		},
 		{
 			name: "Minimum to keep",
-			opts: &types.GenerationDeleteOpts{
+			opts: &cmdOpts.GenerationDeleteOpts{
 				MinimumToKeep: 3,
 			},
 			expect: []uint64{},
@@ -52,7 +52,7 @@ func TestResolveGenerationsToDelete(t *testing.T) {
 		},
 		{
 			name: "Lower and upper bounds",
-			opts: &types.GenerationDeleteOpts{
+			opts: &cmdOpts.GenerationDeleteOpts{
 				LowerBound: 1,
 				UpperBound: 2,
 			},
@@ -60,21 +60,21 @@ func TestResolveGenerationsToDelete(t *testing.T) {
 		},
 		{
 			name: "Older than specified duration",
-			opts: &types.GenerationDeleteOpts{
+			opts: &cmdOpts.GenerationDeleteOpts{
 				OlderThan: "24h",
 			},
 			expect: []uint64{1, 2},
 		},
 		{
 			name: "Remove specific generations",
-			opts: &types.GenerationDeleteOpts{
+			opts: &cmdOpts.GenerationDeleteOpts{
 				Remove: []uint{1},
 			},
 			expect: []uint64{1},
 		},
 		{
 			name: "Invalid lower and upper bounds",
-			opts: &types.GenerationDeleteOpts{
+			opts: &cmdOpts.GenerationDeleteOpts{
 				LowerBound: 3,
 				UpperBound: 1,
 			},
