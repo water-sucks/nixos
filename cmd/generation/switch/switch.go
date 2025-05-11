@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/water-sucks/nixos/internal/activation"
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/generation"
@@ -19,8 +19,8 @@ import (
 	"github.com/water-sucks/nixos/internal/utils"
 )
 
-func GenerationSwitchCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
-	opts := cmdTypes.GenerationSwitchOpts{}
+func GenerationSwitchCommand(genOpts *cmdOpts.GenerationOpts) *cobra.Command {
+	opts := cmdOpts.GenerationSwitchOpts{}
 
 	cmd := cobra.Command{
 		Use:   "switch [flags] {GEN}",
@@ -63,7 +63,7 @@ Arguments:
 	return &cmd
 }
 
-func completeSpecialisationFlag(profileName string) cmdTypes.CompletionFunc {
+func completeSpecialisationFlag(profileName string) cmdOpts.CompletionFunc {
 	profileDirectory := constants.NixProfileDirectory
 	if profileName != "system" {
 		profileDirectory = constants.NixSystemProfileDirectory
@@ -90,7 +90,7 @@ func completeSpecialisationFlag(profileName string) cmdTypes.CompletionFunc {
 	}
 }
 
-func generationSwitchMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationSwitchOpts) error {
+func generationSwitchMain(cmd *cobra.Command, genOpts *cmdOpts.GenerationOpts, opts *cmdOpts.GenerationSwitchOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
 	s := system.NewLocalSystem(log)

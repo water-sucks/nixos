@@ -1,4 +1,4 @@
-package types
+package cmdOpts
 
 import "github.com/water-sucks/nixos/internal/configuration"
 

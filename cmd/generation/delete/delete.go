@@ -12,7 +12,7 @@ import (
 
 	genUtils "github.com/water-sucks/nixos/cmd/generation/shared"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/generation"
@@ -23,8 +23,8 @@ import (
 	"github.com/water-sucks/nixos/internal/utils"
 )
 
-func GenerationDeleteCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
-	opts := cmdTypes.GenerationDeleteOpts{}
+func GenerationDeleteCommand(genOpts *cmdOpts.GenerationOpts) *cobra.Command {
+	opts := cmdOpts.GenerationDeleteOpts{}
 
 	cmd := cobra.Command{
 		Use:   "delete [flags] [GEN...]",
@@ -109,7 +109,7 @@ The 'period' parameter in --older-than is a systemd.time(7) span
 	return &cmd
 }
 
-func generationDeleteMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationDeleteOpts) error {
+func generationDeleteMain(cmd *cobra.Command, genOpts *cmdOpts.GenerationOpts, opts *cmdOpts.GenerationDeleteOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
 	s := system.NewLocalSystem(log)

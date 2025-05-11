@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/settings"
@@ -15,7 +15,7 @@ import (
 )
 
 func InitCommand() *cobra.Command {
-	opts := cmdTypes.InitOpts{}
+	opts := cmdOpts.InitOpts{}
 
 	cmd := cobra.Command{
 		Use:   "init",
@@ -43,7 +43,7 @@ func InitCommand() *cobra.Command {
 	return &cmd
 }
 
-func initMain(cmd *cobra.Command, opts *cmdTypes.InitOpts) error {
+func initMain(cmd *cobra.Command, opts *cmdOpts.InitOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
 	s := system.NewLocalSystem(log)

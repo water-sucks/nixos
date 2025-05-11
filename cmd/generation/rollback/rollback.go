@@ -10,7 +10,7 @@ import (
 
 	genUtils "github.com/water-sucks/nixos/cmd/generation/shared"
 	"github.com/water-sucks/nixos/internal/activation"
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/generation"
@@ -20,8 +20,8 @@ import (
 	"github.com/water-sucks/nixos/internal/utils"
 )
 
-func GenerationRollbackCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
-	opts := cmdTypes.GenerationRollbackOpts{}
+func GenerationRollbackCommand(genOpts *cmdOpts.GenerationOpts) *cobra.Command {
+	opts := cmdOpts.GenerationRollbackOpts{}
 
 	cmd := cobra.Command{
 		Use:   "rollback [flags] {GEN}",
@@ -44,7 +44,7 @@ func GenerationRollbackCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command 
 	return &cmd
 }
 
-func generationRollbackMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationRollbackOpts) error {
+func generationRollbackMain(cmd *cobra.Command, genOpts *cmdOpts.GenerationOpts, opts *cmdOpts.GenerationRollbackOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
 	s := system.NewLocalSystem(log)
@@ -195,7 +195,7 @@ func findPreviousGeneration(log *logger.Logger, profileName string) (*generation
 	return &generations[currentGenIdx-1], nil
 }
 
-func completeSpecialisationFlag(profileName string) cmdTypes.CompletionFunc {
+func completeSpecialisationFlag(profileName string) cmdOpts.CompletionFunc {
 	profileDirectory := constants.NixProfileDirectory
 	if profileName != "system" {
 		profileDirectory = constants.NixSystemProfileDirectory

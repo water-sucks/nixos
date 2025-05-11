@@ -12,7 +12,7 @@ import (
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/settings"
 
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 
 	applyCmd "github.com/water-sucks/nixos/cmd/apply"
 	completionCmd "github.com/water-sucks/nixos/cmd/completion"
@@ -51,7 +51,7 @@ Flags:
 `
 
 func mainCommand() (*cobra.Command, error) {
-	opts := cmdTypes.MainOpts{}
+	opts := cmdOpts.MainOpts{}
 
 	log := logger.NewLogger()
 	cmdCtx := logger.WithLogger(context.Background(), log)

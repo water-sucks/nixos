@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	buildOpts "github.com/water-sucks/nixos/internal/build"
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/settings"
 	"github.com/water-sucks/nixos/internal/system"
@@ -24,7 +24,7 @@ var configurationNixTemplate string
 //go:embed flake.nix.txt
 var flakeNixTemplate string
 
-func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *settings.Settings, virtType VirtualisationType, opts *cmdTypes.InitOpts) (string, error) {
+func generateHwConfigNix(s system.CommandRunner, log *logger.Logger, cfg *settings.Settings, virtType VirtualisationType, opts *cmdOpts.InitOpts) (string, error) {
 	imports := []string{}
 	initrdAvailableModules := []string{}
 	initrdModules := []string{}

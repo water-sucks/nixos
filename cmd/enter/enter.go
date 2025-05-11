@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/logger"
@@ -18,7 +18,7 @@ import (
 )
 
 func EnterCommand() *cobra.Command {
-	opts := cmdTypes.EnterOpts{}
+	opts := cmdOpts.EnterOpts{}
 
 	cmd := cobra.Command{
 		Use:   "enter [flags] [-- ARGS...]",
@@ -56,7 +56,7 @@ double dash (--) is required. Otherwise, unexpected behavior may occur.
 	return &cmd
 }
 
-func enterMain(cmd *cobra.Command, opts *cmdTypes.EnterOpts) error {
+func enterMain(cmd *cobra.Command, opts *cmdOpts.EnterOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
 

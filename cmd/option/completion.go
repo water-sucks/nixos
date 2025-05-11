@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/option"
@@ -50,7 +50,7 @@ func loadOptions(log *logger.Logger, cfg *settings.Settings, includes []string) 
 	return options, nil
 }
 
-func OptionsCompletionFunc(opts *cmdTypes.OptionOpts) cmdTypes.CompletionFunc {
+func OptionsCompletionFunc(opts *cmdOpts.OptionOpts) cmdOpts.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		log := logger.FromContext(cmd.Context())
 		cfg := settings.FromContext(cmd.Context())

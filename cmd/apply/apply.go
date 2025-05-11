@@ -12,7 +12,7 @@ import (
 	"github.com/water-sucks/nixos/internal/activation"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/constants"
@@ -24,7 +24,7 @@ import (
 )
 
 func ApplyCommand(cfg *settings.Settings) *cobra.Command {
-	opts := cmdTypes.ApplyOpts{}
+	opts := cmdOpts.ApplyOpts{}
 
 	usage := "apply"
 	if buildOpts.Flake == "true" {
@@ -150,7 +150,7 @@ Check the man page nixos-cli-apply(5) for more details on what options are avail
 	return &cmd
 }
 
-func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
+func applyMain(cmd *cobra.Command, opts *cmdOpts.ApplyOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
 	s := system.NewLocalSystem(log)

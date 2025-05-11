@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/generation"
@@ -16,8 +16,8 @@ import (
 	"github.com/water-sucks/nixos/internal/system"
 )
 
-func GenerationDiffCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
-	opts := cmdTypes.GenerationDiffOpts{}
+func GenerationDiffCommand(genOpts *cmdOpts.GenerationOpts) *cobra.Command {
+	opts := cmdOpts.GenerationDiffOpts{}
 
 	cmd := cobra.Command{
 		Use:   "diff {BEFORE} {AFTER}",
@@ -60,7 +60,7 @@ Arguments:
 	return &cmd
 }
 
-func generationDiffMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationDiffOpts) error {
+func generationDiffMain(cmd *cobra.Command, genOpts *cmdOpts.GenerationOpts, opts *cmdOpts.GenerationDiffOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
 	s := system.NewLocalSystem(log)

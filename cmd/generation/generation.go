@@ -3,7 +3,7 @@ package generation
 import (
 	"github.com/spf13/cobra"
 
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/generation"
 
@@ -15,7 +15,7 @@ import (
 )
 
 func GenerationCommand() *cobra.Command {
-	opts := cmdTypes.GenerationOpts{}
+	opts := cmdOpts.GenerationOpts{}
 
 	cmd := cobra.Command{
 		Use:   "generation {command}",

@@ -9,7 +9,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/logger"
@@ -19,7 +19,7 @@ import (
 )
 
 func ReplCommand() *cobra.Command {
-	opts := cmdTypes.ReplOpts{}
+	opts := cmdOpts.ReplOpts{}
 
 	usage := "repl [flags]"
 	if buildOpts.Flake == "true" {
@@ -126,7 +126,7 @@ Use %s to see all available repl commands.
 `
 )
 
-func replMain(cmd *cobra.Command, opts *cmdTypes.ReplOpts) error {
+func replMain(cmd *cobra.Command, opts *cmdOpts.ReplOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
 

@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/constants"
@@ -21,7 +21,7 @@ import (
 )
 
 func InstallCommand() *cobra.Command {
-	opts := cmdTypes.InstallOpts{}
+	opts := cmdOpts.InstallOpts{}
 
 	usage := "install"
 	if buildOpts.Flake == "true" {
@@ -326,7 +326,7 @@ func setRootPassword(s system.CommandRunner, mountpoint string, verbose bool) er
 	return err
 }
 
-func installMain(cmd *cobra.Command, opts *cmdTypes.InstallOpts) error {
+func installMain(cmd *cobra.Command, opts *cmdOpts.InstallOpts) error {
 	log := logger.FromContext(cmd.Context())
 	s := system.NewLocalSystem(log)
 

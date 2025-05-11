@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
-	"github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/logger"
 )
@@ -39,7 +39,7 @@ func CompleteProfileFlag(_ *cobra.Command, args []string, toComplete string) ([]
 	return profiles, cobra.ShellCompDirectiveNoFileComp
 }
 
-func CompleteGenerationNumber(profile *string, limit int) types.CompletionFunc {
+func CompleteGenerationNumber(profile *string, limit int) cmdOpts.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		log := logger.FromContext(cmd.Context())
 
@@ -79,7 +79,7 @@ func CompleteGenerationNumber(profile *string, limit int) types.CompletionFunc {
 	}
 }
 
-func CompleteGenerationNumberFlag(profile *string) types.CompletionFunc {
+func CompleteGenerationNumberFlag(profile *string) cmdOpts.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		log := logger.FromContext(cmd.Context())
 

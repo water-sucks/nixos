@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	"github.com/water-sucks/nixos/internal/generation"
 	timeUtils "github.com/water-sucks/nixos/internal/time"
 )
@@ -16,7 +16,7 @@ type generationSet map[uint64]present
 // evil type system hack to avoid typing struct{} all the time
 type present struct{}
 
-func resolveGenerationsToDelete(generations []generation.Generation, opts *cmdTypes.GenerationDeleteOpts) ([]generation.Generation, error) {
+func resolveGenerationsToDelete(generations []generation.Generation, opts *cmdOpts.GenerationDeleteOpts) ([]generation.Generation, error) {
 	currentGenIdx := slices.IndexFunc(generations, func(g generation.Generation) bool {
 		return g.IsCurrent
 	})

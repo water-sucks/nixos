@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	"github.com/water-sucks/nixos/internal/generation"
 )
 

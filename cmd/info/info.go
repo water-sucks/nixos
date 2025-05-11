@@ -8,7 +8,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/water-sucks/nixos/internal/activation"
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/generation"
@@ -16,7 +16,7 @@ import (
 )
 
 func InfoCommand() *cobra.Command {
-	opts := cmdTypes.InfoOpts{}
+	opts := cmdOpts.InfoOpts{}
 
 	cmd := cobra.Command{
 		Use:   "info",
@@ -42,7 +42,7 @@ const (
 `
 )
 
-func infoMain(cmd *cobra.Command, opts *cmdTypes.InfoOpts) error {
+func infoMain(cmd *cobra.Command, opts *cmdOpts.InfoOpts) error {
 	log := logger.FromContext(cmd.Context())
 
 	// Only support the `system` profile for now.

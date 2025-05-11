@@ -11,14 +11,14 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 	genUtils "github.com/water-sucks/nixos/cmd/generation/shared"
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/generation"
 	"github.com/water-sucks/nixos/internal/logger"
 )
 
-func GenerationListCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
-	opts := cmdTypes.GenerationListOpts{}
+func GenerationListCommand(genOpts *cmdOpts.GenerationOpts) *cobra.Command {
+	opts := cmdOpts.GenerationListOpts{}
 
 	cmd := cobra.Command{
 		Use:   "list",
@@ -37,7 +37,7 @@ func GenerationListCommand(genOpts *cmdTypes.GenerationOpts) *cobra.Command {
 	return &cmd
 }
 
-func generationListMain(cmd *cobra.Command, genOpts *cmdTypes.GenerationOpts, opts *cmdTypes.GenerationListOpts) error {
+func generationListMain(cmd *cobra.Command, genOpts *cmdOpts.GenerationOpts, opts *cmdOpts.GenerationListOpts) error {
 	log := logger.FromContext(cmd.Context())
 
 	generations, err := genUtils.LoadGenerations(log, genOpts.ProfileName, true)

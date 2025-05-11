@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/logger"
 
@@ -16,7 +16,7 @@ import (
 )
 
 func FeatureCommand() *cobra.Command {
-	opts := cmdTypes.FeaturesOpts{}
+	opts := cmdOpts.FeaturesOpts{}
 
 	cmd := cobra.Command{
 		Use:   "features",
@@ -47,7 +47,7 @@ type complilationOptions struct {
 	Flake          bool   `json:"flake"`
 }
 
-func featuresMain(cmd *cobra.Command, opts *cmdTypes.FeaturesOpts) {
+func featuresMain(cmd *cobra.Command, opts *cmdOpts.FeaturesOpts) {
 	log := logger.FromContext(cmd.Context())
 
 	features := features{

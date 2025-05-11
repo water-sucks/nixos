@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/settings"
@@ -65,7 +65,7 @@ func CollectSpecialisationsFromConfig(cfg configuration.Configuration) []string 
 	return specialisations
 }
 
-func CompleteSpecialisationFlag(generationDirname string) types.CompletionFunc {
+func CompleteSpecialisationFlag(generationDirname string) cmdOpts.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		specialisations, err := CollectSpecialisations(generationDirname)
 		if err != nil {
@@ -88,7 +88,7 @@ func CompleteSpecialisationFlag(generationDirname string) types.CompletionFunc {
 	}
 }
 
-func CompleteSpecialisationFlagFromConfig(flakeRefStr string, includes []string) types.CompletionFunc {
+func CompleteSpecialisationFlagFromConfig(flakeRefStr string, includes []string) cmdOpts.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		log := logger.FromContext(cmd.Context())
 		cfg := settings.FromContext(cmd.Context())

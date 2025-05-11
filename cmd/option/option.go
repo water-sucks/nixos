@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 	buildOpts "github.com/water-sucks/nixos/internal/build"
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
-	cmdTypes "github.com/water-sucks/nixos/internal/cmd/types"
+	"github.com/water-sucks/nixos/internal/cmd/opts"
 	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/logger"
@@ -26,7 +26,7 @@ import (
 )
 
 func OptionCommand() *cobra.Command {
-	opts := cmdTypes.OptionOpts{}
+	opts := cmdOpts.OptionOpts{}
 
 	cmd := cobra.Command{
 		Use:   "option [flags] [NAME]",
@@ -77,7 +77,7 @@ Arguments:
 	return &cmd
 }
 
-func optionMain(cmd *cobra.Command, opts *cmdTypes.OptionOpts) error {
+func optionMain(cmd *cobra.Command, opts *cmdOpts.OptionOpts) error {
 	log := logger.FromContext(cmd.Context())
 	cfg := settings.FromContext(cmd.Context())
 	s := system.NewLocalSystem(log)
