@@ -15,6 +15,7 @@ import (
 type Settings struct {
 	Aliases        map[string][]string `koanf:"aliases" noset:"true"`
 	Apply          ApplySettings       `koanf:"apply"`
+	AutoRollback   bool                `koanf:"auto_rollback"`
 	UseColor       bool                `koanf:"color"`
 	ConfigLocation string              `koanf:"config_location"`
 	Enter          EnterSettings       `koanf:"enter"`
@@ -91,6 +92,11 @@ var SettingsDocs = map[string]DescriptionEntry{
 		Short: "Ignore dirty working tree when using Git commit message for --tag",
 		Long:  "Allows 'apply' to use Git commit messages even when the working directory is dirty.",
 	},
+	"auto_rollback": {
+		Short: "Automatically rollback profile on activation failure",
+		Long: "Enables automatic rollback of a NixOS system profile when an activation command fails. This can be " +
+			"disabled when a reboot or some other circumstance is needed for successful activation",
+	},
 	"color": {
 		Short: "Enable colored output",
 		Long:  "Turns on ANSI color sequences for decorated output in supported terminals.",
@@ -148,6 +154,7 @@ var SettingsDocs = map[string]DescriptionEntry{
 
 func NewSettings() *Settings {
 	return &Settings{
+		AutoRollback:   true,
 		UseColor:       true,
 		ConfigLocation: "/etc/nixos",
 		Enter: EnterSettings{

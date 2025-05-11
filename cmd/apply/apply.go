@@ -396,6 +396,12 @@ func applyMain(cmd *cobra.Command, opts *cmdTypes.ApplyOpts) error {
 				return
 			}
 
+			if !cfg.AutoRollback {
+				log.Warnf("automatic rollback is disabled, the currently active profile may have unresolved problems")
+				log.Warnf("you are on your own!")
+				return
+			}
+
 			log.Step("Rolling back system profile...")
 			if err := activation.SetNixProfileGeneration(s, "system", previousGenNumber, opts.Verbose); err != nil {
 				log.Errorf("failed to rollback system profile: %v", err)
