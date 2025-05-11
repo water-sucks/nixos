@@ -61,6 +61,17 @@ _nixos-rebuild dry-build_
 Many other behaviors for _nixos-rebuild_ are in the *nixos generation*
 command tree. See *nixos-cli-generation(1)* for details.
 
+## Rollback
+
+In rare cases, automatic rollback is performed on the system profile when
+activation fails.
+
+In order to disable this behavior for known working configurations (such as when
+reboot is required for a successful activation or daemon restart), use the
+global *--config* flag as such:
+
+	*nixos --config auto_rollback=false apply [options]*
+
 # ARGUMENTS
 
 *FLAKE-REF*
