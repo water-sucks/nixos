@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/water-sucks/nixos/internal/cmd/opts"
-	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/generation"
 
 	genDeleteCmd "github.com/water-sucks/nixos/cmd/generation/delete"

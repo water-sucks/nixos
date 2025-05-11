@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/water-sucks/nixos/internal/activation"
 	"github.com/water-sucks/nixos/internal/cmd/opts"
-	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/constants"
 	"github.com/water-sucks/nixos/internal/generation"
 	"github.com/water-sucks/nixos/internal/logger"

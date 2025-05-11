@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/water-sucks/nixos/internal/cmd/nixopts"
 	"github.com/water-sucks/nixos/internal/cmd/opts"
-	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/settings"

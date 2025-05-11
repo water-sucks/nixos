@@ -1,4 +1,4 @@
-package shared
+package genUtils
 
 import (
 	"github.com/water-sucks/nixos/internal/generation"

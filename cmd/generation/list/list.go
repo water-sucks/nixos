@@ -10,9 +10,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/olekukonko/tablewriter"
-	genUtils "github.com/water-sucks/nixos/cmd/generation/shared"
+	"github.com/water-sucks/nixos/cmd/generation/shared"
 	"github.com/water-sucks/nixos/internal/cmd/opts"
-	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/generation"
 	"github.com/water-sucks/nixos/internal/logger"
 )

@@ -9,7 +9,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/sahilm/fuzzy"
-	cmdUtils "github.com/water-sucks/nixos/internal/cmd/utils"
+	"github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/configuration"
 	"github.com/water-sucks/nixos/internal/option"
 	"github.com/water-sucks/nixos/internal/settings"
