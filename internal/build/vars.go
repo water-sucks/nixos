@@ -1,4 +1,4 @@
-package build
+package buildOpts
 
 // Do not change these. These are always going to be set
 // at compile-time.

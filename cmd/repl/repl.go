@@ -15,7 +15,7 @@ import (
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/settings"
 
-	buildOpts "github.com/water-sucks/nixos/internal/build"
+	"github.com/water-sucks/nixos/internal/build"
 )
 
 func ReplCommand() *cobra.Command {

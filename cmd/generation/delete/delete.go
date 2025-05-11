@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/water-sucks/nixos/cmd/generation/shared"
-	buildOpts "github.com/water-sucks/nixos/internal/build"
+	"github.com/water-sucks/nixos/internal/build"
 	"github.com/water-sucks/nixos/internal/cmd/opts"
 	"github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/constants"

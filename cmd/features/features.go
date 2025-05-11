@@ -12,7 +12,7 @@ import (
 	"github.com/water-sucks/nixos/internal/cmd/utils"
 	"github.com/water-sucks/nixos/internal/logger"
 
-	buildOpts "github.com/water-sucks/nixos/internal/build"
+	"github.com/water-sucks/nixos/internal/build"
 )
 
 func FeatureCommand() *cobra.Command {

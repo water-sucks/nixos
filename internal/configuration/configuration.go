@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/pflag"
-	buildOpts "github.com/water-sucks/nixos/internal/build"
+	"github.com/water-sucks/nixos/internal/build"
 	"github.com/water-sucks/nixos/internal/logger"
 	"github.com/water-sucks/nixos/internal/settings"
 	"github.com/water-sucks/nixos/internal/system"
