@@ -27,6 +27,7 @@ build:
 clean:
 	@echo "cleaning up..."
 	go clean
+	rm -rf site/ man/
 
 .PHONY: test
 test:
