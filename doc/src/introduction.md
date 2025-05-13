@@ -53,7 +53,8 @@ This tool is under **active development**, but is **not yet stable**.
 Until a 1.0 release, the CLI interface and configuration may change without
 notice.
 
-Watch the [Releases](https://github.com/water-sucks/nixos/releases) page for:
+Watch the [Releases](https://github.com/nix-community/nixos-cli/releases) page
+for:
 
 - Breaking changes
 - Feature updates
@@ -61,7 +62,7 @@ Watch the [Releases](https://github.com/water-sucks/nixos/releases) page for:
 
 Core contributors:
 
-- [`@watersucks`](https://github.com/water-sucks)
+- [`@water-sucks`](https://github.com/water-sucks)
 
 Contributions, testing, and bug reports/general feedback are highly encouraged,
 since there are few people working on this project actively.

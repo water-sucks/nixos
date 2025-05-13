@@ -78,8 +78,8 @@ nixos-cli - a tool for managing NixOS installations
 # AUTHORS
 
 Maintained by Varun Narravula <varun@snare.dev>. Up-to-date sources can be
-found at https://github.com/water-sucks/nixos, and bugs reports or patches can
-be submitted to GitHub's issue tracker.
+found at https://github.com/nix-community/nixos-cli, and bugs reports or patches
+can be submitted to GitHub's issue tracker.
 
 # SEE ALSO
 

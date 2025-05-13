@@ -38,8 +38,8 @@ Testing every feature edge-case is hard—especially before full releases.
 
 If you're a brave soul, use the main branch instead of a release version, and
 file bug reports by
-[opening a new issue](https://github.com/water-sucks/nixos/issues) with the
-**Bug Report** template. In the bug report, provide:
+[opening a new issue](https://github.com/nix-community/nixos-cli/issues) with
+the **Bug Report** template. In the bug report, provide:
 
 - A clear description of the problem
   - **IMPORTANT**: What was _expected_ vs. what actually _happened_

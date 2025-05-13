@@ -1,4 +1,4 @@
-<h1 align="center">nixos</h1>
+<h1 align="center">nixos-cli</h1>
 <h6 align="center">A unified NixOS management tool.</h6>
 
 ## Introduction
@@ -17,8 +17,8 @@ installation with ease, that consists of:
 All available through an easy-to-use (and pretty!) interface.
 
 High-level documentation is available as a
-[website](https://water-sucks.github.io/nixos), while a detailed reference for
-each command and settings is available in the form of man pages after
+[website](https://nix-community.github.io/nixos-cli), while a detailed reference
+for each command and settings is available in the form of man pages after
 installation.
 
 ## Development

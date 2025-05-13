@@ -38,7 +38,7 @@ to the system configuration.
 
 ```nix
 {
-  inputs.nixos-cli.url = "github:water-sucks/nixos";
+  inputs.nixos-cli.url = "github:nix-community/nixos-cli";
 
   outputs = { nixpkgs, nixos-cli, ... }: {
     nixosConfigurations.system-name = nixpkgs.lib.nixosSystem {
@@ -79,7 +79,7 @@ this repository. An example is provided below with `builtins.fetchTarball`:
 
 let
   # In pure evaluation mode, always use a full Git commit hash instead of a branch name.
-  nixos-cli-url = "github:water-sucks/nixos/archive/GITREVORBRANCHDEADBEEFDEADBEEF0000.tar.gz"
+  nixos-cli-url = "github:nix-community/nixos-cli/archive/GITREVORBRANCHDEADBEEFDEADBEEF0000.tar.gz"
   nixos-cli = import "${builtins.fetchTarball nixos-cli-url}" {inherit pkgs;};
 in {
   imports = [
@@ -102,8 +102,8 @@ NOTE: Use the `nixosLegacy` package. Specifying the `services.nixos-cli.package`
 option is required for legacy configurations, due to the fact that the default
 package is for flake configurations only. If there is a reliable way to detect
 if a configuration is flake-enabled, please file an
-[issue](https://github.com/water-sucks/nixos/issues/new/choose) so that this
-requirement can be removed.
+[issue](https://github.com/nix-community/nixos-cli/issues/new/choose) so that
+this requirement can be removed.
 
 ## Cache
 
@@ -158,13 +158,13 @@ This is the preferred way to use `nixos-cli` when running `nixos init` or
 Use `nix develop` (flake-enabled package by default):
 
 ```
-$ nix shell github:water-sucks/nixos
+$ nix shell github:nix-community/nixos-cli
 ```
 
 Alternative using legacy-style `nix-shell` and the `nixosLegacy` package:
 
 ```sh
-$ nix-shell -E 'with import (fetchTarball "https://github.com/water-sucks/nixos/archive/refs/heads/main.tar.gz") {}; nixosLegacy'
+$ nix-shell -E 'with import (fetchTarball "https://github.com/nix-community/nixos-cli/archive/refs/heads/main.tar.gz") {}; nixosLegacy'
 ```
 
 ## Rebuild
