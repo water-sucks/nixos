@@ -27,7 +27,7 @@ func main() {
 
 	var gitRev string
 
-	rootCmd.AddCommand(&cobra.Command{
+	siteCmd := &cobra.Command{
 		Use:   "site",
 		Short: "Generate Markdown documentation for settings and modules",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -49,19 +49,21 @@ func main() {
 
 			return nil
 		},
-	})
-	rootCmd.Flags().StringVarP(&gitRev, "revision", "r", "main", "Git rev to use when generating module doc links")
+	}
+	siteCmd.Flags().StringVarP(&gitRev, "revision", "r", "main", "Git rev to use when generating module doc links")
 
 	var outputManDir string
 
-	rootCmd.AddCommand(&cobra.Command{
+	manCmd := &cobra.Command{
 		Use:   "man",
 		Short: "Generate man pages using scdoc",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return generateManPages(filepath.Join("doc", "man"), outputManDir)
 		},
-	})
-	rootCmd.Flags().StringVarP(&outputManDir, "output", "o", "man", "Where to place generated man pages")
+	}
+	manCmd.Flags().StringVarP(&outputManDir, "output", "o", "man", "Where to place generated man pages")
+
+	rootCmd.AddCommand(siteCmd, manCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

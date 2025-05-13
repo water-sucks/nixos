@@ -44,7 +44,7 @@ site: gen-site
 
 .PHONY: gen-site
 gen-site:
-	go run doc/build.go site
+	go run doc/build.go site -r $(COMMIT_HASH)
 
 .PHONY: gen-site
 gen-manpages:
