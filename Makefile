@@ -1,5 +1,5 @@
 APP_NAME := nixos
-BUILD_VAR_PKG := github.com/water-sucks/nixos/internal/build
+BUILD_VAR_PKG := github.com/nix-community/nixos-cli/internal/build
 
 VERSION ?= $(shell git describe --tags --always)
 COMMIT_HASH ?= $(shell git rev-parse HEAD)

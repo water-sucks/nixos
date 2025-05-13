@@ -3,7 +3,7 @@ package settings_test
 import (
 	"testing"
 
-	"github.com/water-sucks/nixos/internal/settings"
+	"github.com/nix-community/nixos-cli/internal/settings"
 )
 
 func TestValidateConfig(t *testing.T) {

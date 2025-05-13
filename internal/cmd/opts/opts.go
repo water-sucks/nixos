@@ -1,6 +1,6 @@
 package cmdOpts
 
-import "github.com/water-sucks/nixos/internal/configuration"
+import "github.com/nix-community/nixos-cli/internal/configuration"
 
 type MainOpts struct {
 	ColorAlways  bool

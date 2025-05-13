@@ -1,6 +1,6 @@
 package main
 
-import "github.com/water-sucks/nixos/cmd/root"
+import "github.com/nix-community/nixos-cli/cmd/root"
 
 func main() {
 	root.Execute()

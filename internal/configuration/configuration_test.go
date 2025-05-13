@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/water-sucks/nixos/internal/configuration"
+	"github.com/nix-community/nixos-cli/internal/configuration"
 )
 
 func TestFlakeRefFromString(t *testing.T) {

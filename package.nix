@@ -9,7 +9,7 @@
   flake ? true,
 }:
 buildGoModule (finalAttrs: {
-  pname = "nixos";
+  pname = "nixos-cli";
   version = "0.12.2-dev";
   src = nix-gitignore.gitignoreSource [] ./.;
 
@@ -51,7 +51,7 @@ buildGoModule (finalAttrs: {
   '';
 
   meta = with lib; {
-    homepage = "https://github.com/water-sucks/nixos";
+    homepage = "https://github.com/nix-community/nixos";
     description = "A unified NixOS tooling replacement for nixos-* utilities";
     license = licenses.gpl3Only;
     maintainers = with maintainers; [water-sucks];

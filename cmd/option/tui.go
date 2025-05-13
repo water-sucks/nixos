@@ -9,10 +9,10 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/sahilm/fuzzy"
-	"github.com/water-sucks/nixos/internal/cmd/utils"
-	"github.com/water-sucks/nixos/internal/configuration"
-	"github.com/water-sucks/nixos/internal/option"
-	"github.com/water-sucks/nixos/internal/settings"
+	"github.com/nix-community/nixos-cli/internal/cmd/utils"
+	"github.com/nix-community/nixos-cli/internal/configuration"
+	"github.com/nix-community/nixos-cli/internal/option"
+	"github.com/nix-community/nixos-cli/internal/settings"
 )
 
 var (

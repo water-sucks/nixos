@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/water-sucks/nixos/internal/cmd/nixopts"
-	"github.com/water-sucks/nixos/internal/logger"
-	"github.com/water-sucks/nixos/internal/system"
+	"github.com/nix-community/nixos-cli/internal/cmd/nixopts"
+	"github.com/nix-community/nixos-cli/internal/logger"
+	"github.com/nix-community/nixos-cli/internal/system"
 )
 
 type LegacyConfiguration struct {

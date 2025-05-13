@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/water-sucks/nixos/internal/logger"
-	"github.com/water-sucks/nixos/internal/system"
+	"github.com/nix-community/nixos-cli/internal/logger"
+	"github.com/nix-community/nixos-cli/internal/system"
 )
 
 type CPUInfo struct {

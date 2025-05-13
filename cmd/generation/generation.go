@@ -3,15 +3,15 @@ package generation
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/water-sucks/nixos/internal/cmd/opts"
-	"github.com/water-sucks/nixos/internal/cmd/utils"
-	"github.com/water-sucks/nixos/internal/generation"
+	"github.com/nix-community/nixos-cli/internal/cmd/opts"
+	"github.com/nix-community/nixos-cli/internal/cmd/utils"
+	"github.com/nix-community/nixos-cli/internal/generation"
 
-	genDeleteCmd "github.com/water-sucks/nixos/cmd/generation/delete"
-	genDiffCmd "github.com/water-sucks/nixos/cmd/generation/diff"
-	genListCmd "github.com/water-sucks/nixos/cmd/generation/list"
-	genRollbackCmd "github.com/water-sucks/nixos/cmd/generation/rollback"
-	genSwitchCmd "github.com/water-sucks/nixos/cmd/generation/switch"
+	genDeleteCmd "github.com/nix-community/nixos-cli/cmd/generation/delete"
+	genDiffCmd "github.com/nix-community/nixos-cli/cmd/generation/diff"
+	genListCmd "github.com/nix-community/nixos-cli/cmd/generation/list"
+	genRollbackCmd "github.com/nix-community/nixos-cli/cmd/generation/rollback"
+	genSwitchCmd "github.com/nix-community/nixos-cli/cmd/generation/switch"
 )
 
 func GenerationCommand() *cobra.Command {

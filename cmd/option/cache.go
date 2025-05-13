@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/water-sucks/nixos/internal/configuration"
-	"github.com/water-sucks/nixos/internal/constants"
-	"github.com/water-sucks/nixos/internal/system"
+	"github.com/nix-community/nixos-cli/internal/configuration"
+	"github.com/nix-community/nixos-cli/internal/constants"
+	"github.com/nix-community/nixos-cli/internal/system"
 )
 
 const (

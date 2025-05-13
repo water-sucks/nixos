@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/fatih/color"
-	"github.com/water-sucks/nixos/internal/option"
+	"github.com/nix-community/nixos-cli/internal/option"
 )
 
 type PreviewModel struct {

@@ -6,9 +6,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/water-sucks/nixos/internal/cmd/opts"
-	"github.com/water-sucks/nixos/internal/generation"
-	timeUtils "github.com/water-sucks/nixos/internal/time"
+	"github.com/nix-community/nixos-cli/internal/cmd/opts"
+	"github.com/nix-community/nixos-cli/internal/generation"
+	timeUtils "github.com/nix-community/nixos-cli/internal/time"
 )
 
 type generationSet map[uint64]present

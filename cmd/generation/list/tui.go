@@ -13,10 +13,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
-	"github.com/water-sucks/nixos/cmd/generation/shared"
-	"github.com/water-sucks/nixos/internal/cmd/utils"
-	"github.com/water-sucks/nixos/internal/generation"
-	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/nix-community/nixos-cli/cmd/generation/shared"
+	"github.com/nix-community/nixos-cli/internal/cmd/utils"
+	"github.com/nix-community/nixos-cli/internal/generation"
+	"github.com/nix-community/nixos-cli/internal/logger"
 )
 
 var (

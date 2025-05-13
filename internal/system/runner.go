@@ -4,7 +4,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/nix-community/nixos-cli/internal/logger"
 )
 
 type CommandRunner interface {

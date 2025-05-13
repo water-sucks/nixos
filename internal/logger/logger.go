@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/fatih/color"
-	"github.com/water-sucks/nixos/internal/utils"
+	"github.com/nix-community/nixos-cli/internal/utils"
 )
 
 type Logger struct {

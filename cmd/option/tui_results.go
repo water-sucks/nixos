@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	"github.com/sahilm/fuzzy"
-	"github.com/water-sucks/nixos/internal/option"
+	"github.com/nix-community/nixos-cli/internal/option"
 )
 
 var (

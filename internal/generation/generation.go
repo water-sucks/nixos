@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/djherbis/times"
-	"github.com/water-sucks/nixos/internal/constants"
-	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/nix-community/nixos-cli/internal/constants"
+	"github.com/nix-community/nixos-cli/internal/logger"
 )
 
 func GetProfileDirectoryFromName(profile string) string {

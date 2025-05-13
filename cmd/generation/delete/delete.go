@@ -10,17 +10,17 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
-	"github.com/water-sucks/nixos/cmd/generation/shared"
-	"github.com/water-sucks/nixos/internal/build"
-	"github.com/water-sucks/nixos/internal/cmd/opts"
-	"github.com/water-sucks/nixos/internal/cmd/utils"
-	"github.com/water-sucks/nixos/internal/constants"
-	"github.com/water-sucks/nixos/internal/generation"
-	"github.com/water-sucks/nixos/internal/logger"
-	"github.com/water-sucks/nixos/internal/settings"
-	"github.com/water-sucks/nixos/internal/system"
-	timeUtils "github.com/water-sucks/nixos/internal/time"
-	"github.com/water-sucks/nixos/internal/utils"
+	"github.com/nix-community/nixos-cli/cmd/generation/shared"
+	"github.com/nix-community/nixos-cli/internal/build"
+	"github.com/nix-community/nixos-cli/internal/cmd/opts"
+	"github.com/nix-community/nixos-cli/internal/cmd/utils"
+	"github.com/nix-community/nixos-cli/internal/constants"
+	"github.com/nix-community/nixos-cli/internal/generation"
+	"github.com/nix-community/nixos-cli/internal/logger"
+	"github.com/nix-community/nixos-cli/internal/settings"
+	"github.com/nix-community/nixos-cli/internal/system"
+	timeUtils "github.com/nix-community/nixos-cli/internal/time"
+	"github.com/nix-community/nixos-cli/internal/utils"
 )
 
 func GenerationDeleteCommand(genOpts *cmdOpts.GenerationOpts) *cobra.Command {

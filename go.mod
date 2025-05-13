@@ -1,4 +1,4 @@
-module github.com/water-sucks/nixos
+module github.com/nix-community/nixos-cli
 
 go 1.23.0
 

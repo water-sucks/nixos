@@ -8,14 +8,14 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"github.com/water-sucks/nixos/internal/cmd/nixopts"
-	"github.com/water-sucks/nixos/internal/cmd/opts"
-	"github.com/water-sucks/nixos/internal/cmd/utils"
-	"github.com/water-sucks/nixos/internal/configuration"
-	"github.com/water-sucks/nixos/internal/logger"
-	"github.com/water-sucks/nixos/internal/settings"
+	"github.com/nix-community/nixos-cli/internal/cmd/nixopts"
+	"github.com/nix-community/nixos-cli/internal/cmd/opts"
+	"github.com/nix-community/nixos-cli/internal/cmd/utils"
+	"github.com/nix-community/nixos-cli/internal/configuration"
+	"github.com/nix-community/nixos-cli/internal/logger"
+	"github.com/nix-community/nixos-cli/internal/settings"
 
-	"github.com/water-sucks/nixos/internal/build"
+	"github.com/nix-community/nixos-cli/internal/build"
 )
 
 func ReplCommand() *cobra.Command {

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/water-sucks/nixos/internal/cmd/opts"
-	"github.com/water-sucks/nixos/internal/generation"
+	"github.com/nix-community/nixos-cli/internal/cmd/opts"
+	"github.com/nix-community/nixos-cli/internal/generation"
 )
 
 func TestResolveGenerationsToDelete(t *testing.T) {

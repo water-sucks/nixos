@@ -4,7 +4,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/nix-community/nixos-cli/internal/logger"
 )
 
 type LocalSystem struct {

@@ -5,12 +5,12 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/water-sucks/nixos/internal/cmd/opts"
-	"github.com/water-sucks/nixos/internal/configuration"
-	"github.com/water-sucks/nixos/internal/logger"
-	"github.com/water-sucks/nixos/internal/option"
-	"github.com/water-sucks/nixos/internal/settings"
-	"github.com/water-sucks/nixos/internal/system"
+	"github.com/nix-community/nixos-cli/internal/cmd/opts"
+	"github.com/nix-community/nixos-cli/internal/configuration"
+	"github.com/nix-community/nixos-cli/internal/logger"
+	"github.com/nix-community/nixos-cli/internal/option"
+	"github.com/nix-community/nixos-cli/internal/settings"
+	"github.com/nix-community/nixos-cli/internal/system"
 )
 
 func loadOptions(log *logger.Logger, cfg *settings.Settings, includes []string) (option.NixosOptionSource, error) {

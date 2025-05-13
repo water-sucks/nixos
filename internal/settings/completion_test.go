@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/water-sucks/nixos/internal/settings"
+	"github.com/nix-community/nixos-cli/internal/settings"
 )
 
 type TestCase struct {

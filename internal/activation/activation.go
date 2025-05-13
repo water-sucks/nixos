@@ -7,10 +7,10 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/water-sucks/nixos/internal/constants"
-	"github.com/water-sucks/nixos/internal/generation"
-	"github.com/water-sucks/nixos/internal/settings"
-	"github.com/water-sucks/nixos/internal/system"
+	"github.com/nix-community/nixos-cli/internal/constants"
+	"github.com/nix-community/nixos-cli/internal/generation"
+	"github.com/nix-community/nixos-cli/internal/settings"
+	"github.com/nix-community/nixos-cli/internal/system"
 )
 
 // Parse the generation's `nixos-cli` configuration to find the default specialisation

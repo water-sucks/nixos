@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/spf13/pflag"
-	"github.com/water-sucks/nixos/internal/build"
-	"github.com/water-sucks/nixos/internal/logger"
-	"github.com/water-sucks/nixos/internal/settings"
-	"github.com/water-sucks/nixos/internal/system"
+	"github.com/nix-community/nixos-cli/internal/build"
+	"github.com/nix-community/nixos-cli/internal/logger"
+	"github.com/nix-community/nixos-cli/internal/settings"
+	"github.com/nix-community/nixos-cli/internal/system"
 )
 
 type SystemBuildOptions struct {

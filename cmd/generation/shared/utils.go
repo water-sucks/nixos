@@ -1,8 +1,8 @@
 package genUtils
 
 import (
-	"github.com/water-sucks/nixos/internal/generation"
-	"github.com/water-sucks/nixos/internal/logger"
+	"github.com/nix-community/nixos-cli/internal/generation"
+	"github.com/nix-community/nixos-cli/internal/logger"
 )
 
 func LoadGenerations(log *logger.Logger, profileName string, reverse bool) ([]generation.Generation, error) {

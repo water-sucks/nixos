@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/water-sucks/nixos/internal/settings"
+	"github.com/nix-community/nixos-cli/internal/settings"
 )
 
 func main() {
@@ -111,7 +111,7 @@ func generateModuleDoc(filename string, rev string) error {
 	}
 	lines = lines[3:]
 
-	repoBaseURL := fmt.Sprintf("https://github.com/water-sucks/nixos/blob/%s", rev)
+	repoBaseURL := fmt.Sprintf("https://github.com/nix-community/nixos-cli/blob/%s", rev)
 
 	re := regexp.MustCompile(`(?m)^## \[` +
 		`(?P<name>.*?)` +

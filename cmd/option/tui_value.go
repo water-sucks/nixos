@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/fatih/color"
 	"github.com/muesli/termenv"
-	"github.com/water-sucks/nixos/internal/configuration"
+	"github.com/nix-community/nixos-cli/internal/configuration"
 )
 
 type EvalValueModel struct {
