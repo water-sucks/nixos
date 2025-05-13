@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5"
-	"github.com/spf13/cobra"
 	"github.com/nix-community/nixos-cli/internal/activation"
 	"github.com/nix-community/nixos-cli/internal/build"
 	"github.com/nix-community/nixos-cli/internal/cmd/nixopts"
@@ -21,6 +20,7 @@ import (
 	"github.com/nix-community/nixos-cli/internal/settings"
 	"github.com/nix-community/nixos-cli/internal/system"
 	"github.com/nix-community/nixos-cli/internal/utils"
+	"github.com/spf13/cobra"
 )
 
 func ApplyCommand(cfg *settings.Settings) *cobra.Command {

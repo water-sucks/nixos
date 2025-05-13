@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/nix-community/nixos-cli/internal/settings"
+	"github.com/spf13/cobra"
 )
 
 func main() {

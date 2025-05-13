@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/nix-community/nixos-cli/internal/settings"
+	"github.com/spf13/cobra"
 )
 
 type TestCase struct {

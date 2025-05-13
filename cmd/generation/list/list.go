@@ -9,12 +9,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/olekukonko/tablewriter"
 	"github.com/nix-community/nixos-cli/cmd/generation/shared"
 	"github.com/nix-community/nixos-cli/internal/cmd/opts"
 	"github.com/nix-community/nixos-cli/internal/cmd/utils"
 	"github.com/nix-community/nixos-cli/internal/generation"
 	"github.com/nix-community/nixos-cli/internal/logger"
+	"github.com/olekukonko/tablewriter"
 )
 
 func GenerationListCommand(genOpts *cmdOpts.GenerationOpts) *cobra.Command {

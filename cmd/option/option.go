@@ -11,8 +11,6 @@ import (
 	"github.com/charmbracelet/glamour"
 	glamourStyles "github.com/charmbracelet/glamour/styles"
 	"github.com/fatih/color"
-	"github.com/sahilm/fuzzy"
-	"github.com/spf13/cobra"
 	"github.com/nix-community/nixos-cli/internal/build"
 	"github.com/nix-community/nixos-cli/internal/cmd/nixopts"
 	"github.com/nix-community/nixos-cli/internal/cmd/opts"
@@ -22,6 +20,8 @@ import (
 	"github.com/nix-community/nixos-cli/internal/option"
 	"github.com/nix-community/nixos-cli/internal/settings"
 	"github.com/nix-community/nixos-cli/internal/system"
+	"github.com/sahilm/fuzzy"
+	"github.com/spf13/cobra"
 	"github.com/yarlson/pin"
 )
 

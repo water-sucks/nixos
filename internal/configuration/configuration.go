@@ -3,11 +3,11 @@ package configuration
 import (
 	"fmt"
 
-	"github.com/spf13/pflag"
 	"github.com/nix-community/nixos-cli/internal/build"
 	"github.com/nix-community/nixos-cli/internal/logger"
 	"github.com/nix-community/nixos-cli/internal/settings"
 	"github.com/nix-community/nixos-cli/internal/system"
+	"github.com/spf13/pflag"
 )
 
 type SystemBuildOptions struct {

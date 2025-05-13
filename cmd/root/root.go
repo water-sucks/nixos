@@ -6,11 +6,11 @@ import (
 	"os"
 
 	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 	buildVars "github.com/nix-community/nixos-cli/internal/build"
 	"github.com/nix-community/nixos-cli/internal/constants"
 	"github.com/nix-community/nixos-cli/internal/logger"
 	"github.com/nix-community/nixos-cli/internal/settings"
+	"github.com/spf13/cobra"
 
 	"github.com/nix-community/nixos-cli/internal/cmd/opts"
 

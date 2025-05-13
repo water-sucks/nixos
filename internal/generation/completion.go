@@ -8,10 +8,10 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/spf13/cobra"
 	"github.com/nix-community/nixos-cli/internal/cmd/opts"
 	"github.com/nix-community/nixos-cli/internal/constants"
 	"github.com/nix-community/nixos-cli/internal/logger"
+	"github.com/spf13/cobra"
 )
 
 var genLinkRegex = regexp.MustCompile(`-(\d+)-link$`)

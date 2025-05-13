@@ -6,8 +6,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
-	"github.com/sahilm/fuzzy"
 	"github.com/nix-community/nixos-cli/internal/option"
+	"github.com/sahilm/fuzzy"
 )
 
 var (

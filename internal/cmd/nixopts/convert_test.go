@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/nix-community/nixos-cli/internal/cmd/nixopts"
+	"github.com/spf13/cobra"
 )
 
 type nixOptions struct {

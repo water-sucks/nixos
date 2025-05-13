@@ -8,11 +8,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
-	"github.com/sahilm/fuzzy"
 	"github.com/nix-community/nixos-cli/internal/cmd/utils"
 	"github.com/nix-community/nixos-cli/internal/configuration"
 	"github.com/nix-community/nixos-cli/internal/option"
 	"github.com/nix-community/nixos-cli/internal/settings"
+	"github.com/sahilm/fuzzy"
 )
 
 var (

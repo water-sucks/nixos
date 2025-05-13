@@ -5,8 +5,8 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/spf13/cobra"
 	"github.com/nix-community/nixos-cli/internal/utils"
+	"github.com/spf13/cobra"
 )
 
 func addAliasCmd(parent *cobra.Command, alias string, args []string) error {
