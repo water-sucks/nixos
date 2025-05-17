@@ -15,51 +15,7 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Find branch to create update on
-        id: find_branch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          pr="$(gh pr list --json headRefName --json number -q \
-            '.[] | select(.headRefName=="update_flake_lock_inputs") | (.number)')"
-
-          if [ -n "$pr" ]; then
-            gh pr checkout "$pr"
-          else
-            git switch -c "update_flake_lock_inputs"
-          fi
-
-          echo "pr-number=$pr" >> $GITHUB_OUTPUT
-
       - name: Update flake.lock
-        run: nix flake update
-
-      - name: Commit and push changes
-        id: commit
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git add flake.lock
-          git commit -m "chore(deps): update nix flake inputs" || echo "no-commit-made=true" >> $GITHUB_OUTPUT
-          git push -u origin update_flake_lock_inputs
-
-      - name: Create a PR if it doesn't exist
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR: ${{ steps.find_branch.outputs.pr-number }}
-          NO_CREATE_PR: ${{ steps.commit.outputs.no-commit-made }}
-        run: |
-          if [ -n "$NO_COMMITTED_CHANGES" ]; then
-            echo "No commits were made, skipping PR creation"
-          elif [ -z "$PR" ]; then
-            gh pr create \
-              --base main \
-              --body "Automatic updates to flake.lock inputs" \
-              --label bot \
-              --title "chore(deps): update nix flake inputs"
-          fi
+        uses: DeterminateSystems/update-flake-lock@main
+        with:
+          token: ${{ secrets.GH_TOKEN_FOR_UPDATES }}
