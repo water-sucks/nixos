@@ -50,7 +50,7 @@ func loadOptions(log *logger.Logger, cfg *settings.Settings, includes []string) 
 	return options, nil
 }
 
-func OptionsCompletionFunc(opts *cmdOpts.OptionOpts) cmdOpts.CompletionFunc {
+func OptionsCompletionFunc(opts *cmdOpts.OptionOpts) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		log := logger.FromContext(cmd.Context())
 		cfg := settings.FromContext(cmd.Context())

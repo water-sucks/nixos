@@ -63,7 +63,7 @@ Arguments:
 	return &cmd
 }
 
-func completeSpecialisationFlag(profileName string) cmdOpts.CompletionFunc {
+func completeSpecialisationFlag(profileName string) cobra.CompletionFunc {
 	profileDirectory := constants.NixProfileDirectory
 	if profileName != "system" {
 		profileDirectory = constants.NixSystemProfileDirectory

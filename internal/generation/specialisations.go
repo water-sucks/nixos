@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nix-community/nixos-cli/internal/cmd/opts"
 	"github.com/nix-community/nixos-cli/internal/configuration"
 	"github.com/nix-community/nixos-cli/internal/logger"
 	"github.com/nix-community/nixos-cli/internal/settings"
@@ -65,7 +64,7 @@ func CollectSpecialisationsFromConfig(cfg configuration.Configuration) []string 
 	return specialisations
 }
 
-func CompleteSpecialisationFlag(generationDirname string) cmdOpts.CompletionFunc {
+func CompleteSpecialisationFlag(generationDirname string) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		specialisations, err := CollectSpecialisations(generationDirname)
 		if err != nil {
@@ -88,7 +87,7 @@ func CompleteSpecialisationFlag(generationDirname string) cmdOpts.CompletionFunc
 	}
 }
 
-func CompleteSpecialisationFlagFromConfig(flakeRefStr string, includes []string) cmdOpts.CompletionFunc {
+func CompleteSpecialisationFlagFromConfig(flakeRefStr string, includes []string) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		log := logger.FromContext(cmd.Context())
 		cfg := settings.FromContext(cmd.Context())

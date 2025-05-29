@@ -195,7 +195,7 @@ func findPreviousGeneration(log *logger.Logger, profileName string) (*generation
 	return &generations[currentGenIdx-1], nil
 }
 
-func completeSpecialisationFlag(profileName string) cmdOpts.CompletionFunc {
+func completeSpecialisationFlag(profileName string) cobra.CompletionFunc {
 	profileDirectory := constants.NixProfileDirectory
 	if profileName != "system" {
 		profileDirectory = constants.NixSystemProfileDirectory
