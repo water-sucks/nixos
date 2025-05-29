@@ -16,8 +16,8 @@ require (
 	github.com/knadh/koanf/v2 v2.1.2
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/sahilm/fuzzy v0.1.1
-	github.com/spf13/cobra v1.8.1
-	github.com/spf13/pflag v1.0.5
+	github.com/spf13/cobra v1.9.1
+	github.com/spf13/pflag v1.0.6
 	github.com/yarlson/pin v0.9.1
 	golang.org/x/term v0.28.0
 )
