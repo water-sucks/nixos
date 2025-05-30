@@ -22,6 +22,7 @@ import (
 	"github.com/sahilm/fuzzy"
 	"github.com/spf13/cobra"
 	"github.com/water-sucks/optnix/option"
+	optionTUI "github.com/water-sucks/optnix/tui"
 	"github.com/yarlson/pin"
 )
 
@@ -155,9 +156,14 @@ func optionMain(cmd *cobra.Command, opts *cmdOpts.OptionOpts) error {
 		return err
 	}
 
+	var evaluator option.EvaluatorFunc = func(optionName string) (string, error) {
+		value, err := nixosConfig.EvalAttribute(optionName)
+		return *value, err
+	}
+
 	if opts.Interactive {
 		spinner.Stop()
-		return optionTUI(options, nixosConfig, &cfg.Option, opts.OptionInput)
+		return optionTUI.OptionTUI(options, cfg.Option.MinScore, evaluator, opts.OptionInput)
 	}
 
 	spinner.UpdateMessage(fmt.Sprintf("Finding option %v...", opts.OptionInput))
