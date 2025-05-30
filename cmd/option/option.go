@@ -17,11 +17,11 @@ import (
 	"github.com/nix-community/nixos-cli/internal/cmd/utils"
 	"github.com/nix-community/nixos-cli/internal/configuration"
 	"github.com/nix-community/nixos-cli/internal/logger"
-	"github.com/nix-community/nixos-cli/internal/option"
 	"github.com/nix-community/nixos-cli/internal/settings"
 	"github.com/nix-community/nixos-cli/internal/system"
 	"github.com/sahilm/fuzzy"
 	"github.com/spf13/cobra"
+	"github.com/water-sucks/optnix/option"
 	"github.com/yarlson/pin"
 )
 
@@ -130,7 +130,7 @@ func optionMain(cmd *cobra.Command, opts *cmdOpts.OptionOpts) error {
 		}
 	}
 
-	optionsFile := prebuiltOptionCachePath
+	optionsFileName := prebuiltOptionCachePath
 	if !useCache {
 		f, err := buildOptionCache(s, nixosConfig)
 		if err != nil {
@@ -139,10 +139,16 @@ func optionMain(cmd *cobra.Command, opts *cmdOpts.OptionOpts) error {
 			log.Errorf("evaluation trace:", f)
 			return err
 		}
-		optionsFile = f
+		optionsFileName = f
 	}
 
-	options, err := option.LoadOptionsFromFile(optionsFile)
+	optionsFile, err := os.Open(optionsFileName)
+	if err != nil {
+		log.Errorf("failed to open options file %v: %v", optionsFileName, err)
+		return err
+	}
+
+	options, err := option.LoadOptions(optionsFile)
 	if err != nil {
 		spinner.Stop()
 		log.Errorf("failed to load options: %v", err)

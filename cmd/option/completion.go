@@ -7,10 +7,10 @@ import (
 	"github.com/nix-community/nixos-cli/internal/cmd/opts"
 	"github.com/nix-community/nixos-cli/internal/configuration"
 	"github.com/nix-community/nixos-cli/internal/logger"
-	"github.com/nix-community/nixos-cli/internal/option"
 	"github.com/nix-community/nixos-cli/internal/settings"
 	"github.com/nix-community/nixos-cli/internal/system"
 	"github.com/spf13/cobra"
+	"github.com/water-sucks/optnix/option"
 )
 
 func loadOptions(log *logger.Logger, cfg *settings.Settings, includes []string) (option.NixosOptionSource, error) {
@@ -30,7 +30,7 @@ func loadOptions(log *logger.Logger, cfg *settings.Settings, includes []string) 
 		useCache = false
 	}
 
-	optionsFile := prebuiltOptionCachePath
+	optionsFileName := prebuiltOptionCachePath
 	if !useCache {
 		log.Info("building options list")
 		f, err := buildOptionCache(s, nixosConfig)
@@ -38,10 +38,17 @@ func loadOptions(log *logger.Logger, cfg *settings.Settings, includes []string) 
 			log.Errorf("failed to build option list: %v", err)
 			return nil, err
 		}
-		optionsFile = f
+		optionsFileName = f
 	}
 
-	options, err := option.LoadOptionsFromFile(optionsFile)
+	optionsFile, err := os.Open(optionsFileName)
+	if err != nil {
+		log.Errorf("failed to open options file %v: %v", optionsFileName, err)
+		return nil, err
+	}
+	defer func() { _ = optionsFile.Close() }()
+
+	options, err := option.LoadOptions(optionsFile)
 	if err != nil {
 		log.Errorf("failed to load options: %v", err)
 		return nil, err
