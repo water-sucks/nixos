@@ -4,8 +4,6 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
-    flake-parts.url = "github:hercules-ci/flake-parts";
-
     flake-compat = {
       url = "github:edolstra/flake-compat";
       flake = false;
@@ -17,53 +15,45 @@
   outputs = {
     self,
     nixpkgs,
-    flake-parts,
     ...
   } @ inputs: let
     inherit (nixpkgs) lib;
-  in
-    flake-parts.lib.mkFlake {inherit inputs;} {
-      imports = [];
+    eachSystem = lib.genAttrs lib.systems.flakeExposed;
+    pkgsFor = system: nixpkgs.legacyPackages.${system};
+  in {
+    packages = eachSystem (system: let
+      pkgs = pkgsFor system;
+      inherit (pkgs) callPackage;
+    in {
+      default = self.packages.${pkgs.system}.nixos;
 
-      systems = lib.systems.flakeExposed;
-
-      perSystem = {
-        pkgs,
-        self',
-        system,
-        ...
-      }: let
-        inherit (pkgs) callPackage go golangci-lint mkShell mdbook scdoc;
-        inherit (pkgs.nodePackages) prettier;
-        nix-options-doc = inputs.nix-options-doc.packages.${system}.default;
-      in {
-        packages = {
-          default = self'.packages.nixos;
-
-          nixos = callPackage ./package.nix {
-            revision = self.rev or self.dirtyRev or "unknown";
-          };
-          nixosLegacy = self'.packages.nixos.override {flake = false;};
-        };
-
-        devShells.default = mkShell {
-          name = "nixos-shell";
-          nativeBuildInputs = [
-            go
-            golangci-lint
-
-            mdbook
-            prettier
-            scdoc
-            nix-options-doc
-          ];
-        };
+      nixos = callPackage ./package.nix {
+        revision = self.rev or self.dirtyRev or "unknown";
       };
+      nixosLegacy = self.packages.${pkgs.system}.nixos.override {flake = false;};
+    });
 
-      flake = {
-        nixosModules = {
-          nixos-cli = lib.modules.importApply ./module.nix self;
-        };
+    devShells = eachSystem (system: let
+      pkgs = pkgsFor system;
+      inherit (pkgs) go golangci-lint mkShell mdbook scdoc;
+      inherit (pkgs.nodePackages) prettier;
+
+      nix-options-doc = inputs.nix-options-doc.packages.${system}.default;
+    in {
+      default = mkShell {
+        name = "nixos-shell";
+        nativeBuildInputs = [
+          go
+          golangci-lint
+
+          mdbook
+          prettier
+          scdoc
+          nix-options-doc
+        ];
       };
-    };
+    });
+
+    nixosModules.nixos-cli = lib.modules.importApply ./module.nix self;
+  };
 }
