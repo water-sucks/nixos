@@ -6,11 +6,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
-	"strings"
 
-	"github.com/charmbracelet/glamour"
-	glamourStyles "github.com/charmbracelet/glamour/styles"
-	"github.com/fatih/color"
 	"github.com/nix-community/nixos-cli/internal/build"
 	"github.com/nix-community/nixos-cli/internal/cmd/nixopts"
 	"github.com/nix-community/nixos-cli/internal/cmd/opts"
@@ -158,7 +154,11 @@ func optionMain(cmd *cobra.Command, opts *cmdOpts.OptionOpts) error {
 
 	var evaluator option.EvaluatorFunc = func(optionName string) (string, error) {
 		value, err := nixosConfig.EvalAttribute(optionName)
-		return *value, err
+		realValue := ""
+		if value != nil {
+			realValue = *value
+		}
+		return realValue, err
 	}
 
 	if opts.Interactive {
@@ -176,23 +176,7 @@ func optionMain(cmd *cobra.Command, opts *cmdOpts.OptionOpts) error {
 
 		spinner.UpdateMessage("Evaluating option value...")
 
-		var evalTrace string
-		evaluatedValue, err := nixosConfig.EvalAttribute(o.Name)
-		if err != nil {
-			log.Errorf("failed to evaluate value for option '%s'", o.Name)
-
-			if e, ok := err.(*configuration.AttributeEvaluationError); ok {
-				evalTrace = e.EvaluationOutput
-				log.Infof("evaluation trace: %v", evalTrace)
-			}
-
-			if opts.DisplayValueOnly {
-				if evalTrace == "" {
-					evalTrace = "failed to evaluate value"
-				}
-				return fmt.Errorf("%v", evalTrace)
-			}
-		}
+		evaluatedValue, err := evaluator(o.Name)
 
 		spinner.Stop()
 
@@ -201,7 +185,10 @@ func optionMain(cmd *cobra.Command, opts *cmdOpts.OptionOpts) error {
 		} else if opts.DisplayValueOnly {
 			fmt.Printf("%v\n", evaluatedValue)
 		} else {
-			prettyPrintOption(&o, evaluatedValue, evalTrace, cfg.Option.Prettify)
+			fmt.Print(o.PrettyPrint(&option.ValuePrinterInput{
+				Value: evaluatedValue,
+				Err:   err,
+			}))
 		}
 
 		return nil
@@ -237,12 +224,12 @@ func optionMain(cmd *cobra.Command, opts *cmdOpts.OptionOpts) error {
 	return err
 }
 
-func displayOptionJson(o *option.NixosOption, evaluatedValue *string) {
+func displayOptionJson(o *option.NixosOption, evaluatedValue string) {
 	type optionJson struct {
 		Name         string   `json:"name"`
 		Description  string   `json:"description"`
 		Type         string   `json:"type"`
-		Value        *string  `json:"value"`
+		Value        string   `json:"value"`
 		Default      string   `json:"default"`
 		Example      string   `json:"example"`
 		Location     []string `json:"loc"`
@@ -290,103 +277,6 @@ func displayErrorJson(msg string, matches fuzzy.Matches) {
 		SimilarOptions: matchedStrings,
 	}, "", "  ")
 	fmt.Printf("%v\n", string(bytes))
-}
-
-func prettyPrintOption(o *option.NixosOption, evaluatedValue *string, evalTrace string, pretty bool) {
-	var (
-		titleStyle  = color.New(color.Bold)
-		italicStyle = color.New(color.Italic)
-	)
-
-	desc := strings.TrimSpace(stripInlineCodeAnnotations(o.Description))
-	if desc == "" {
-		desc = italicStyle.Sprint("(none)")
-	} else {
-		if pretty {
-			r := markdownRenderer()
-			d, err := r.Render(desc)
-			if err != nil {
-				desc = italicStyle.Sprintf("warning: failed to render description: %v\n", err) + desc
-			} else {
-				desc = strings.TrimSpace(d)
-			}
-		}
-	}
-
-	valueText := ""
-	if evaluatedValue == nil {
-		valueText = "failed to evaluate value"
-		if evalTrace != "" {
-			valueText += fmt.Sprintf(" %v: %v", valueText, evalTrace)
-		}
-		valueText = color.RedString(valueText)
-	} else {
-		valueText = color.WhiteString(strings.TrimSpace(*evaluatedValue))
-	}
-
-	var defaultText string
-	if o.Default != nil {
-		defaultText = color.WhiteString(strings.TrimSpace(o.Default.Text))
-	} else {
-		defaultText = italicStyle.Sprint("(none)")
-	}
-
-	exampleText := ""
-	if o.Example != nil {
-		exampleText = color.WhiteString(strings.TrimSpace(o.Example.Text))
-	}
-
-	fmt.Printf("%v\n%v\n\n", titleStyle.Sprint("Name"), o.Name)
-	fmt.Printf("%v\n%v\n\n", titleStyle.Sprint("Description"), desc)
-	fmt.Printf("%v\n%v\n\n", titleStyle.Sprint("Type"), italicStyle.Sprint(o.Type))
-
-	fmt.Printf("%v\n%v\n\n", titleStyle.Sprint("Value"), valueText)
-	fmt.Printf("%v\n%v\n\n", titleStyle.Sprint("Default"), defaultText)
-	if exampleText != "" {
-		fmt.Printf("%v\n%v\n\n", titleStyle.Sprint("Example"), exampleText)
-	}
-
-	if len(o.Declarations) > 0 {
-		fmt.Printf("%v\n", titleStyle.Sprint("Declared In"))
-		for _, v := range o.Declarations {
-			fmt.Printf("  - %v\n", italicStyle.Sprint(v))
-		}
-	}
-	if o.ReadOnly {
-		fmt.Printf("\n%v\n", color.YellowString("This option is read-only."))
-	}
-}
-
-var markdownRenderIndentWidth uint = 0
-
-func markdownRenderer() *glamour.TermRenderer {
-	glamourStyles.DarkStyleConfig.Document.Margin = &markdownRenderIndentWidth
-
-	r, _ := glamour.NewTermRenderer(
-		glamour.WithStyles(glamourStyles.DarkStyleConfig),
-		glamour.WithWordWrap(80),
-	)
-
-	return r
-}
-
-var annotationsToRemove = []string{
-	"{option}`",
-	"{var}`",
-	"{file}`",
-	"{env}`",
-	"{command}`",
-	"{manpage}`",
-}
-
-func stripInlineCodeAnnotations(slice string) string {
-	result := slice
-
-	for _, input := range annotationsToRemove {
-		result = strings.ReplaceAll(result, input, "`")
-	}
-
-	return result
 }
 
 // Filter a sorted (descending) match list until a minimum score is reached.
