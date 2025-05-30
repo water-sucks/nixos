@@ -163,7 +163,7 @@ func optionMain(cmd *cobra.Command, opts *cmdOpts.OptionOpts) error {
 
 	if opts.Interactive {
 		spinner.Stop()
-		return optionTUI.OptionTUI(options, cfg.Option.MinScore, evaluator, opts.OptionInput)
+		return optionTUI.OptionTUI(options, cfg.Option.MinScore, cfg.Option.DebounceTime, evaluator, opts.OptionInput)
 	}
 
 	spinner.UpdateMessage(fmt.Sprintf("Finding option %v...", opts.OptionInput))
