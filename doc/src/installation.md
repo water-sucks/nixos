@@ -79,7 +79,7 @@ this repository. An example is provided below with `builtins.fetchTarball`:
 
 let
   # In pure evaluation mode, always use a full Git commit hash instead of a branch name.
-  nixos-cli-url = "github:nix-community/nixos-cli/archive/GITREVORBRANCHDEADBEEFDEADBEEF0000.tar.gz"
+  nixos-cli-url = "github:nix-community/nixos-cli/archive/GITREVORBRANCHDEADBEEFDEADBEEF0000.tar.gz";
   nixos-cli = import "${builtins.fetchTarball nixos-cli-url}" {inherit pkgs;};
 in {
   imports = [
