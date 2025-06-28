@@ -19,3 +19,5 @@ jobs:
         uses: DeterminateSystems/update-flake-lock@main
         with:
           token: ${{ secrets.GH_TOKEN_FOR_UPDATES }}
+          pr-title: 'chore(deps): update nix flake inputs'
+          commit-msg: 'chore(deps): update nix flake inputs'
