@@ -10,5 +10,6 @@
 # Community
 
 - [FAQ](faq.md)
+- [Comparisons](comparisons.md)
 - [Contributing](contributing.md)
 - [Roadmap](roadmap.md)

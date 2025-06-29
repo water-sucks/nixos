@@ -5,11 +5,14 @@
 
 ## Why?
 
-NixOS tooling today is fragmented across large, aging shell and Perl scripts
-that are difficult to maintain or extend. Prolific examples include:
+NixOS tooling today is fragmented across large, aging shell and other assorted
+scripts/projects that are difficult to maintain or extend. Prolific examples
+include:
 
 - [`nixos-rebuild.sh`](https://github.com/NixOS/nixpkgs/blob/master/pkgs/os-specific/linux/nixos-rebuild/nixos-rebuild.sh)
-- [`switch-to-configuration.pl`](https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/system/activation/switch-to-configuration.pl)
+  (a mess of convoluted Bash)
+- [`switch-to-configuration-ng`](https://github.com/NixOS/nixpkgs/tree/master/pkgs/by-name/sw/switch-to-configuration-ng),
+  (a Rust project), as well as the old implementation in Perl
 
 These tools contain deep functionality, but much of it is hidden, hard to
 modify, or locked behind poor ergonomics.
@@ -34,6 +37,9 @@ including (but not limited to the following)
 - Creating a self-contained NixOS manager binary that includes routine scripts
   such as `switch-to-configuration` activation functionality
 - Plugins for further NixOS tooling to be developed out-of-tree
+
+Check the [comparisons](./comparisons.md) page for an overview of how this tool
+differs from existing ecosystem tools.
 
 ## Key Features
 
