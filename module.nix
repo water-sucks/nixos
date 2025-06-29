@@ -1,4 +1,7 @@
-self: {
+{
+  self,
+  useFlakePkg ? true,
+}: {
   options,
   config,
   pkgs,
@@ -17,7 +20,10 @@ in {
 
     package = lib.mkOption {
       type = types.package;
-      default = self.packages.${pkgs.system}.nixos;
+      default =
+        if useFlakePkg
+        then self.packages.${pkgs.system}.nixos
+        else self.packages.${pkgs.system}.nixosLegacy;
       description = "Package to use for nixos-cli";
     };
 
