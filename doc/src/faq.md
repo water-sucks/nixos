@@ -6,17 +6,10 @@ Yes! I will be writing an RFC to see if people are interested in this.
 
 That's my ultimate goal, anyway.
 
-## What about [`nh`](https://github.com/nix-community/nh)? Isn't that better since it supports more OSes?
+## Aren't there other people doing what you're doing?
 
-`nh` is a more popular application in this realm, perhaps because it looked
-prettier due to the earlier `nix-output-monitor` and `nvd` integration, and is
-significantly older than `nixos-cli`.
-
-However, I prefer to keep the focus on NixOS here, while `nh` tries to be a
-unified `rebuild` + `switch` manager for multiple OSes. That's the difference.
-
-`nixos-cli` also has more features than `nh` for NixOS-based machines, so that's
-a plus.
+Yes! Check the [comparisons](./comparisons.md) page for a listing of there tools
+as well as some pros/cons to each one.
 
 ## What about `home-manager` and `nix-darwin`? Will you support those systems?
 
@@ -35,14 +28,11 @@ same, but the options are different, and I'm lazy. So no.
 
 ## Can the option search work with other sources?
 
-It's theoretically possible, as long as the modules can be evaluated with
-`lib.evalModules`. As such, `home-manager`, `nix-darwin`, and even `flake-parts`
-are possible to do!
+Yes! However, this has been moved to a separate tool called
+[`optnix`](https://github.com/water-sucks/optnix).
 
-However, this tends to significantly increase evaluation time, and will depend
-on the system to eval. I plan to break out the option search UI into a separate
-project that can be more generalized, and add it back to this one as a plugin of
-sorts.
+`nixos option -i` actually uses `optnix` as a library within its code, so it is
+exactly the same UX.
 
 ## More questions?
 
