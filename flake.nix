@@ -54,6 +54,6 @@
       };
     });
 
-    nixosModules.nixos-cli = lib.modules.importApply ./module.nix self;
+    nixosModules.nixos-cli = lib.modules.importApply ./module.nix {inherit self;};
   };
 }

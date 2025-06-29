@@ -66,8 +66,8 @@ Then, enable the module.
 }
 ```
 
-The default package is flake-enabled, so the `services.nixos-cli.package` option
-does not need to be specified.
+The default package is flake-enabled in this setup, so the
+`services.nixos-cli.package` option does not need to be specified.
 
 ### Legacy
 
@@ -88,7 +88,6 @@ in {
 
   services.nixos-cli = {
     enable = true;
-    package = nixos-cli.nixosLegacy;
     config = {
       # Other configuration for nixos-cli
     };
@@ -98,12 +97,9 @@ in {
 }
 ```
 
-NOTE: Use the `nixosLegacy` package. Specifying the `services.nixos-cli.package`
-option is required for legacy configurations, due to the fact that the default
-package is for flake configurations only. If there is a reliable way to detect
-if a configuration is flake-enabled, please file an
-[issue](https://github.com/nix-community/nixos-cli/issues/new/choose) so that
-this requirement can be removed.
+NOTE: By default, importing like this will use the `nixosLegacy` package by
+default, so there is no need to specify the `services.nixos-cli.package`
+attribute manually in this setup unless overriding something.
 
 ## Cache
 
